@@ -9905,7 +9905,17 @@ app.post('/api/log', express.json(), (req, res) => {
     speedBands: CorridorSpeedBand[];
     /** Segment lengths and running totals, measured once when the corridor is built. */
     dists: number[]; cumulative: number[];
+    /** Permitted freight speed at each whole kilometre along the corridor. */
+    speedByKm: Float32Array;
+    /** Operational points along the corridor, so a position can be named. */
+    namedPoints: { km: number; name: string }[];
   };
+
+  /**
+   * What a freight train may do regardless of what the track permits: speed
+   * class H1 in the network statement, 100 km/h.
+   */
+  const FREIGHT_SPEED_CAP_KMH = 100;
   const corridorTrackCache = new Map<string, CorridorTrack | null>();
 
   /**
@@ -10023,9 +10033,34 @@ app.post('/api/log', express.json(), (req, res) => {
     // long one it sits inside.
     speedBands.sort((x, y) => (x.toKm - x.fromKm) - (y.toKm - y.fromKm));
 
-    const result: CorridorTrack = { track, totalKm, kmAt: {}, speedBands, dists, cumulative };
+    // Permitted freight speed per kilometre, so the reachability integration
+    // below is a table lookup rather than a scan of 86 bands per step.
+    const speedByKm = new Float32Array(Math.ceil(totalKm) + 1);
+    speedByKm.fill(FREIGHT_SPEED_CAP_KMH);
+    // Longest first here: a specific band (a station throat) must overwrite the
+    // long one it sits inside, which is the opposite of the lookup order.
+    for (const b of [...speedBands].sort((x, y) => (y.toKm - y.fromKm) - (x.toKm - x.fromKm))) {
+      const v = Math.min(b.speedKmh, FREIGHT_SPEED_CAP_KMH);
+      for (let k = Math.floor(b.fromKm); k <= Math.ceil(b.toKm) && k < speedByKm.length; k++) {
+        if (k >= 0) speedByKm[k] = v;
+      }
+    }
+
+    // Every operational point the speed sections name, placed on the corridor,
+    // so a kilometre can be reported as "between Pragersko and Ormož".
+    const namedSeen = new Map<string, number>();
+    for (const sec of (lineSpeedData?.sections ?? [])) {
+      for (const [name, coord] of [[sec.from, sec.a], [sec.to, sec.b]] as [string, [number, number]][]) {
+        if (namedSeen.has(name)) continue;
+        const at = kmAlongTrack(track, coord[1], coord[0], dists, cumulative);
+        if (at.offKm <= 1.5) namedSeen.set(name, at.km);
+      }
+    }
+    const namedPoints = [...namedSeen].map(([name, km]) => ({ name, km })).sort((a, b) => a.km - b.km);
+
+    const result: CorridorTrack = { track, totalKm, kmAt: {}, speedBands, dists, cumulative, speedByKm, namedPoints };
     corridorTrackCache.set(corridor, result);
-    console.log(`[RFC6] corridor ${corridor}: ${Math.round(totalKm)} km, ${speedBands.length} sections with a published line speed`);
+    console.log(`[RFC6] corridor ${corridor}: ${Math.round(totalKm)} km, ${speedBands.length} sections with a published line speed, ${namedPoints.length} named points`);
   }
 
   // Prepared at startup rather than on the first request, and sequentially so
@@ -10040,6 +10075,42 @@ app.post('/api/log', express.json(), (req, res) => {
   function lineSpeedAt(geo: CorridorTrack, km: number): CorridorSpeedBand | null {
     for (const b of geo.speedBands) if (km >= b.fromKm && km <= b.toKm) return b;
     return null;
+  }
+
+  /**
+   * How far along the corridor a train can get from `fromKm` toward `towardKm`
+   * in `minutes`, running at the permitted speed the whole way.
+   *
+   * This is what turns the catalogue into a bound rather than a guess. The
+   * published times fix the position only at the timing points; between them
+   * the only certainties are that the train cannot outrun the line and cannot
+   * arrive later than the next published time. Integrating the real speed
+   * profile gives both edges of what is actually possible.
+   */
+  function reachableKm(geo: CorridorTrack, fromKm: number, minutes: number, towardKm: number): number {
+    if (!(minutes > 0)) return fromKm;
+    const dir = towardKm >= fromKm ? 1 : -1;
+    let km = fromKm, left = minutes;
+    const STEP = 0.5;
+    for (let guard = 0; guard < 4000; guard++) {
+      if (left <= 0) break;
+      if (dir > 0 ? km >= towardKm : km <= towardKm) break;
+      const v = geo.speedByKm[Math.max(0, Math.min(geo.speedByKm.length - 1, Math.round(km)))] || FREIGHT_SPEED_CAP_KMH;
+      const dtMin = (STEP / v) * 60;
+      if (dtMin > left) { km += dir * v * (left / 60); break; }
+      km += dir * STEP;
+      left -= dtMin;
+    }
+    return dir > 0 ? Math.min(km, towardKm) : Math.max(km, towardKm);
+  }
+
+  /** Where a kilometre falls among the named operational points. */
+  function nameAtKm(geo: CorridorTrack, km: number): string | null {
+    const pts = geo.namedPoints;
+    if (!pts.length) return null;
+    let best = pts[0], bestD = Math.abs(pts[0].km - km);
+    for (const p of pts) { const d = Math.abs(p.km - km); if (d < bestD) { bestD = d; best = p; } }
+    return bestD <= 3 ? best.name : `pri ${best.name}`;
   }
 
   function corridorFreightPositions() {
@@ -10103,6 +10174,7 @@ app.post('/api/log', express.json(), (req, res) => {
       // so this is a real average over that leg, not a guessed cruising speed.
       let km = legs[0].km;
       let legSpeed: number | null = null;
+      let bandLoKm: number | null = null, bandHiKm: number | null = null, bandLegKm = 0;
       let prevPoint: any = null, nextPoint: any = null;
       for (let i = 0; i < legs.length - 1; i++) {
         const a = legs[i], b = legs[i + 1];
@@ -10110,6 +10182,16 @@ app.post('/api/log', express.json(), (req, res) => {
         if (elapsed >= t0 && elapsed <= t1 && t1 > t0) {
           km = a.km + (b.km - a.km) * ((elapsed - t0) / (t1 - t0));
           legSpeed = Math.abs(b.km - a.km) / ((t1 - t0) / 60);
+          // Both edges of where the train can actually be, from the published
+          // times and the permitted speed. Narrow near a timing point, wide in
+          // the middle of a long leg — which is the honest picture.
+          const sinceA = Math.max(0, elapsed - t0);
+          const untilB = Math.max(0, t1 - elapsed);
+          const aheadKm = reachableKm(geo, a.km, sinceA, b.km);
+          const behindKm = reachableKm(geo, b.km, untilB, a.km);
+          bandLoKm = Math.min(aheadKm, behindKm);
+          bandHiKm = Math.max(aheadKm, behindKm);
+          bandLegKm = Math.abs(b.km - a.km);
           prevPoint = { location: a.loc, time: p.timingPoints[i]?.departure ?? null };
           nextPoint = {
             location: b.loc,
@@ -10144,6 +10226,44 @@ app.post('/api/log', express.json(), (req, res) => {
       const band = lineSpeedAt(geo, alongKm);
       const lineSpeedKmh = band?.speedKmh ?? null;
 
+      // Where the train can be, as opposed to where proportional interpolation
+      // puts it. `positionKm` is inside this band by construction.
+      let positionBand: any = null;
+      if (bandLoKm != null && bandHiKm != null) {
+        const lo = Math.max(0, Math.min(geo.totalKm, bandLoKm));
+        const hi = Math.max(0, Math.min(geo.totalKm, bandHiKm));
+        const loPos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, lo / geo.totalKm)));
+        const hiPos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, hi / geo.totalKm)));
+        const legKm = bandLegKm || Math.abs(hi - lo);
+        positionBand = {
+          fromKm: Math.round(lo * 10) / 10,
+          toKm: Math.round(hi * 10) / 10,
+          widthKm: Math.round((hi - lo) * 10) / 10,
+          legKm: Math.round(legKm * 10) / 10,
+          sharePercent: legKm > 0 ? Math.round(((hi - lo) / legKm) * 100) : null,
+          fromName: nameAtKm(geo, lo),
+          toName: nameAtKm(geo, hi),
+          fromCoord: [loPos.lon, loPos.lat],
+          toCoord: [hiPos.lon, hiPos.lat],
+          // The band follows the rails, so it is sent as a polyline rather than
+          // as two ends the client would have to join across country. Sampled
+          // about every two kilometres: enough to sit on the track at any zoom
+          // the map offers, small enough to ride along in a feature property.
+          coords: (() => {
+            const out: [number, number][] = [];
+            const span = hi - lo;
+            const steps = Math.max(2, Math.min(160, Math.round(span / 2)));
+            for (let i = 0; i <= steps; i++) {
+              const at = lo + (span * i) / steps;
+              const q = interpolatePolyline(geo.track, Math.max(0, Math.min(1, at / geo.totalKm)));
+              out.push([Math.round(q.lon * 1e5) / 1e5, Math.round(q.lat * 1e5) / 1e5]);
+            }
+            return out;
+          })(),
+          basis: 'Skrajni legi, ki ju dopuščata objavljena časa in progovna hitrost (ERA RINF, omejeno na 100 km/h za razred H1). Točka na mapi je sorazmerna interpolacija znotraj tega pasu, ne meritev.'
+        };
+      }
+
       const entry = {
         papId: p.papId,
         trainNumber: p.trainNumberSZ,
@@ -10162,6 +10282,7 @@ app.post('/api/log', express.json(), (req, res) => {
         lineSpeedKmh,
         lineSpeedSection: band?.section ?? null,
         lineSpeedBasis: 'Največja dovoljena progovna hitrost odseka (ERA RINF). Ni hitrost tega vlaka.',
+        positionBand,
         // Kept, but no longer presented as the train's speed.
         legAverageKmh,
         legAverageBasis: 'Povprečje med dvema objavljenima točkama kataloga, vključno s postanki vmes — ne trenutna hitrost.',
@@ -10191,6 +10312,8 @@ app.post('/api/log', express.json(), (req, res) => {
         properties: {
           ...entry, id: `pap_${p.papId}`, type: 'corridor_freight_path',
           heading: Math.round(heading), bearing: Math.round(heading),
+          // Flat scalar so the map label can read it without parsing JSON.
+          ...(positionBand ? { bandHalfKm: Math.round(positionBand.widthKm / 2) } : {}),
           kmAlong: Math.round(alongKm * 10) / 10, routeKm: Math.round(geo.totalKm * 10) / 10,
           isPublishedPath: true
         }

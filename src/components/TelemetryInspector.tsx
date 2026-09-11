@@ -996,6 +996,43 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                     </div>
                   </div>
 
+                  {/* How far the icon can be out. Derived, not guessed: the two
+                      ends are the furthest the train could have got from the
+                      last published time at line speed, and the least far it
+                      can be and still make the next one. */}
+                  {(() => {
+                    const pb: any = unpack(raw.positionBand);
+                    if (!pb) return null;
+                    const pct = pb.sharePercent ?? 0;
+                    const tone = pct >= 80 ? 'border-red-500/40 bg-red-950/30' : pct >= 40 ? 'border-amber-500/40 bg-amber-950/25' : 'border-emerald-500/40 bg-emerald-950/25';
+                    const dot = pct >= 80 ? 'bg-red-400' : pct >= 40 ? 'bg-amber-400' : 'bg-emerald-400';
+                    return (
+                      <div className={`rounded-xl border p-3 ${tone}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-[10px] uppercase font-mono tracking-wider text-white/70">Negotovost lege</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                            <span className="font-mono text-[12px] font-bold text-white">± {Math.round(pb.widthKm / 2)} km</span>
+                          </div>
+                        </div>
+                        <div className="mt-1.5 text-[12px] text-white/90 leading-snug">
+                          Nekje med <strong>{pb.fromName || '?'}</strong> in <strong>{pb.toName || '?'}</strong>
+                        </div>
+                        {/* The band as a share of the leg it is on. */}
+                        <div className="mt-2 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <div className={`h-full ${dot}`} style={{ width: `${Math.max(2, Math.min(100, pct))}%` }} />
+                        </div>
+                        <div className="mt-1 text-[9.5px] font-mono text-white/55">
+                          {pb.widthKm} km od {pb.legKm} km odseka ({pct}%)
+                          {pct >= 80 ? ' — katalog lege na tem odseku praktično ne določa' : ''}
+                        </div>
+                        {pb.basis && (
+                          <p className="mt-1.5 text-[10px] leading-snug text-white/60">{pb.basis}</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* The legs outside Slovenia, so a train that only crosses
                       the country can be read end to end. */}
                   {(() => {

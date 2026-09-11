@@ -1237,6 +1237,23 @@ export class MapController {
       // wide fuchsia band along the rails to show a position window; it read as
       // a second, pink railway line rather than as uncertainty, so it is gone.
       // What the estimate is worth is said in words in the panel instead.
+      // Where a selected freight path can actually be, drawn along the track.
+      //
+      // Only ever for the one train the user has open — the earlier version
+      // painted a band over every path at all times and read as a second, pink
+      // railway line rather than as uncertainty.
+      this.map.addSource('freight_band', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      this.map.addLayer({
+        id: 'freight_band', type: 'line', source: 'freight_band',
+        layout: { 'line-cap': 'butt', 'line-join': 'round' },
+        paint: {
+          'line-color': '#f97316',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 7, 3, 12, 6, 16, 9],
+          'line-opacity': 0.35,
+          'line-dasharray': [2, 1.5]
+        }
+      });
+
       this.map.addSource('freight_paths', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addLayer({
         id: 'freight_paths', type: 'symbol', source: 'freight_paths',
@@ -1265,7 +1282,13 @@ export class MapController {
               ['has', 'lineSpeedKmh'],
               ['concat', ' · proga ≤', ['get', 'lineSpeedKmh'], ' km/h'],
               ''],
-            '\n', ['get', 'direction']
+            '\n', ['get', 'direction'],
+            // How far the position can be out. Without it the icon claims a
+            // precision the catalogue does not have.
+            ['case',
+              ['has', 'bandHalfKm'],
+              ['concat', ' · lega ±', ['get', 'bandHalfKm'], ' km'],
+              '']
           ],
           'text-size': 10.5,
           'text-offset': [0, 1.4],
@@ -1445,6 +1468,15 @@ export class MapController {
              if (routeSource) routeSource.setData({ type: 'FeatureCollection', features: [] });
           }
 
+          // Properties arrive flattened, so a nested object is JSON text.
+          if (type === 'freight_paths') {
+            let pb: any = p.positionBand;
+            if (typeof pb === 'string') { try { pb = JSON.parse(pb); } catch { pb = null; } }
+            this.setFreightBand(pb);
+          } else {
+            this.setFreightBand(null);
+          }
+
           const node = this.buildTelemetryNode(type, p, coords as [number, number]);
 
           if (node.metrics.some((m: any) => m.id === "era-loading")) {
@@ -1493,7 +1525,8 @@ export class MapController {
 
           this.onSelectNode(node);
         } else {
-          this.clearSelectedTrip();
+          // Tapping empty map: clear the uncertainty band, if one is shown.
+          this.setFreightBand(null);
           // Check if they clicked on the base map railway
           const allFeatures = this.map.queryRenderedFeatures(bbox);
           const railFeature = allFeatures.find(f => 
@@ -1555,6 +1588,7 @@ export class MapController {
     toggle(layerKey + '_label');
     toggle(layerKey + '_arrow');
     toggle(layerKey + '_glow');
+    toggle(layerKey + '_band');
     
     if (layerKey === 'tent_railways') {
       toggle('tent_railways');
@@ -1676,11 +1710,33 @@ export class MapController {
      // or for now, just ignore it so we don't break the map unless we wrote a full re-render.
   }
 
+  /**
+   * Draw (or clear) the reachability band for one freight path.
+   *
+   * The band is the stretch the published times and the permitted line speed
+   * together allow the train to be in. It is the honest counterpart to the
+   * icon, which sits at a proportional interpolation inside it.
+   */
+  public setFreightBand(band: { coords?: [number, number][] } | null): void {
+    const src = this.map?.getSource('freight_band') as maplibregl.GeoJSONSource | undefined;
+    if (!src) return;
+    const coords = band?.coords;
+    if (!coords || coords.length < 2) {
+      src.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+    // The server sends the band already following the rails.
+    src.setData({
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }]
+    });
+  }
+
   public clearSelectedNode() { 
     this.activeSelectedNodeId = null; 
     this.activeSelectedNodeType = null; 
     this.lastSelectedNodeSignature = '';
-    this.clearSelectedTrip();
+    this.setFreightBand(null);
   }
   private isPolling = false;
   private lastFetchTime = 0;
