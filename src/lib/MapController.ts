@@ -120,6 +120,9 @@ export class MapController {
 
   
   
+  private styleFellBack = false;
+  private styleLoadWatchdog: ReturnType<typeof setTimeout> | null = null;
+
   private initMap() {
     this.map = new maplibregl.Map({
       container: this.container,
@@ -137,10 +140,31 @@ export class MapController {
       console.error("MAP ERROR:", e);
     });
 
+    // Resilience: everything downstream (icon loading, layer setup, data
+    // polling, clearing the loading overlay) is gated on the map's 'load'
+    // event. If the primary basemap style fails to download — a transient CDN
+    // reset, a blocked host, a flaky mobile connection — 'load' never fires and
+    // the app hangs on the loading spinner forever. If the map is not ready a
+    // few seconds after init, switch to a fallback style hosted on a different
+    // origin so 'load' can still fire and the app can start. (MapLibre fires
+    // 'load' the first time any style finishes loading, so the existing
+    // handler below runs for the fallback too.)
+    this.styleLoadWatchdog = setTimeout(() => {
+      if (this.isReady || this.styleFellBack) return;
+      this.styleFellBack = true;
+      console.warn('[MAP] Primary basemap did not load in time; switching to fallback basemap.');
+      try {
+        this.map.setStyle('https://demotiles.maplibre.org/style.json');
+      } catch (err) {
+        console.error('[MAP] Fallback setStyle failed:', err);
+      }
+    }, 8000);
+
     
 
 
   this.map.on('load', async () => {
+      if (this.styleLoadWatchdog) { clearTimeout(this.styleLoadWatchdog); this.styleLoadWatchdog = null; }
     await this.loadIcons();
       this.isReady = true;
 
@@ -4001,6 +4025,7 @@ export class MapController {
     await Promise.all(iconPromises);
   }
   public destroy() {
+    if (this.styleLoadWatchdog) { clearTimeout(this.styleLoadWatchdog); this.styleLoadWatchdog = null; }
     if (this.pollingInterval) clearTimeout(this.pollingInterval);
     if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
     if (this.rafId) cancelAnimationFrame(this.rafId);

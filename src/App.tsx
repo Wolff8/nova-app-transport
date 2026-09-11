@@ -24,6 +24,15 @@ export default function App() {
   // Ref buffer for telemetry logs to prevent re-render thrashing
   const logBufferRef = useRef<TelemetryLogEntry[]>([]);
 
+  // Safety net: never trap the user on the loading overlay. The overlay is
+  // normally dismissed by the first telemetry broadcast, but if the map or its
+  // data pipeline stalls (e.g. a basemap CDN hiccup), force it away so the map
+  // and controls become usable instead of showing an indefinite spinner.
+  useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 20000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     if (!isStreamOpen) return;
 
