@@ -79,7 +79,12 @@ export const DYNAMIC_MOVING_SOURCES = new Set<string>([
   'aircraft',
   'freight_trains',
   'eurorail',
-  'micromobility'
+  'micromobility',
+  // Catalogue freight paths move continuously along the corridor, so they
+  // belong in the interpolation system like everything else that moves. They
+  // used to be written straight to the source on a thirty-second timer, which
+  // teleported them from one position to the next with nothing in between.
+  'freight_paths'
 ]);
 
 export interface VehicleMotionEntity {
@@ -1463,14 +1468,21 @@ export class MapController {
       if (!this.modelledFreightTimer) {
         const pushPaths = () => {
           loadCorridorFreightPaths().then(gj => {
-            const src = this.map?.getSource('freight_paths') as maplibregl.GeoJSONSource | undefined;
-            if (src && gj?.features) src.setData(gj);
+            if (!gj?.features) return;
+            // Flattened into the shape the differential-motion path expects,
+            // so these glide between fixes instead of jumping on each poll.
+            const rows = gj.features.map((f: any) => {
+              const c = f.geometry?.coordinates || [];
+              return { ...f.properties, lon: c[0], lat: c[1] };
+            }).filter((r: any) => Number.isFinite(r.lon) && Number.isFinite(r.lat));
+            this.updateGeoJSONSource('freight_paths', rows);
           }).catch(() => {});
         };
         pushPaths();
-        // The published times move a train a few hundred metres a minute, so a
-        // thirty-second tick is smooth enough and costs one small request.
-        this.modelledFreightTimer = window.setInterval(pushPaths, 30000);
+        // Ten seconds rather than thirty: the interpolation spans whatever gap
+        // it is given, and a shorter one keeps the glide close to the
+        // published timings instead of extrapolating half a minute of it.
+        this.modelledFreightTimer = window.setInterval(pushPaths, 10000);
       }
 
       // Freight Trains Layer (Corridor Approximation)
@@ -2130,9 +2142,11 @@ export class MapController {
         sourceId === 'hafas' ||
         sourceId === 'freight_trains' ||
         sourceId === 'eurorail' ||
+        sourceId === 'freight_paths' ||
         a.type === 'train' ||
         a.type === 'freight_train' ||
-        a.type === 'freight'
+        a.type === 'freight' ||
+        a.type === 'corridor_freight_path'
       );
 
       if (!motion) {
@@ -2196,7 +2210,7 @@ export class MapController {
           // the feed last claimed for it.
           a.speed = this.decayIdleSpeed(motion, now);
           if (sourceId === 'aircraft') a.true_track = h;
-          if (sourceId === 'freight_trains') a.bearing = h;
+          if (sourceId === 'freight_trains' || sourceId === 'freight_paths') a.bearing = h;
           continue;
         }
 
@@ -2234,7 +2248,7 @@ export class MapController {
             a.heading = h;
             a.hasHeading = true;
             a.speed = Math.round(motion.smoothedSpeedKmh ?? 0);
-            if (sourceId === 'freight_trains') a.bearing = h;
+            if (sourceId === 'freight_trains' || sourceId === 'freight_paths') a.bearing = h;
             continue;
           }
         }
@@ -2337,7 +2351,7 @@ export class MapController {
         a.heading = h;
         a.hasHeading = true;
         if (sourceId === 'aircraft') a.true_track = h;
-        if (sourceId === 'freight_trains') a.bearing = h;
+        if (sourceId === 'freight_trains' || sourceId === 'freight_paths') a.bearing = h;
       }
     }
 
@@ -2414,7 +2428,10 @@ export class MapController {
                 if (sourceId === 'aircraft') {
                   feat.properties.true_track = normHeading;
                 }
-                if (sourceId === 'freight_trains') {
+                // The icon rotation reads `bearing` before `heading`, so an
+                // animated heading with a stale bearing would leave the icon
+                // pointing where the train was a poll ago.
+                if (sourceId === 'freight_trains' || sourceId === 'freight_paths') {
                   feat.properties.bearing = normHeading;
                 }
               }

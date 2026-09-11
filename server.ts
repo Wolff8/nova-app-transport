@@ -9882,6 +9882,8 @@ app.post('/api/log', express.json(), (req, res) => {
   type CorridorTrack = {
     track: [number, number][]; totalKm: number; kmAt: Record<string, number>;
     speedBands: CorridorSpeedBand[];
+    /** Segment lengths and running totals, measured once when the corridor is built. */
+    dists: number[]; cumulative: number[];
   };
   const corridorTrackCache = new Map<string, CorridorTrack | null>();
 
@@ -9894,11 +9896,25 @@ app.post('/api/log', express.json(), (req, res) => {
    * distances are found by projecting the station's RINF coordinate onto the
    * polyline and accumulating the distance to that point.
    */
-  function kmAlongTrack(track: [number, number][], lat: number, lon: number): { km: number; offKm: number } {
-    const { dists } = measurePolyline(track);
-    let bestKm = 0, bestD2 = Infinity, run = 0;
+  function kmAlongTrack(
+    track: [number, number][], lat: number, lon: number,
+    dists: number[], cumulative: number[]
+  ): { km: number; offKm: number } {
+    // Segment lengths are passed in, not recomputed. Measuring the whole
+    // polyline inside every call cost 376 ms per corridor here and about 7.5
+    // seconds for both on the 0.1-CPU instance — a synchronous block long
+    // enough for the 6-second abort timer on the MOTIS and TRAVIC fetches to
+    // fire, which left the map with the MÁV trains alone.
+    //
+    // The latitude window skips the vast majority of segments before any
+    // trigonometry: a corridor spans more than a degree of latitude and a
+    // station is within a hundredth of one of its own stretch.
+    const LAT_WINDOW = 0.06;
+    let bestKm = 0, bestD2 = Infinity;
     for (let i = 0; i < track.length - 1; i++) {
       const [ax, ay] = track[i], [bx, by] = track[i + 1];
+      if ((ay < lat - LAT_WINDOW && by < lat - LAT_WINDOW) ||
+          (ay > lat + LAT_WINDOW && by > lat + LAT_WINDOW)) continue;
       // Degrees are compared in a locally-equal-area frame so that a longitude
       // difference at 46°N is not counted as if it were a latitude one.
       const kx = Math.cos((ay + by) / 2 * Math.PI / 180);
@@ -9908,16 +9924,31 @@ app.post('/api/log', express.json(), (req, res) => {
       const px = ax + (bx - ax) * t, py = ay + (by - ay) * t;
       const ex = (lon - px) * kx, ey = lat - py;
       const d2 = ex * ex + ey * ey;
-      if (d2 < bestD2) { bestD2 = d2; bestKm = (run + (dists[i] ?? 0) * t) * 111.32; }
-      run += dists[i] ?? 0;
+      if (d2 < bestD2) { bestD2 = d2; bestKm = (cumulative[i] + (dists[i] ?? 0) * t) * 111.32; }
     }
     // How far off the corridor the point actually is, so a parallel branch
     // line cannot be mistaken for a section of this one.
     return { km: bestKm, offKm: Math.sqrt(bestD2) * 111.32 };
   }
 
+  /** A built corridor, or null while it is still being prepared. */
   function corridorPathTrack(corridor: string): CorridorTrack | null {
-    if (corridorTrackCache.has(corridor)) return corridorTrackCache.get(corridor)!;
+    return corridorTrackCache.get(corridor) ?? null;
+  }
+
+  /**
+   * Build a corridor without blocking the event loop.
+   *
+   * Projecting 298 sections onto a 13,000-point polyline takes a couple of
+   * seconds on the 0.1-CPU instance. Doing that synchronously inside the first
+   * request held the loop long enough for the 6-second abort timer on the
+   * MOTIS and TRAVIC fetches to fire, so both upstreams failed and the map was
+   * left with the 369 MÁV trains alone — which is what "not all the vehicles
+   * load" looked like. The work is the same; it now yields between chunks so
+   * nothing else is starved while it runs.
+   */
+  async function warmCorridor(corridor: string): Promise<void> {
+    if (corridorTrackCache.has(corridor)) return;
 
     let track: [number, number][] | null = null;
     if (corridor === 'koper-hodos' && GEO_KOPER_ZALOG?.length) {
@@ -9936,32 +9967,53 @@ app.post('/api/log', express.json(), (req, res) => {
         ...GEO_ZIDANI_MOST_DOBOVA
       ] as [number, number][];
     }
-    if (!track || track.length < 2) { corridorTrackCache.set(corridor, null); return null; }
+    if (!track || track.length < 2) { corridorTrackCache.set(corridor, null); return; }
 
-    const totalKm = measurePolyline(track).totalDist * 111.32;
+    // Measured once, then reused by every projection below and by the timing
+    // points later.
+    const { dists, totalDist } = measurePolyline(track);
+    const cumulative: number[] = new Array(track.length);
+    let run = 0;
+    for (let i = 0; i < track.length; i++) { cumulative[i] = run; run += dists[i] ?? 0; }
+    const totalKm = totalDist * 111.32;
 
     // Project each RINF section onto this corridor. A section counts as being
     // on it only if both of its operational points lie within 1.5 km of the
     // polyline — otherwise the branch to Kočevje or a yard neck a few hundred
     // metres away would claim a stretch of the main line's speed profile.
     const speedBands: CorridorSpeedBand[] = [];
-    for (const s of (lineSpeedData?.sections ?? [])) {
-      const A = kmAlongTrack(track, s.a[1], s.a[0]);
-      const B = kmAlongTrack(track, s.b[1], s.b[0]);
-      if (A.offKm > 1.5 || B.offKm > 1.5) continue;
-      const fromKm = Math.min(A.km, B.km), toKm = Math.max(A.km, B.km);
-      if (toKm - fromKm < 0.2) continue;
-      speedBands.push({ fromKm, toKm, speedKmh: s.speedKmh, section: `${s.from} – ${s.to}` });
+    const allSections = lineSpeedData?.sections ?? [];
+    const CHUNK = 20;
+    for (let i = 0; i < allSections.length; i++) {
+      const s = allSections[i];
+      const A = kmAlongTrack(track, s.a[1], s.a[0], dists, cumulative);
+      const B = kmAlongTrack(track, s.b[1], s.b[0], dists, cumulative);
+      if (A.offKm <= 1.5 && B.offKm <= 1.5) {
+        const fromKm = Math.min(A.km, B.km), toKm = Math.max(A.km, B.km);
+        if (toKm - fromKm >= 0.2) {
+          speedBands.push({ fromKm, toKm, speedKmh: s.speedKmh, section: `${s.from} – ${s.to}` });
+        }
+      }
+      // Hand the loop back regularly so an in-flight upstream fetch is never
+      // starved long enough to hit its own abort timer.
+      if (i % CHUNK === CHUNK - 1) await new Promise(r => setImmediate(r));
     }
     // Shortest first, so a specific band (a station throat) is found before the
     // long one it sits inside.
     speedBands.sort((x, y) => (x.toKm - x.fromKm) - (y.toKm - y.fromKm));
 
-    const result: CorridorTrack = { track, totalKm, kmAt: {}, speedBands };
+    const result: CorridorTrack = { track, totalKm, kmAt: {}, speedBands, dists, cumulative };
     corridorTrackCache.set(corridor, result);
     console.log(`[RFC6] corridor ${corridor}: ${Math.round(totalKm)} km, ${speedBands.length} sections with a published line speed`);
-    return result;
   }
+
+  // Prepared at startup rather than on the first request, and sequentially so
+  // the two never compete for the one CPU this instance has.
+  (async () => {
+    for (const c of ['koper-hodos', 'opicina-dobova']) {
+      try { await warmCorridor(c); } catch (e) { console.error(`[RFC6] corridor ${c} failed`, e); }
+    }
+  })();
 
   /** Permitted line speed where a train is, or null if no section covers it. */
   function lineSpeedAt(geo: CorridorTrack, km: number): CorridorSpeedBand | null {
@@ -9974,21 +10026,30 @@ app.post('/api/log', express.json(), (req, res) => {
     const now = new Date();
     // Slovenian wall clock — the catalogue times are local.
     const local = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Ljubljana' }));
-    const nowMin = local.getHours() * 60 + local.getMinutes();
+    // Seconds included. Without them the position only changed when the wall
+    // clock ticked over to a new minute, so a train stood still for fifty
+    // seconds and then jumped five hundred metres — the section-by-section
+    // hopping, with no movement in between. The timings are published to the
+    // minute; interpolating between them is continuous, and should be read
+    // continuously.
+    const nowMin = local.getHours() * 60 + local.getMinutes() + local.getSeconds() / 60;
     const isoDow = ((local.getDay() + 6) % 7) + 1; // 1 = Monday, as the catalogue numbers days
     const hm = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
 
     const features: any[] = [];
     const board: any[] = [];
 
+    const pending = new Set<string>();
     for (const p of corridorPathData.paths) {
       const geo = corridorPathTrack(p.corridor);
-      if (!geo) continue;
+      // Still being prepared at startup. Say so rather than quietly reporting
+      // a shorter catalogue than the one that exists.
+      if (!geo) { pending.add(p.corridor); continue; }
       // Each timing point's distance along this corridor, measured once from
       // its RINF coordinate and then reused.
       for (const t of p.timingPoints) {
         if (geo.kmAt[t.location] == null && t.lat != null && t.lon != null) {
-          geo.kmAt[t.location] = kmAlongTrack(geo.track, t.lat, t.lon).km;
+          geo.kmAt[t.location] = kmAlongTrack(geo.track, t.lat, t.lon, geo.dists, geo.cumulative).km;
         }
       }
       const pts = p.timingPoints.filter(t => geo.kmAt[t.location] != null);
@@ -10126,6 +10187,8 @@ app.post('/api/log', express.json(), (req, res) => {
       note: corridorPathData.note,
       trainNumberNote: corridorPathData.trainNumberNote,
       pathsTotal: board.length,
+      corridorsPending: pending.size ? [...pending] : null,
+      ready: pending.size === 0,
       runningNow: features.length,
       board,
       features
