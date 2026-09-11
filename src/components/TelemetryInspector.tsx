@@ -1676,27 +1676,13 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                   </div>
                 )}
 
-                {/* Freight Train Real-World Accuracy & Nature Banner */}
-                {isFreightTrain && (
-                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 space-y-2 mt-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-amber-300">
-                      <span className="flex items-center gap-1.5">
-                        <Activity size={13} className="text-amber-400" />
-                        Uradna trasa SŽ (TEN-T koridor)
-                      </span>
-                      <span className="font-mono text-[9px] bg-amber-500/20 px-1.5 py-0.5 rounded text-amber-200 border border-amber-500/30">
-                        Točnost: ±30–60 min
-                      </span>
-                    </div>
-                    <p className="text-[10.5px] text-zinc-300 leading-relaxed">
-                      Kompozicija vozi po voznem redu in dodeljeni trasi SŽ-Infrastrukture. Ker tovorni operaterji (zaradi varnosti in zaščite tovora) ne delijo javnega GPS signala, je pozicija vlaka <strong>fizikalno pripeta na os tirov</strong> glede na časovni profil proge.
-                    </p>
-                    <div className="flex items-center justify-between pt-1 border-t border-amber-500/20 text-[10px] text-amber-400/90 font-mono">
-                      <span>Geometrija: 100% po tirih</span>
-                      <span>Podatki: Program omrežja RS</span>
-                    </div>
-                  </div>
-                )}
+                {/* The banner that used to sit here claimed an "Uradna trasa SŽ"
+                    with "Točnost: ±30–60 min", "Geometrija: 100% po tirih" and
+                    conformance to a path allocated by SŽ-Infrastruktura. None of
+                    that was measured or published; it was fixed text shown under
+                    any freight train. Modelled freight states its own real error
+                    (±km from the corridor model) in its own panel, so there is
+                    nothing here to replace it with. */}
 
                 {/* VagonWEB & Fleet Composition Live Data & Cross-Border Freight Telematics (Train only, NEVER stations/yards) */}
                 {isTrain && loadingVagonweb && (!vagonwebData || vagonwebData.length === 0) && !crossBorderFreight && (
