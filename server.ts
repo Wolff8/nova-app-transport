@@ -7341,6 +7341,25 @@ app.post('/api/log', express.json(), (req, res) => {
   const TRANSIT_CACHE_TTL_MS = 120000;
 
   /**
+   * How long a successful snapshot is served before the upstreams are polled
+   * again, and a guard so only one poll runs at a time.
+   *
+   * This handler fetches two upstreams and parses several thousand segments
+   * into ~3,400 vehicles. That was happening on *every* request, and the client
+   * polls every 5s — so with even one browser open the work ran continuously,
+   * and each run blocks the event loop. On a 0.1-CPU instance that was long
+   * enough that /api/health could not answer in time, and since render.yaml
+   * points the platform health check at it, the container was being restarted
+   * underneath us: /api/transit returned 502, and so did /api/health
+   * immediately after, over and over.
+   *
+   * Building the snapshot at most once every few seconds, and letting
+   * concurrent callers share the one in flight, keeps the loop free.
+   */
+  const TRANSIT_FRESH_MS = 4000;
+  let transitRefreshing = false;
+
+  /**
    * Live Hungarian trains from MÁV's vonatinfo service.
    *
    * TRAVIC and MOTIS between them surface very little Hungarian rail — measured
@@ -7604,6 +7623,17 @@ app.post('/api/log', express.json(), (req, res) => {
   });
 
   app.get('/api/transit', async (req, res) => {
+    // Serve the recent snapshot rather than rebuilding it for every poll.
+    const age = Date.now() - transitCache.ts;
+    if (transitCache.data.length > 0 && age < TRANSIT_FRESH_MS) {
+      return res.json(transitCache.data);
+    }
+    // A rebuild is already running: hand this caller the previous snapshot
+    // instead of starting a second one alongside it.
+    if (transitRefreshing && transitCache.data.length > 0) {
+      return res.json(transitCache.data);
+    }
+    transitRefreshing = true;
     try {
       const d = new Date();
       const nowMs = d.getTime();
@@ -8069,6 +8099,8 @@ app.post('/api/log', express.json(), (req, res) => {
         return res.json(transitCache.data);
       }
       return res.json([]);
+    } finally {
+      transitRefreshing = false;
     }
   });
 
