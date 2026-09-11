@@ -1108,21 +1108,41 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
     return Math.round((toDeg(theta) + 360) % 360);
   }
 
+  /**
+   * Segment lengths per route geometry, computed once and reused.
+   *
+   * These corridors are 2,000-5,000 coordinates long and every interpolation
+   * used to re-measure the whole polyline. With a train's position, and now the
+   * ends of its uncertainty span, resolved on each request, that was tens of
+   * thousands of trigonometric operations per poll on an instance with a
+   * fraction of a CPU. The geometry itself never changes, so the measurements
+   * are cached against it.
+   */
+  const polylineMetrics = new WeakMap<object, { dists: number[]; totalDist: number }>();
+
+  function measurePolyline(points: [number, number][]): { dists: number[]; totalDist: number } {
+    const cached = polylineMetrics.get(points as unknown as object);
+    if (cached) return cached;
+    const dists: number[] = [];
+    let totalDist = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const cosLat = Math.cos((points[i][1] + points[i + 1][1]) * 0.5 * Math.PI / 180);
+      const dx = (points[i + 1][0] - points[i][0]) * cosLat;
+      const dy = points[i + 1][1] - points[i][1];
+      dists.push(Math.sqrt(dx * dx + dy * dy));
+      totalDist += dists[i];
+    }
+    const metrics = { dists, totalDist };
+    polylineMetrics.set(points as unknown as object, metrics);
+    return metrics;
+  }
+
   function interpolatePolyline(points: [number, number][], t: number): { lon: number; lat: number; bearing: number; segmentIndex: number } {
     if (!points || points.length < 2) {
       return { lon: points?.[0]?.[0] || 0, lat: points?.[0]?.[1] || 0, bearing: 0, segmentIndex: 0 };
     }
     const clampedT = Math.max(0, Math.min(1, t));
-    const dists: number[] = [];
-    let totalDist = 0;
-    for (let i = 0; i < points.length - 1; i++) {
-      const cosLat = Math.cos((points[i][1] + points[i+1][1]) * 0.5 * Math.PI / 180);
-      const dx = (points[i+1][0] - points[i][0]) * cosLat;
-      const dy = points[i+1][1] - points[i][1];
-      const d = Math.sqrt(dx * dx + dy * dy);
-      dists.push(d);
-      totalDist += d;
-    }
+    const { dists, totalDist } = measurePolyline(points);
 
     const targetDist = clampedT * totalDist;
     let accumulated = 0;
@@ -1176,6 +1196,93 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   }
 
   /**
+   * Delay currently being suffered by passenger trains on the same stretch of
+   * railway.
+   *
+   * There is no live freight telemetry to be had: scanning every feed the app
+   * carries returns zero freight services, because GTFS-RT and the national
+   * feeds are passenger-only. But freight shares the infrastructure. If the
+   * passenger trains around a freight slot are running late, the same
+   * congestion, signalling or weather is delaying the freight, and that is
+   * evidence rather than supposition.
+   *
+   * It is an inference, not a measurement, and is reported as such: the sample
+   * size travels with the figure so a delay backed by one train is not mistaken
+   * for one backed by twenty.
+   */
+  function delayedTrainSample(): { lat: number; lon: number; delayMin: number }[] {
+    const out: { lat: number; lon: number; delayMin: number }[] = [];
+    for (const v of transitCache.data) {
+      if (v?.type !== 'train') continue;
+      const d = Number(v.delayMin ?? v.delay);
+      if (!Number.isFinite(d) || d <= 0) continue;
+      if (!Number.isFinite(v.lat) || !Number.isFinite(v.lon)) continue;
+      out.push({ lat: v.lat, lon: v.lon, delayMin: d });
+    }
+    return out;
+  }
+
+  const CORRIDOR_RADIUS_KM = 35;
+
+  function corridorDelayNear(
+    lat: number,
+    lon: number,
+    sample: { lat: number; lon: number; delayMin: number }[]
+  ): { delayMin: number; sampleSize: number; worstMin: number } {
+    const near: number[] = [];
+    const cosLat = Math.cos(lat * Math.PI / 180);
+    for (const s of sample) {
+      const dLat = (s.lat - lat) * 111.139;
+      const dLon = (s.lon - lon) * 111.139 * cosLat;
+      if (dLat * dLat + dLon * dLon <= CORRIDOR_RADIUS_KM * CORRIDOR_RADIUS_KM) near.push(s.delayMin);
+    }
+    if (near.length === 0) return { delayMin: 0, sampleSize: 0, worstMin: 0 };
+    near.sort((a, b) => a - b);
+    return {
+      delayMin: Math.round(near[Math.floor(near.length / 2)]),
+      sampleSize: near.length,
+      worstMin: near[near.length - 1]
+    };
+  }
+
+  /**
+   * The stretch of track a freight train could plausibly be on, rather than a
+   * single point stated with false confidence.
+   *
+   * A timetable says where a train is *scheduled* to be. Freight punctuality on
+   * these corridors is measured in tens of minutes — trains wait for passenger
+   * paths, for crew changes, and at border handovers — and that error compounds
+   * the longer a train has been running. Drawing one dot implies a precision
+   * the data does not have, so the window is published alongside it: the
+   * earliest and latest point along its own route where it could reasonably be,
+   * widened further when passenger trains nearby are running late.
+   */
+  function freightUncertainty(
+    elapsedMin: number,
+    currentKm: number,
+    routeKm: number,
+    speedKmh: number,
+    corridorDelayMin: number
+  ) {
+    const sigmaMin = Math.min(60, 8 + elapsedMin * 0.12 + corridorDelayMin * 0.8);
+    const effectiveSpeed = Math.max(20, speedKmh);
+    const spanKm = (sigmaMin / 60) * effectiveSpeed;
+    const earliestKm = Math.max(0, currentKm - spanKm);
+    const latestKm = Math.min(routeKm, currentKm + spanKm);
+    // Confidence is how much of the whole run the window covers: a ±5 km window
+    // on a 500 km path is a confident statement, the same window on a 20 km
+    // branch is not.
+    const confidence = Math.max(0.1, Math.min(0.95, 1 - (spanKm * 2) / Math.max(1, routeKm)));
+    return {
+      sigmaMin: Math.round(sigmaMin),
+      spanKm: Number(spanKm.toFixed(1)),
+      earliestKm: Number(earliestKm.toFixed(1)),
+      latestKm: Number(latestKm.toFixed(1)),
+      confidence: Number(confidence.toFixed(2))
+    };
+  }
+
+  /**
    * Maximum line speed for freight on the Slovenian corridors this app models,
    * in km/h, taken from SŽ-Infrastruktura's published line characteristics.
    *
@@ -1193,6 +1300,10 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
    * Loaded freight is additionally held to 100 km/h by its UIC brake regime,
    * which is the binding limit on every one of these lines except Koper–Divača.
    */
+  /** Recently built freight payloads, keyed by the corridor/operator filters. */
+  const freightCache = new Map<string, { body: any; ts: number }>();
+  const FREIGHT_FRESH_MS = 5000;
+
   const FREIGHT_BRAKE_REGIME_MAX_KMH = 100;
   const KOPER_DIVACA_MAX_KMH = 75;
   const KOPER_RAMP_KM = 35;
@@ -3369,11 +3480,21 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
 
   // Active freight trains API: synchronized with real-world time in Slovenia & Europe, and official European TEN-T & SŽ network slots
   app.get('/api/freight/active-trains', (req, res) => {
+    // This endpoint resolves positions along corridor geometries thousands of
+    // points long for every slot, so like /api/transit it is built at most once
+    // every few seconds and shared, rather than recomputed for each poll.
+    const freightKey = `${req.query.corridor || ''}|${req.query.operator || ''}`;
+    const freightHit = freightCache.get(freightKey);
+    if (freightHit && Date.now() - freightHit.ts < FREIGHT_FRESH_MS) {
+      return res.json(freightHit.body);
+    }
     try {
       const timeObj = getSloveniaTime();
       const nowMin = timeObj.totalMinutes; // minutes into current day in Slovenia [0, 1440)
       const corridorFilter = req.query.corridor ? String(req.query.corridor).toLowerCase() : null;
       const operatorFilter = req.query.operator ? String(req.query.operator).toLowerCase() : null;
+      // Gathered once per request, not once per train.
+      const delayedNearby = delayedTrainSample();
 
       const runningTrains: any[] = [];
       const terminalTrains: any[] = [];
@@ -3453,6 +3574,7 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
         let currentKm = 0;
         let status = 'Po voznem redu';
         let isAtTerminal = false;
+        let positionEstimate: any = null;
 
         const slotSeed = Math.abs(slot.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
 
@@ -3482,6 +3604,32 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           const lineCapKmh = sloFreightLineSpeedCap(slot, currentKm);
           speedKmh = Math.round(Math.max(5, Math.min(maxSpd, lineCapKmh, motion.speedKmh)));
           void minSpd;
+
+          // Where the train may be, not merely where the timetable says it is.
+          const corridor = corridorDelayNear(lat, lon, delayedNearby);
+          const unc = freightUncertainty(elapsedMin, currentKm, slot.routeKm, speedKmh, corridor.delayMin);
+          const earlyPt = interpolatePolyline(slot.routeGeometry, unc.earliestKm / Math.max(1, slot.routeKm));
+          const latePt = interpolatePolyline(slot.routeGeometry, unc.latestKm / Math.max(1, slot.routeKm));
+          positionEstimate = {
+            // The single most likely point, which is what gets drawn.
+            likelyKm: currentKm,
+            // …and the stretch it could actually be on.
+            earliestKm: unc.earliestKm,
+            latestKm: unc.latestKm,
+            spanKm: unc.spanKm,
+            windowMinutes: unc.sigmaMin,
+            confidence: unc.confidence,
+            earliest: [Number(earlyPt.lon.toFixed(5)), Number(earlyPt.lat.toFixed(5))],
+            latest: [Number(latePt.lon.toFixed(5)), Number(latePt.lat.toFixed(5))],
+            // Inferred from passenger services on the same stretch of line,
+            // since freight publishes no live position of its own.
+            corridorDelayMin: corridor.delayMin,
+            corridorSampleSize: corridor.sampleSize,
+            corridorWorstDelayMin: corridor.worstMin,
+            basis: corridor.sampleSize > 0
+              ? `Voznoredna ocena + zamude ${corridor.sampleSize} potniških vlakov v radiju ${CORRIDOR_RADIUS_KM} km`
+              : 'Voznoredna ocena (v bližini ni potniških vlakov z zamudo)'
+          };
 
           if (slot.fromName.includes('Koper') && currentKm < 35) {
             status = 'V vožnji: strmi vzpon 26‰ na Kraški rob (Divača)';
@@ -3596,6 +3744,8 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           // Resolve the free-text operator against the ERA/UIC register so the
           // train carries a licensed entity with an official code, not a label.
           operatorRegistration: lookupOrganisation(slot.operator),
+          // Null for trains standing at a terminal, where the position is known.
+          positionEstimate,
           locomotive: slot.locomotive,
           wagonType: slot.wagonType,
           cargo: slot.cargo,
@@ -3652,7 +3802,7 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
       // If during a quiet transition period runningTrains has few, guarantee that all active trains on the map represent the true current operations
       const mapDisplayTrains = [...runningTrains, ...terminalTrains];
 
-      res.json({
+      const freightPayload = {
         timestamp: new Date().toISOString(),
         currentTimeInSlovenia: timeObj.timeStr,
         totalActiveOnTracks: runningTrains.length,
@@ -3669,7 +3819,9 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
         runningTrains: runningTrains,
         terminalTrains: terminalTrains,
         allSlots: allSlots
-      });
+      };
+      freightCache.set(freightKey, { body: freightPayload, ts: Date.now() });
+      res.json(freightPayload);
     } catch (err: any) {
       console.error('Freight trains timetable computation error:', err);
       res.status(500).json({ error: 'Failed to compute freight trains data' });
