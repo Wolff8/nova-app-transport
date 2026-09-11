@@ -7587,6 +7587,101 @@ app.post('/api/log', express.json(), (req, res) => {
     res.json(board);
   });
 
+  /**
+   * Croatian services via Transitous, a public MOTIS aggregator.
+   *
+   * The Slovenian OJPP gateway only carries Slovenian feeds and TRAVIC has
+   * almost nothing for Croatia — measured on the live endpoint, 26 vehicles
+   * against 632 Slovenian. Transitous hosts the Croatian GTFS feeds and speaks
+   * the same MOTIS v1 API this endpoint already parses, so its segments can be
+   * merged straight into the existing pipeline.
+   *
+   * Only rail, tram and metro are kept. A full response for the Croatian box is
+   * ~5.8 MB and mostly regional buses; dropping those keeps the payload and the
+   * per-request parsing cost sane on a small instance, and rail is the coverage
+   * that was actually missing. It is refreshed in the background on a longer
+   * TTL than the client's poll so the big download happens rarely.
+   */
+  const TRANSITOUS_MODES = new Set(['REGIONAL_RAIL', 'LONG_DISTANCE', 'HIGHSPEED_RAIL', 'NIGHT_RAIL', 'TRAM', 'METRO']);
+  let transitousCache: { data: any[]; ts: number } = { data: [], ts: 0 };
+  let transitousRefreshing = false;
+  const TRANSITOUS_TTL_MS = 30000;
+
+  async function refreshTransitous(): Promise<void> {
+    try {
+      const d = new Date();
+      const t2 = d.toISOString();
+      d.setMinutes(d.getMinutes() - 2);
+      const t1 = d.toISOString();
+      const url = `https://api.transitous.org/api/v1/map/trips?min=44.8,13.4&max=46.6,19.5&startTime=${t1}&endTime=${t2}&zoom=20`;
+      // Transitous rejects generic user agents with a 403, so identify the app.
+      const r = await fetch(url, {
+        headers: { 'User-Agent': 'NOVA-APP-TRANSPORT/1.0 (live transit map; github.com/Wolff8/nova-app-transport)' },
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!r.ok) {
+        console.warn('[Transitous] HTTP', r.status);
+        return;
+      }
+      const segments: any[] = await r.json();
+      if (!Array.isArray(segments)) return;
+      const kept = segments.filter(s => TRANSITOUS_MODES.has(s?.mode));
+      transitousCache = { data: kept, ts: Date.now() };
+    } catch (e: any) {
+      console.warn('[Transitous] refresh failed:', e?.message);
+    }
+  }
+
+  function getTransitousSegments(): any[] {
+    if (!transitousRefreshing && Date.now() - transitousCache.ts > TRANSITOUS_TTL_MS) {
+      transitousRefreshing = true;
+      refreshTransitous().finally(() => { transitousRefreshing = false; });
+    }
+    return transitousCache.data;
+  }
+
+  setTimeout(() => { getTransitousSegments(); }, 3500);
+
+  /**
+   * Remove Transitous services that another feed already provides.
+   *
+   * The Croatian bounding box necessarily overlaps Slovenia, so the same train
+   * arrives from both the OJPP gateway and Transitous. Measured on the live
+   * feed, 120 of 190 Transitous vehicles duplicated one already present, most
+   * within 100 metres — two markers stacked on the same train.
+   *
+   * Matching is on service name *and* proximity: two trains sharing a route
+   * number but running hundreds of kilometres apart are genuinely different
+   * services in different countries, and both are kept.
+   */
+  function dropDuplicateTransitous(vehicles: any[]): any[] {
+    const isTransitous = (v: any) => String(v?.id || '').startsWith('travic_hr_');
+    const byName = new Map<string, any[]>();
+    for (const v of vehicles) {
+      if (isTransitous(v)) continue;
+      const name = String(v?.name || '').trim();
+      if (!name) continue;
+      if (!byName.has(name)) byName.set(name, []);
+      byName.get(name)!.push(v);
+    }
+
+    const nearbyKm = (a: any, b: any) => {
+      const toRad = (x: number) => (x * Math.PI) / 180;
+      const dLat = toRad(b.lat - a.lat);
+      const dLon = toRad(b.lon - a.lon);
+      const h = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+      return 2 * 6371 * Math.asin(Math.sqrt(h));
+    };
+
+    return vehicles.filter(v => {
+      if (!isTransitous(v)) return true;
+      const candidates = byName.get(String(v?.name || '').trim());
+      if (!candidates) return true;
+      return !candidates.some(p => nearbyKm(v, p) < 5);
+    });
+  }
+
   app.get('/api/mav', (req, res) => {
     const trains = getMavTrains();
     const delayed = trains.filter(t => t.delayMin > 0);
@@ -7636,22 +7731,44 @@ app.post('/api/log', express.json(), (req, res) => {
       const motisTrainPositions: { lat: number; lon: number; name: string }[] = [];
 
       // 1. Process Motis (authoritative GTFS-RT train/bus schedules) FIRST
+      // Slovenian OJPP segments plus the cached Croatian ones from Transitous.
+      // Both speak MOTIS v1, so they go through one parser.
+      const mergedMotis: any[] = [];
       if (resMotis.status === 'fulfilled' && resMotis.value.ok) {
           try {
-              const data = await resMotis.value.json();
+              const sloSegments = await resMotis.value.json();
+              if (Array.isArray(sloSegments)) {
+                  for (const s of sloSegments) { if (s) { s.__feed = 'si'; mergedMotis.push(s); } }
+              }
+          } catch (e) {}
+      }
+      for (const s of getTransitousSegments()) {
+          if (s) mergedMotis.push({ ...s, __feed: 'hr' });
+      }
+
+      if (mergedMotis.length > 0) {
+          try {
+              const data = mergedMotis;
               if (Array.isArray(data)) {
                   // Group multiple segments of the same trip/train
                   const segmentsByTrip = new Map<string, any[]>();
                   data.forEach(segment => {
                       if (!segment.trips || segment.trips.length === 0) return;
-                      const vName = segment.trips[0].routeShortName || segment.trips[0].tripId || '';
-                      if (!segmentsByTrip.has(vName)) {
-                          segmentsByTrip.set(vName, []);
+                      const routeName = segment.trips[0].routeShortName || segment.trips[0].tripId || '';
+                      // Keep the feeds apart: Slovenia and Croatia can both run a
+                      // route "4700", and grouping them together would fuse two
+                      // unrelated vehicles into one.
+                      const groupKey = `${segment.__feed || 'si'}|${routeName}`;
+                      if (!segmentsByTrip.has(groupKey)) {
+                          segmentsByTrip.set(groupKey, []);
                       }
-                      segmentsByTrip.get(vName)!.push(segment);
+                      segmentsByTrip.get(groupKey)!.push(segment);
                   });
 
-                  for (const [vName, segList] of segmentsByTrip.entries()) {
+                  for (const [groupKey, segList] of segmentsByTrip.entries()) {
+                      const sepIdx = groupKey.indexOf('|');
+                      const feedTag = groupKey.slice(0, sepIdx);
+                      const vName = groupKey.slice(sepIdx + 1);
                       // Select best segment: prefer active (0 <= p <= 1)
                       let bestSeg = segList[0];
                       let bestScore = -999999;
@@ -7811,7 +7928,10 @@ app.post('/api/log', express.json(), (req, res) => {
                       }
 
                       motisVehicles.push({
-                          id: 'travic_' + vName.replace(/\s+/g, '_'),
+                          // Feed-qualified so an identically numbered Croatian and
+                          // Slovenian route cannot share one id. Slovenian ids are
+                          // left unprefixed so they stay as they were.
+                          id: 'travic_' + (feedTag === 'si' ? '' : feedTag + '_') + vName.replace(/\s+/g, '_'),
                           tripId: segTripId,
                           realTripId: segTripId,
                           name: vName,
@@ -8004,7 +8124,7 @@ app.post('/api/log', express.json(), (req, res) => {
           } catch(e) {}
       }
 
-      const baseTransit = [...motisVehicles, ...travicVehicles];
+      const baseTransit = dropDuplicateTransitous([...motisVehicles, ...travicVehicles]);
 
       // Fold in MÁV's own Hungarian trains. Where the same train number is
       // already present from TRAVIC/MOTIS the existing record wins, so this
