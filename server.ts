@@ -8237,6 +8237,20 @@ app.post('/api/log', express.json(), (req, res) => {
       // Serve the last good snapshot instead of nothing. A slightly stale
       // position for a few seconds is far closer to the truth than claiming
       // there are no trains running.
+      // Guard against caching a degraded snapshot. When MOTIS and TRAVIC both
+      // fail, what survives is the MÁV trains alone — observed live as 376
+      // vehicles where the healthy figure was 3,012 — and storing that as the
+      // good snapshot then served a nearly empty map for as long as it stayed
+      // fresh. Keep the fuller previous result instead; the vehicles in it are
+      // a few seconds old, not absent.
+      const primarySourcesAnswered = motisVehicles.length > 0 || travicVehicles.length > 0;
+      if (allTransit.length > 0 && (primarySourcesAnswered || transitCache.data.length === 0)) {
+        transitCache = { data: allTransit, ts: Date.now() };
+        return res.json(allTransit);
+      }
+      if (allTransit.length > 0 && transitCache.data.length > allTransit.length) {
+        return res.json(transitCache.data);
+      }
       if (allTransit.length > 0) {
         transitCache = { data: allTransit, ts: Date.now() };
         return res.json(allTransit);

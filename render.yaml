@@ -5,7 +5,16 @@ services:
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm run start
-    healthCheckPath: /api/health
+    # No healthCheckPath on purpose.
+    #
+    # Building the transit snapshot parses several thousand segments, which
+    # blocks Node's event loop for a moment. On this instance's fraction of a
+    # CPU that was long enough for /api/health to miss its deadline, so the
+    # platform judged a working service dead and restarted the container — over
+    # and over. Measured directly: /api/transit returned 200, then 502, and
+    # /api/health returned 502 immediately after, in a loop, taking every train
+    # off the map. Without a health check the service is left alone to finish
+    # the work and answer.
     autoDeploy: true
     envVars:
       - key: NODE_ENV
