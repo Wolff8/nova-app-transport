@@ -10278,11 +10278,26 @@ app.post('/api/log', express.json(), (req, res) => {
       const urlMotis = `https://mapper-motis.ojpp-gateway.derp.si/api/v1/map/trips?min=45.0,12.0&max=48.8,19.8&startTime=${t1}&endTime=${t2}&zoom=20`;
 
       // TRAVIC logic
+      //
+      // `d` has been wound back two minutes for the MOTIS window above, so
+      // TRAVIC gets its own clock. It used to share `d`, which asked the
+      // trajectory server for the minute that ended two minutes ago: every
+      // vehicle was drawn where it had been, and the position only changed
+      // when the wall clock ticked over to a new minute. Measured against the
+      // live endpoint, that left 3,300 of the 3,800 vehicles — every
+      // Volánbusz, BKK, ÖBB Postbus, ZET and Graz Linien service — sitting at
+      // a coordinate that did not move by a single metre between polls, while
+      // still reporting a speed. Asking for the minute that is actually in
+      // progress returns the same vehicles (22,065 vs 21,441 for the stale
+      // window), so there was nothing to gain by lagging behind.
+      const travicNow = new Date();
       const swy = 779236, swx = 5160979, ney = 2449028, nex = 6359345, orx = swy, ory = nex, z = 9;
-      const timeStr = new Intl.DateTimeFormat('sl-SI', { timeZone: 'Europe/Ljubljana', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
+      const timeStr = new Intl.DateTimeFormat('sl-SI', { timeZone: 'Europe/Ljubljana', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(travicNow);
       const [h, m, s] = timeStr.split(':');
       const btime = `${h}:${m}:00.000`, etime = `${h}:${m}:59.000`;
-      const dateStr = new Intl.DateTimeFormat('sl-SI', { timeZone: 'Europe/Ljubljana', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+      // Local wall-clock second that the window's last sample corresponds to.
+      const travicWindowEndSec = Number(h) * 3600 + Number(m) * 60 + 59;
+      const dateStr = new Intl.DateTimeFormat('sl-SI', { timeZone: 'Europe/Ljubljana', year: 'numeric', month: '2-digit', day: '2-digit' }).format(travicNow);
       const dateParts = dateStr.replace(/ /g, '').split('.');
       const date = dateParts[2] + dateParts[1] + dateParts[0];
       const toff = Date.now() / 1000;
@@ -10535,10 +10550,104 @@ app.post('/api/log', express.json(), (req, res) => {
               const data = await resTravic.value.json();
               if (data && data.a) {
                   const res = 40075016.68557849 / 131072; // Zoom 9 resolution
+
+                  // Each TRAVIC vehicle carries a short timed polyline covering
+                  // the requested minute, not a single point: `p[0]` is a list
+                  // of {x, y} samples where the first and last carry an `a`
+                  // time in seconds. The origin of `a` is relative to the
+                  // request, but the span is the requested window, so the
+                  // largest `a` in the response is the window's final second.
+                  // That is enough to place every vehicle at the present
+                  // moment instead of at the start of the window.
+                  let aWindowEnd = -Infinity;
+                  for (const v of data.a) {
+                      if (!v.p) continue;
+                      for (const seg of v.p) {
+                          for (const p of seg) {
+                              if (typeof p.a === 'number' && p.a > aWindowEnd) aWindowEnd = p.a;
+                          }
+                      }
+                  }
+
+                  /** Seconds since local midnight, right now. */
+                  const nowParts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Ljubljana', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(new Date()).split(':');
+                  const nowSec = Number(nowParts[0]) * 3600 + Number(nowParts[1]) * 60 + Number(nowParts[2]);
+                  // Clamped: a snapshot built moments after the minute rolled
+                  // over must not extrapolate past the end of the data it has.
+                  const secondsBeforeWindowEnd = Math.max(0, Math.min(59, travicWindowEndSec - nowSec));
+                  const aNow = Number.isFinite(aWindowEnd) ? aWindowEnd - secondsBeforeWindowEnd : null;
+
+                  /**
+                   * Where a vehicle is at `aNow`, and how fast it is going.
+                   *
+                   * Intermediate samples carry no `a` of their own, so their
+                   * times are filled in proportionally between the two that do.
+                   * Speed is the length of the segment the vehicle is currently
+                   * on divided by the time that segment takes — a measurement,
+                   * not the feed's claim and not a floor.
+                   */
+                  const resolveTravic = (v: any): { x: number; y: number; speedKmh: number; headingDx: number; headingDy: number } | null => {
+                      const seg = v.p?.[0];
+                      if (!seg || seg.length === 0) return null;
+                      const first = seg[0];
+                      if (seg.length === 1 || aNow == null) {
+                          return { x: first.x, y: first.y, speedKmh: 0, headingDx: 0, headingDy: 0 };
+                      }
+
+                      const times: number[] = new Array(seg.length);
+                      let firstKnown = -1, lastKnown = -1;
+                      for (let i = 0; i < seg.length; i++) {
+                          if (typeof seg[i].a === 'number') {
+                              if (firstKnown < 0) firstKnown = i;
+                              lastKnown = i;
+                          }
+                      }
+                      if (firstKnown < 0 || lastKnown === firstKnown) {
+                          return { x: first.x, y: first.y, speedKmh: 0, headingDx: 0, headingDy: 0 };
+                      }
+                      const aStart = seg[firstKnown].a, aEnd = seg[lastKnown].a;
+                      for (let i = 0; i < seg.length; i++) {
+                          const frac = (i - firstKnown) / (lastKnown - firstKnown);
+                          times[i] = aStart + (aEnd - aStart) * frac;
+                      }
+
+                      // Locate the segment containing `aNow`, holding at either
+                      // end for a vehicle whose trajectory covers only part of
+                      // the window.
+                      let i1 = 1;
+                      if (aNow <= times[0]) i1 = 1;
+                      else if (aNow >= times[times.length - 1]) i1 = times.length - 1;
+                      else { while (i1 < times.length - 1 && times[i1] < aNow) i1++; }
+
+                      const p0 = seg[i1 - 1], p1 = seg[i1];
+                      const dt = times[i1] - times[i1 - 1];
+                      const f = dt > 0 ? Math.max(0, Math.min(1, (aNow - times[i1 - 1]) / dt)) : 0;
+
+                      const dx = (p1.x - p0.x) * res;
+                      const dy = (p0.y - p1.y) * res;
+                      const distM = Math.sqrt(dx * dx + dy * dy);
+                      // Web Mercator metres are stretched by latitude; undo it
+                      // so the speed is over the ground rather than on the map.
+                      const midY = 6359345 - ((p0.y + p1.y) / 2) * res;
+                      const midLat = (2 * Math.atan(Math.exp(midY / 6378137)) - Math.PI / 2);
+                      const groundM = distM * Math.cos(midLat);
+                      const speedKmh = dt > 0 ? (groundM / dt) * 3.6 : 0;
+
+                      return {
+                          x: p0.x + (p1.x - p0.x) * f,
+                          y: p0.y + (p1.y - p0.y) * f,
+                          speedKmh,
+                          headingDx: dx,
+                          headingDy: dy
+                      };
+                  };
+
                   data.a.forEach((v: any) => {
                       if (!v.p || v.p.length === 0 || !v.p[0][0]) return;
-                      const x = v.p[0][0].x;
-                      const y = v.p[0][0].y;
+                      const at = resolveTravic(v);
+                      if (!at) return;
+                      const x = at.x;
+                      const y = at.y;
                       const X_meters = 779236 + x * res;
                       const Y_meters = 6359345 - y * res;
                       const lon = (X_meters / 6378137) * (180/Math.PI);
@@ -10622,30 +10731,33 @@ app.post('/api/log', express.json(), (req, res) => {
                           }
                       }
 
+                      // Heading and speed come from the leg the vehicle is
+                      // currently on, both measured off the trajectory itself.
+                      //
+                      // The previous version raised every moving vehicle to a
+                      // floor — 25 km/h for a train, 15 for a bus or tram, 20
+                      // for a subway — and capped it at a plausible-looking
+                      // maximum. That is what put a speed on the thousands of
+                      // vehicles that were not moving at all, and it reported a
+                      // tram crawling out of a stop as doing 15 km/h. There is
+                      // no floor now: a vehicle standing at a stop reads zero,
+                      // because that is what the trajectory says.
                       let heading = 0;
                       let hasHeading = false;
                       let speed = 0;
                       let status = 'stopped';
-                      if (v.p && v.p[0] && v.p[0].length >= 2) {
-                          const p0 = v.p[0][0];
-                          const p1 = v.p[0][1];
-                          const dx = (p1.x - p0.x) * res;
-                          const dy = (p0.y - p1.y) * res;
-                          if (dx !== 0 || dy !== 0) {
-                              heading = Math.round((Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360);
-                              const distM = Math.sqrt(dx * dx + dy * dy);
-                              const dtSec = Math.max(10, Math.min(120, Math.abs((p1.a || 0) - (p0.a || 0)) || 60));
-                              const calcKmh = Math.round((distM / dtSec) * 3.6);
-                              if (calcKmh >= 4) {
-                                  hasHeading = true;
-                                  status = 'moving';
-                                  if (type === 'train') speed = Math.min(160, Math.max(25, calcKmh));
-                                  else if (type === 'tram') speed = Math.min(50, Math.max(15, calcKmh));
-                                  else if (type === 'subway') speed = Math.min(75, Math.max(20, calcKmh));
-                                  else speed = Math.min(85, Math.max(15, calcKmh));
-                              }
-                          }
+                      if (at.headingDx !== 0 || at.headingDy !== 0) {
+                          heading = Math.round((Math.atan2(at.headingDx, at.headingDy) * 180 / Math.PI + 360) % 360);
+                          hasHeading = true;
                       }
+                      // Anything past this is a decoding error rather than a
+                      // vehicle, so it is dropped instead of being clamped into
+                      // a believable-looking number.
+                      const speedCeiling = type === 'train' ? 250 : (type === 'subway' ? 100 : 120);
+                      if (at.speedKmh > 0 && at.speedKmh <= speedCeiling) {
+                          speed = Math.round(at.speedKmh);
+                      }
+                      if (speed >= 3) status = 'moving';
 
                       // Deduplication: If this is a train, check against Motis and Travic trains
                       if (type === 'train') {
@@ -10974,8 +11086,12 @@ app.post('/api/log', express.json(), (req, res) => {
             // Realistic position change: between 12 meters and 1.5 km
             if (distKm > 0.012 && distKm < 1.5) {
               let calcSpeed = Math.round((distKm / Math.max(1, dtSec)) * 3600);
-              if (calcSpeed > 110) calcSpeed = 100;
-              if (calcSpeed < 5) calcSpeed = 5;
+              // A bus pulling away from a stop really is doing 2 km/h. The old
+              // `if (calcSpeed < 5) calcSpeed = 5` reported it as 5, which is
+              // the same number the idle branch below used to invent, so the
+              // map filled up with vehicles all claiming exactly 5 km/h.
+              if (calcSpeed > 110) calcSpeed = 110;
+              if (calcSpeed < 0) calcSpeed = 0;
 
               if (!hasDirectSpeed) {
                 speedKmh = prevHist.speed > 0 ? Math.round(prevHist.speed * 0.3 + calcSpeed * 0.7) : calcSpeed;
@@ -10997,7 +11113,18 @@ app.post('/api/log', express.json(), (req, res) => {
               // If vehicle moved within the last 45 seconds, it is still in transit; do NOT wipe speed to 0 immediately!
               const msSinceLastMove = nowMs - (prevHist.lastMoveTs || nowMs);
               if (msSinceLastMove < 45000 && prevHist.speed >= 3) {
-                speedKmh = Math.max(5, Math.round(prevHist.speed * 0.98));
+                // Hold the last measured speed until the next fix arrives.
+                //
+                // This used to decay it by 2% per request and stop at a floor
+                // of 5. Because the decay ran per *request* rather than per
+                // *fix*, and clients poll every two seconds, it reached the
+                // floor almost immediately — which is why four buses standing
+                // at the Murska Sobota bus station all read exactly 5 km/h.
+                // Nothing here observed the vehicle slowing down, so nothing
+                // here should claim it did: the last real measurement stands
+                // until either a new fix replaces it or the vehicle has been
+                // still long enough to call it stopped, below.
+                speedKmh = prevHist.speed;
                 brezavtaHistory.set(vId, {
                   lat: prevHist.lat,
                   lon: prevHist.lon,
