@@ -27,6 +27,12 @@ const num = (v: any): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 };
+/** MapLibre flattens feature properties, so nested objects arrive as JSON text. */
+const parseProp = (v: any): any => {
+  if (v == null) return null;
+  if (typeof v !== 'string') return v;
+  try { return JSON.parse(v); } catch { return null; }
+};
 const speedText = (r: any) => {
   const s = Math.round(num(r.speed ?? r.speedKmh ?? r.velocity));
   return s > 0 ? `${s} km/h` : 'miruje';
@@ -53,12 +59,17 @@ const DATASETS: DatasetDef[] = [
     nodeType: 'transit'
   },
   {
-    // Was a list of this app's invented freight workings. No feed publishes
-    // freight positions on this corridor, so the layer now carries the TEN-T
-    // designated network instead: real track, labelled by what the Commission
-    // says it may be used for.
+    // No feed publishes freight positions on this corridor, so these rows are
+    // modelled and labelled as such. The one real name in them is the operator:
+    // the first candidate the licence register offers for this cargo. The train
+    // number stays out — TAF TSI's Core is not published, so there is nothing
+    // truthful to put in its place.
     sourceId: 'freight_modelled', layerKey: 'freight_modelled', label: 'Tovorni (model)', icon: Anchor, accent: '#f59e0b',
-    primary: () => 'Tovorni vlak (model)',
+    primary: r => {
+      const oc = parseProp(r.operatorCandidates);
+      const first = oc?.candidates?.find((c: any) => c.likelyForThisCargo) ?? oc?.candidates?.[0];
+      return first ? `${first.name.split(',')[0]} (model)` : 'Tovorni vlak (model)';
+    },
     secondary: r => [r.direction, r.cargo].filter(Boolean).join(' · ') || '—',
     metric: r => r.speedKmh != null ? `~${r.speedKmh} km/h ±${r.uncertaintyKm} km` : '—',
     sortValue: r => num(r.kmAlong),

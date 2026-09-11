@@ -1511,13 +1511,13 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'micromobility', 'micromobility_arrow', 'micromobility_glow', 'micromobility_trips_path', 'micromobility_trips_endpoints_circle', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'micromobility_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'micromobility', 'micromobility_arrow', 'micromobility_glow', 'micromobility_trips_path', 'micromobility_trips_endpoints_circle', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'micromobility_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_modelled', 'freight_modelled_glow', 'freight_modelled_label', 'border_crossings']
         });
         
         if (features.length) {
           // If a vehicle was clicked along with station/background, prioritize the vehicle!
           const vehicleFeature = features.find(feat => 
-            feat.source === 'buses' || feat.source === 'hafas' || feat.source === 'transit' || feat.source === 'eurorail' || feat.source === 'freight_trains' || feat.source === 'micromobility' ||
+            feat.source === 'buses' || feat.source === 'hafas' || feat.source === 'transit' || feat.source === 'eurorail' || feat.source === 'freight_trains' || feat.source === 'freight_modelled' || feat.source === 'micromobility' ||
             feat.layer.id === 'buses' || feat.layer.id === 'buses_label' || feat.layer.id === 'hafas' || feat.layer.id === 'transit' || feat.layer.id === 'eurorail' || feat.layer.id === 'freight_trains' ||
             feat.layer.id === 'hafas_label' || feat.layer.id === 'transit_label' || feat.layer.id === 'freight_trains_label' || feat.layer.id === 'micromobility' || feat.layer.id === 'micromobility_arrow' || feat.layer.id === 'micromobility_glow'
           );
@@ -4314,6 +4314,96 @@ export class MapController {
         timestamp: new Date(),
         metrics,
         rawPayload: trip,
+        loraData: undefined
+      };
+    }
+
+    /**
+     * A modelled freight train, opened up.
+     *
+     * The point of this panel is to keep the two halves apart. The operator
+     * candidates are real: every one holds a freight licence in Slovenia and
+     * carries an ERA code you can look up. The train number is not knowable —
+     * TAF TSI calls it the Core of the composite identifier and nobody
+     * publishes it here — so the panel says so in that field rather than
+     * putting a number there.
+     */
+    if (type === 'freight_modelled') {
+      // MapLibre flattens feature properties, so nested objects arrive as JSON text.
+      const unpack = (v: any) => {
+        if (v == null) return null;
+        if (typeof v !== 'string') return v;
+        try { return JSON.parse(v); } catch { return null; }
+      };
+      const oc = unpack(data.operatorCandidates);
+      const taf = unpack(data.tafIdentity);
+      const hhmm = (iso: string | null) => {
+        if (!iso) return null;
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? null : d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+      };
+
+      nodeTitle = '📦 Tovorni vlak — modelirana lega';
+
+      metrics.push({ label: 'Kaj je to', value: 'Model, ne opažen vlak', highlight: true });
+      if (data.corridor) metrics.push({ label: 'Koridor', value: data.corridor, highlight: true });
+      if (data.direction) metrics.push({ label: 'Smer vožnje', value: data.direction, highlight: false });
+
+      const dep = hhmm(data.startedAt), arr = hhmm(data.arrivesAt);
+      if (dep && arr) metrics.push({ label: 'Odhod → prihod (model)', value: `${dep} → ${arr}`, highlight: true });
+      if (data.journeyMin != null) metrics.push({ label: 'Vozni čas (model)', value: `${data.journeyMin} min`, highlight: false });
+      if (data.corridorDelayMin != null) metrics.push({ label: 'Zamuda na koridorju', value: `+${data.corridorDelayMin} min`, highlight: Number(data.corridorDelayMin) > 15 });
+
+      // The operator block: the part that is checkable against a register.
+      if (oc?.candidates?.length) {
+        const likely = oc.candidates.filter((c: any) => c.likelyForThisCargo);
+        const shown = (likely.length ? likely : oc.candidates).slice(0, 4);
+        metrics.push({
+          label: 'Možni prevoznik',
+          value: shown.map((c: any) => `${c.name.split(',')[0]} (${c.code})`).join(' · '),
+          highlight: true
+        });
+        for (const c of shown) {
+          const marks = (c.keeperMarkings || []).join(', ');
+          metrics.push({
+            label: `  ↳ ${c.code}`,
+            value: [c.name, marks ? `VKM ${marks}` : null].filter(Boolean).join(' — '),
+            highlight: false
+          });
+        }
+        metrics.push({ label: 'Licenciranih tovornih prevoznikov v SI', value: oc.licensedCount, highlight: false });
+        if (oc.basis) metrics.push({ label: 'Podlaga', value: oc.basis, highlight: false });
+        if (oc.inferenceNote) metrics.push({ label: 'Opozorilo', value: oc.inferenceNote, highlight: false });
+      }
+
+      // The identifier block: the part that is honestly empty.
+      metrics.push({
+        label: 'Številka vlaka',
+        value: taf?.core ?? 'Ni javno objavljena',
+        highlight: false
+      });
+      if (taf?.structure) metrics.push({ label: 'TAF TSI identifikator', value: taf.structure, highlight: false });
+      if (taf?.note) metrics.push({ label: 'Zakaj je prazna', value: taf.note, highlight: false });
+
+      if (data.cargo) metrics.push({ label: 'Tovor (model)', value: data.cargo, highlight: false });
+      if (data.wagonSeries) metrics.push({ label: 'Serija vagonov', value: data.wagonSeries, highlight: false });
+      if (data.wagons != null) metrics.push({ label: 'Vagonov', value: data.wagons, highlight: false });
+      if (data.grossWeightTons != null) metrics.push({ label: 'Bruto masa', value: data.grossWeightTons, unit: 't', highlight: false });
+      if (data.speedKmh != null) metrics.push({ label: 'Hitrost (model)', value: data.speedKmh, unit: 'km/h', highlight: false });
+      if (data.uncertaintyKm != null) metrics.push({ label: 'Negotovost lege', value: `±${data.uncertaintyKm} km`, highlight: true });
+      if (data.confidence != null) metrics.push({ label: 'Zaupanje modela', value: `${Math.round(Number(data.confidence) * 100)} %`, highlight: false });
+      if (data.corridorBasisNote) metrics.push({ label: 'Vir števila vlakov', value: data.corridorBasisNote, highlight: false });
+      if (data.timingSource) metrics.push({ label: 'Vir voznega reda', value: data.timingSource, highlight: false });
+
+      return {
+        id: data.id || 'freight_modelled',
+        title: nodeTitle,
+        category: 'TOVORNI VLAK — MODELIRANA LEGA',
+        type: 'freight_train',
+        coordinates: coords,
+        timestamp: new Date(),
+        metrics,
+        rawPayload: data,
         loraData: undefined
       };
     }

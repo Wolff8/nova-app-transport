@@ -7795,7 +7795,12 @@ app.post('/api/log', express.json(), (req, res) => {
    * a registered entity with a verifiable code and country, so an operator shown
    * on a train is one that actually holds a licence rather than a label.
    */
-  let organisationRegister: { code: string; name: string; acronym: string; country: string; city: string; ru: boolean; im: boolean }[] = [];
+  // Roles come from the register's own "Domains of Activity" column, so an
+  // operator is a freight undertaking because the register says so, not
+  // because its name sounds like one. Codes marked Inactive are carried too,
+  // and flagged, since an inactive entry is worth seeing as inactive.
+  type OrgEntry = { code: string; name: string; acronym?: string; country: string; city?: string; roles: string[] };
+  let organisationRegister: OrgEntry[] = [];
   try {
     const orgPath = path.join(process.cwd(), 'src', 'data', 'organisationCodes.json');
     if (fs.existsSync(orgPath)) {
@@ -7829,7 +7834,13 @@ app.post('/api/log', express.json(), (req, res) => {
       if (nm && (key === nm || nm.startsWith(key) || key.startsWith(nm))) { best = org; break; }
     }
     const result = best
-      ? { code: best.code, name: best.name, acronym: best.acronym, country: best.country, isRailwayUndertaking: best.ru }
+      ? {
+          code: best.code, name: best.name, acronym: best.acronym, country: best.country,
+          roles: best.roles,
+          isRailwayUndertaking: best.roles.includes('RU-F') || best.roles.includes('RU-P') || best.roles.includes('RU'),
+          isFreightUndertaking: best.roles.includes('RU-F'),
+          isInactive: best.roles.includes('INACTIVE')
+        }
       : null;
     orgLookupCache.set(key, result);
     return result;
@@ -9231,6 +9242,67 @@ app.post('/api/log', express.json(), (req, res) => {
     ];
   }
 
+  /**
+   * Who could be running this, and what its identifier would look like.
+   *
+   * The honest split: a train's operator is a real, registered thing and an
+   * operator *candidate* can be named from the licence register. The train
+   * number is not — TAF TSI calls it the Core of the composite identifier, and
+   * no Slovenian source publishes it — so it is returned as null rather than
+   * filled with something plausible-looking.
+   *
+   * Candidates are narrowed by cargo, using what the register itself says.
+   * Adria kombi is registered as a company for combined transport and Metrans
+   * Adria is a container operator, so they are the ones offered for boxes;
+   * Petrol and Nafta-Petrochem keep tank wagons, so they appear against fuels.
+   * That reading of a registered name is inference, not a published traffic
+   * assignment, and the payload says so. SŽ – Tovorni promet is always a
+   * candidate: it is the incumbent carrier and runs everything.
+   */
+  const FREIGHT_OPERATOR_AFFINITY: { match: RegExp; codes: string[] }[] = [
+    { match: /kontejner|container|g\.?t\.?\s*v\s*kont/i, codes: ['4364', '5040'] },
+    { match: /vozila|avtomobil|car|ro-?ro/i, codes: ['7981'] },
+    { match: /coal|premog|ruda|boksit|klinker|pesek/i, codes: ['5103', '1255'] },
+    { match: /žito|zito|grain|pšenic|koruz|soja/i, codes: ['3601'] },
+    { match: /jeklo|steel|coil|pločevin|alumini/i, codes: ['5709'] }
+  ];
+
+  function freightOperatorCandidates(cargo: string | null, corridorId: string) {
+    // Everyone the register declares a freight undertaking in Slovenia. This is
+    // the checkable part: these companies hold the licence, whoever is actually
+    // driving this particular train.
+    const licensed = organisationRegister.filter(o =>
+      o.country === 'Slovenia' && o.roles.includes('RU-F') && !o.roles.includes('INACTIVE'));
+
+    // A subset is offered first where the cargo points that way — Adria kombi
+    // and Metrans for boxes, Rail Cargo Carrier for vehicles. That ordering is
+    // inference from what these companies are known for, not a published
+    // traffic assignment, and the payload says so.
+    const preferred = new Set<string>(['9AHR']);
+    const hit = cargo ? FREIGHT_OPERATOR_AFFINITY.find(a => a.match.test(cargo)) : undefined;
+    for (const c of hit?.codes ?? []) preferred.add(c);
+    if (/sentilj|jesenice/.test(corridorId)) preferred.add('7981');
+    if (/hodos|dobova/.test(corridorId)) preferred.add('5040');
+
+    const shape = (o: OrgEntry, likely: boolean) => ({
+      code: o.code,
+      name: o.name,
+      acronym: o.acronym ?? null,
+      roles: o.roles,
+      keeperMarkings: vkmKeepersNamed(o.name).map((k: any) => k.vkm),
+      likelyForThisCargo: likely
+    });
+    return {
+      basis: 'Register organizacij ERA/UIC — vsi z vlogo "Railway Undertaking freight" v Sloveniji.',
+      inferenceNote: 'Razvrstitev po vrsti tovora je sklepanje, ne objavljena dodelitev prometa.',
+      licensedCount: licensed.length,
+      candidates: [
+        ...licensed.filter(o => preferred.has(o.code)).map(o => shape(o, true)),
+        ...licensed.filter(o => !preferred.has(o.code)).map(o => shape(o, false))
+      ]
+    };
+  }
+
   function modelledFreightPositions() {
     const basis = koperRailBasis();
     const delayed = delayedTrainSample();
@@ -9358,6 +9430,18 @@ app.post('/api/log', express.json(), (req, res) => {
               elapsedMin: Math.round(departedMinAgo),
               cargo,
               wagonSeries: series,
+              // Real operators, offered as candidates; the number is not
+              // knowable and is returned empty rather than invented.
+              operatorCandidates: freightOperatorCandidates(cargo, corridor.id),
+              tafIdentity: {
+                objectType: 'TR',
+                company: null,
+                core: null,
+                variant: null,
+                timetableYear: new Date().getUTCFullYear(),
+                structure: 'ObjectType + Company + Core + Variant + TimetableYear (TAF TSI)',
+                note: 'Company je znan za vsakega kandidata; Core (številka vlaka) ni javno objavljen.'
+              },
               grossWeightTons: Math.round(basis.tonnesPerTrain),
               wagons: Math.round(basis.wagonsPerTrain),
               confidence: unc.confidence,
@@ -9541,7 +9625,7 @@ app.post('/api/log', express.json(), (req, res) => {
         : null,
       operators: organisationRegister
         .filter(o => o.country === 'Slovenia')
-        .map(o => ({ code: o.code, name: o.name, isRailwayUndertaking: o.ru, isInfrastructureManager: o.im }))
+        .map(o => ({ code: o.code, name: o.name, roles: o.roles }))
     });
   });
 
