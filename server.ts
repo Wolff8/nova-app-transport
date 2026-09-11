@@ -9257,7 +9257,17 @@ app.post('/api/log', express.json(), (req, res) => {
 
   // Once a day is far more often than ERA changes these, and costs two files.
   setInterval(() => { refreshRegisters('daily').catch(() => {}); }, 24 * 60 * 60 * 1000).unref?.();
-  setTimeout(() => { refreshRegisters('startup').catch(() => {}); }, 20000).unref?.();
+  // Not at startup. Refreshing the registers twenty seconds after boot meant
+  // downloading two multi-megabyte XLSX files and inflating and parsing them
+  // synchronously — 14 s of work on a laptop, and on the 0.1-CPU instance long
+  // enough to starve the event loop for about twenty minutes: every transit
+  // build in that window overran and had its upstream fetch aborted, and the
+  // API answered a few seconds out of every minute. Because the free instance
+  // sleeps after fifteen idle minutes and restarts on the next visit, that
+  // twenty-minute freeze greeted the user on almost every return. The copy on
+  // disk ships with the build and was current every time (5554 → 5554, VKM
+  // already at the latest issue), so the first refresh now waits six hours.
+  setTimeout(() => { refreshRegisters('scheduled').catch(() => {}); }, 6 * 60 * 60 * 1000).unref?.();
 
   const VKM_STATUS = ['revoked', 'in use', 'blocked'];
 
