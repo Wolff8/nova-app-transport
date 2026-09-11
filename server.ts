@@ -8445,15 +8445,56 @@ app.post('/api/log', express.json(), (req, res) => {
    * file — containers to Sggrss, fuels to Zacns tanks, vehicles to Laaers — and
    * is likewise marked as a judgement rather than a reading.
    * ------------------------------------------------------------------ */
-  const KOPER_CARGO_TO_WAGON: { match: RegExp; series: string; label: string }[] = [
-    { match: /kontejner|container|g\.?t\.?\s*v\s*kont/i, series: 'SGGRSS', label: 'Pomorski zabojniki' },
-    { match: /ulsd|gasoline|diesel|dizel|jet|bencin|nafta|kemik|etanol|plin/i, series: 'ZACNS', label: 'Tekoči tovor' },
-    { match: /vozila|avtomobil|car|ro-?ro/i, series: 'LAAERS', label: 'Vozila' },
-    { match: /coal|premog|ruda|boksit|klinker/i, series: 'EANOS', label: 'Razsuti tovor' },
-    { match: /urea|žito|zito|grain|pšenic|koruz|soja|gnojil/i, series: 'TAGNPPS', label: 'Razsuti tovor pod streho' },
-    { match: /jeklo|steel|coil|pločevin|alumini/i, series: 'SHIMMNS', label: 'Jeklo in kolobarji' },
-    { match: /papir|paleti|celuloz|les|timber/i, series: 'HABBIILLNS', label: 'Splošni tovor' }
+  /**
+   * Cargo type to wagon series, and to the statistical commodity group.
+   *
+   * The nst07 codes matter because Eurostat publishes rail and road tonnage
+   * under the same NST 2007 classification, so a real rail share can be
+   * computed per commodity instead of applying one number to everything. The
+   * spread is not small: nationally 88 % of coal and crude moves by rail
+   * against 7 % of grouped goods and 4 % of chemicals. A flat figure hides
+   * exactly the thing worth knowing.
+   */
+  const KOPER_CARGO_TO_WAGON: { match: RegExp; series: string; label: string; nst07: string }[] = [
+    { match: /kontejner|container|g\.?t\.?\s*v\s*kont/i, series: 'SGGRSS', label: 'Pomorski zabojniki', nst07: 'GT18' },
+    { match: /ulsd|gasoline|diesel|dizel|jet|bencin|nafta/i, series: 'ZACNS', label: 'Tekoči tovor', nst07: 'GT07' },
+    { match: /kemik|etanol|plin|urea|gnojil/i, series: 'ZACNS', label: 'Kemikalije in gnojila', nst07: 'GT08' },
+    { match: /vozila|avtomobil|car|ro-?ro/i, series: 'LAAERS', label: 'Vozila', nst07: 'GT12' },
+    { match: /coal|premog/i, series: 'EANOS', label: 'Premog', nst07: 'GT02' },
+    { match: /ruda|boksit|klinker|pesek|gramoz/i, series: 'EANOS', label: 'Rude in mineralni tovor', nst07: 'GT03' },
+    { match: /žito|zito|grain|pšenic|koruz|soja/i, series: 'TAGNPPS', label: 'Kmetijski razsuti tovor', nst07: 'GT01' },
+    { match: /jeklo|steel|coil|pločevin|alumini/i, series: 'SHIMMNS', label: 'Jeklo in kolobarji', nst07: 'GT10' },
+    { match: /les|timber|celuloz/i, series: 'HABBIILLNS', label: 'Les in celuloza', nst07: 'GT06' },
+    { match: /papir|paleti/i, series: 'HABBIILLNS', label: 'Splošni tovor', nst07: 'GT18' }
   ];
+
+  let commoditySplit: { source: string; geo: string; railYear: string; roadYear: string; note: string; groups: any[] } | null = null;
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'commoditySplit.json');
+    if (fs.existsSync(p)) {
+      commoditySplit = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log('[Eurostat] Commodity modal split loaded:', commoditySplit!.groups.length, 'groups');
+    }
+  } catch (e: any) {
+    console.warn('[Eurostat] Could not load commodity split:', e?.message);
+  }
+
+  function commodityShareFor(nst07: string | null) {
+    if (!commoditySplit || !nst07) return null;
+    const g = commoditySplit.groups.find((x: any) => x.code === nst07);
+    if (!g) return null;
+    return {
+      nst07: g.code,
+      label: g.label,
+      railSharePercent: g.railSharePercent,
+      railThousandTonnes: g.railThsT,
+      roadThousandTonnes: g.roadThsT,
+      year: commoditySplit.railYear,
+      scope: 'national',
+      source: commoditySplit.source,
+      note: 'Nacionalni delež za to blagovno skupino — ni delež Luke Koper.'
+    };
+  }
   // Cruise calls are counted in tonnes by the port but never see a wagon.
   const KOPER_NON_FREIGHT = /potnik|passenger|kruzer|cruise/i;
 
@@ -8506,7 +8547,11 @@ app.post('/api/log', express.json(), (req, res) => {
       wagonCategory: hit?.label ?? null,
       wagonPayloadTons: payload,
       classificationIsInferred: true,
-      unmatchedCargo: !hit
+      unmatchedCargo: !hit,
+      // What share of this commodity actually goes by rail nationally. Kept
+      // beside the conversion rather than folded into it: the port's 51 % and
+      // this are different populations and multiplying them would be wrong.
+      nationalCommodityShare: commodityShareFor(hit?.nst07 ?? null)
     };
   }
 
@@ -8560,6 +8605,15 @@ app.post('/api/log', express.json(), (req, res) => {
       atBerth,
       arriving,
       byCategory,
+      commoditySplit: commoditySplit
+        ? {
+            source: commoditySplit.source,
+            geo: commoditySplit.geo,
+            year: commoditySplit.railYear,
+            note: commoditySplit.note,
+            groups: commoditySplit.groups
+          }
+        : null,
       totals: {
         ships: freightOnly.length,
         cargoTonnes: Math.round(freightOnly.reduce((s, r) => s + (r.cargoTonnes ?? 0), 0)),

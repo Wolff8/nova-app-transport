@@ -886,16 +886,41 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                             wagon series is a classification, so both are worded
                             as consequences rather than as readings. */}
                         {s.rail?.isFreight ? (
-                          <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[10px] font-mono">
-                            <span className="text-slate-400">
-                              ≈ <strong className="text-amber-300">{Number(s.rail.railTonnes).toLocaleString('sl-SI')} t</strong> po tiru
-                            </span>
-                            <span className="text-slate-400 text-right">
-                              ≈ <strong className="text-sky-300">{s.rail.wagonsAtPortAverage}</strong> vagonov
-                              {s.rail.wagonSeries && <span className="text-slate-500"> {s.rail.wagonSeries}</span>}
-                              {s.rail.trains > 0 && <> · <strong className="text-emerald-300">{s.rail.trains}</strong> vlakov</>}
-                            </span>
-                          </div>
+                          <>
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[10px] font-mono">
+                              <span className="text-slate-400">
+                                ≈ <strong className="text-amber-300">{Number(s.rail.railTonnes).toLocaleString('sl-SI')} t</strong> po tiru
+                              </span>
+                              <span className="text-slate-400 text-right">
+                                ≈ <strong className="text-sky-300">{s.rail.wagonsAtPortAverage}</strong> vagonov
+                                {s.rail.wagonSeries && <span className="text-slate-500"> {s.rail.wagonSeries}</span>}
+                                {s.rail.trains > 0 && <> · <strong className="text-emerald-300">{s.rail.trains}</strong> vlakov</>}
+                              </span>
+                            </div>
+                            {/* The national rail share for this commodity
+                                class. Deliberately not multiplied into the
+                                figure above — the port's 51 % and this are
+                                different populations — but it says which way
+                                the port average is likely to be wrong for this
+                                particular cargo. */}
+                            {s.rail.nationalCommodityShare && (
+                              <div className="mt-1 flex items-center justify-between gap-2 text-[9.5px] font-mono">
+                                <span className="text-slate-500 truncate">
+                                  {s.rail.nationalCommodityShare.nst07} nacionalno
+                                </span>
+                                <span className={
+                                  s.rail.nationalCommodityShare.railSharePercent >= 51
+                                    ? 'text-emerald-400/90 shrink-0'
+                                    : 'text-amber-400/80 shrink-0'
+                                }>
+                                  {Number(s.rail.nationalCommodityShare.railSharePercent).toLocaleString('sl-SI')} % po tiru
+                                  <span className="text-slate-600">
+                                    {' '}({s.rail.nationalCommodityShare.railSharePercent >= 51 ? 'nad' : 'pod'} 51 %)
+                                  </span>
+                                </span>
+                              </div>
+                            )}
+                          </>
                         ) : s.rail?.note ? (
                           <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-500">
                             {s.rail.note}
@@ -939,6 +964,16 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                     izpeljana iz objavljenih letnih številk pristanišča za {koperShips.basis?.reportingYear}
                     {' '}({Number(koperShips.basis?.annualTrains).toLocaleString('sl-SI')} vlakov,{' '}
                     {Number(koperShips.basis?.annualWagons).toLocaleString('sl-SI')} vagonov). Tip vagona je uvrstitev po vrsti tovora.
+                    {koperShips.commoditySplit && (
+                      <span className="block mt-1">
+                        Vrstica pod vsako ladjo pove, koliko te blagovne skupine gre po tiru{' '}
+                        <strong className="text-slate-300">v vsej Sloveniji</strong> ({koperShips.commoditySplit.year},{' '}
+                        {koperShips.commoditySplit.source}) — od {' '}
+                        {Math.min(...koperShips.commoditySplit.groups.map((g: any) => g.railSharePercent)).toLocaleString('sl-SI')} %
+                        do {Math.max(...koperShips.commoditySplit.groups.map((g: any) => g.railSharePercent)).toLocaleString('sl-SI')} % glede na tovor.
+                        To ni delež Luke Koper in ni vračunano v številke zgoraj; pove le, v katero smer je pristaniško povprečje za ta tovor verjetno napačno.
+                      </span>
+                    )}
                   </p>
                   <p className="text-[10px] text-emerald-400/80 font-mono break-words">
                     Vir: {koperShips.shipSource} · osveženo {new Date(koperShips.updatedAt).toLocaleTimeString('sl-SI')}
