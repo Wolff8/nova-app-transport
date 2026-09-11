@@ -7710,6 +7710,27 @@ app.post('/api/log', express.json(), (req, res) => {
   let transitRefreshing = false;
 
   /**
+   * What the last snapshot build did. Render's logs are not reachable from
+   * here, so the instance has to be able to say for itself which upstreams
+   * answered — the difference between "the map is empty" and "MOTIS and TRAVIC
+   * both timed out and only the Hungarian trains are left" is otherwise
+   * invisible from outside.
+   */
+  const transitBuild: {
+    builds: number; lastFinishedAt: string | null; lastDurationMs: number | null;
+    motis: { ok: boolean; vehicles: number; error: string | null };
+    travic: { ok: boolean; vehicles: number; error: string | null };
+    mav: { vehicles: number };
+    lastTotal: number; lastDiscardedAsDegraded: boolean; lastError: string | null;
+  } = {
+    builds: 0, lastFinishedAt: null, lastDurationMs: null,
+    motis: { ok: false, vehicles: 0, error: null },
+    travic: { ok: false, vehicles: 0, error: null },
+    mav: { vehicles: 0 },
+    lastTotal: 0, lastDiscardedAsDegraded: false, lastError: null
+  };
+
+  /**
    * Live Hungarian trains from MÁV's vonatinfo service.
    *
    * TRAVIC and MOTIS between them surface very little Hungarian rail — measured
@@ -10471,6 +10492,7 @@ app.post('/api/log', express.json(), (req, res) => {
   async function buildTransitSnapshot(): Promise<void> {
     if (transitRefreshing) return;
     transitRefreshing = true;
+    const buildStarted = Date.now();
     try {
       const d = new Date();
       const nowMs = d.getTime();
@@ -11009,6 +11031,18 @@ app.post('/api/log', express.json(), (req, res) => {
           } catch(e) {}
       }
 
+      transitBuild.motis = {
+        ok: resMotis?.status === 'fulfilled' && (resMotis as any).value?.ok === true,
+        vehicles: motisVehicles.length,
+        error: resMotis?.status === 'rejected' ? String((resMotis as any).reason?.message ?? (resMotis as any).reason) : null
+      };
+      transitBuild.travic = {
+        ok: resTravic?.status === 'fulfilled' && (resTravic as any).value?.ok === true,
+        vehicles: travicVehicles.length,
+        error: resTravic?.status === 'rejected' ? String((resTravic as any).reason?.message ?? (resTravic as any).reason) : null
+      };
+      transitBuild.lastError = null;
+
       const baseTransit = [...motisVehicles, ...travicVehicles];
 
       // Fold in MÁV's own Hungarian trains. Where the same train number is
@@ -11046,24 +11080,63 @@ app.post('/api/log', express.json(), (req, res) => {
       // storing that served a nearly empty map. A result less than half the size
       // of a still-fresh previous one is treated as a partial outage and
       // discarded; positions a few seconds old beat absent ones.
+      transitBuild.mav = { vehicles: Math.max(0, allTransit.length - baseTransit.length) };
+      transitBuild.lastTotal = allTransit.length;
+      transitBuild.lastDiscardedAsDegraded = false;
       if (allTransit.length === 0) return;
       const previous = transitCache.data.length;
       const cacheStillFresh = (Date.now() - transitCache.ts) < TRANSIT_CACHE_TTL_MS;
       if (previous > 0 && cacheStillFresh && allTransit.length < previous * 0.5) {
         console.warn(`[transit] discarding degraded snapshot (${allTransit.length} vs ${previous})`);
+        transitBuild.lastDiscardedAsDegraded = true;
         return;
       }
       transitCache = { data: allTransit, ts: Date.now() };
     } catch (error) {
       console.error('Hybrid fetch error:', error);
+      transitBuild.lastError = String((error as any)?.message ?? error);
     } finally {
+      transitBuild.lastDurationMs = Date.now() - buildStarted;
+      transitBuild.lastFinishedAt = new Date().toISOString();
+      transitBuild.builds++;
       transitRefreshing = false;
     }
   }
 
-  // Keep the snapshot warm, and serve it without ever doing the work inline.
-  buildTransitSnapshot();
-  setInterval(() => { buildTransitSnapshot(); }, 6000);
+  /**
+   * Keep the snapshot warm without letting it saturate the instance.
+   *
+   * A fixed six-second interval assumes the build finishes inside six seconds.
+   * On the 0.1-CPU instance it does not always, and a build that overruns its
+   * own interval is immediately asked to start again, so the loop never gets a
+   * quiet moment and requests time out. The next build is instead scheduled
+   * from the end of the last one, never sooner than six seconds and never
+   * sooner than the last build took — so a slow instance simply refreshes
+   * less often instead of falling over.
+   */
+  function scheduleTransitSnapshot(delayMs: number) {
+    setTimeout(async () => {
+      await buildTransitSnapshot();
+      const took = transitBuild.lastDurationMs ?? 0;
+      scheduleTransitSnapshot(Math.min(30000, Math.max(6000, took)));
+    }, delayMs);
+  }
+  buildTransitSnapshot().finally(() => scheduleTransitSnapshot(6000));
+
+  /** What the last snapshot build actually did, so a live instance can be diagnosed. */
+  app.get('/api/transit/diagnostics', (req, res) => {
+    res.json({
+      ...transitBuild,
+      refreshing: transitRefreshing,
+      // The instance has 512 MB. If rss sits near that, the stalls are the
+      // garbage collector, not the upstreams.
+      memoryMb: Object.fromEntries(Object.entries(process.memoryUsage()).map(([k, v]) => [k, Math.round((v as number) / 1048576)])),
+      uptimeS: Math.round(process.uptime()),
+      cachedVehicles: transitCache.data.length,
+      cacheAgeMs: transitCache.ts ? Date.now() - transitCache.ts : null,
+      note: 'motis/travic/mav povedo, koliko vozil je prispevalo posamezno zaledje pri zadnji gradnji. Nic pri motis in travic pomeni, da sta oba odpovedala in ostanejo samo madzarski vlaki.'
+    });
+  });
 
   /**
    * Live vehicles, with the operator resolved against the registers.
