@@ -1024,6 +1024,23 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                           <span className="text-[11px] font-medium text-amber-400">
                             {terminal.category}
                           </span>
+                          {/* Whether the Commission designates this place, as
+                              opposed to it simply being a working freight
+                              yard. Most on this list are the latter. */}
+                          {terminal.tenT && (
+                            <div className="mt-1">
+                              {terminal.tenT.designated ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-mono font-semibold bg-sky-500/10 border border-sky-500/30 text-sky-300">
+                                  TEN-T {terminal.tenT.kind === 'port' ? 'pristanišče' : 'terminal'} · {terminal.tenT.network === 'core' ? 'jedrno' : 'celovito'}
+                                  {terminal.tenT.corridors ? ` · ${terminal.tenT.corridors}` : ''}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-mono bg-slate-700/40 border border-slate-600/40 text-slate-400">
+                                  ni vozlišče TEN-T
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <span className="px-2 py-0.5 rounded-full text-[9.5px] font-mono font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0">
                           {terminal.tracks} tirov

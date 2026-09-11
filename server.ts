@@ -805,10 +805,18 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
 
   // 2. Comprehensive Freight Terminals & Marshalling Yards (Slovenian + European Hubs)
   app.get('/api/freight/terminals', (req, res) => {
-    const allTerminals = [...FREIGHT_TERMINALS_REGISTRY, ...EUROPEAN_INTERMODAL_TERMINALS];
+    // Each yard now carries whether the Commission actually designates it, so
+    // a busy freight station is not silently presented as a TEN-T terminal.
+    const allTerminals = [...FREIGHT_TERMINALS_REGISTRY, ...EUROPEAN_INTERMODAL_TERMINALS]
+      .map((t: any) => ({
+        ...t,
+        tenT: Number.isFinite(t.lat) && Number.isFinite(t.lon) ? tentStatusFor(t.lat, t.lon) : null
+      }));
     res.json({
       timestamp: new Date().toISOString(),
       count: allTerminals.length,
+      designatedCount: allTerminals.filter((t: any) => t.tenT?.designated).length,
+      tenTSource: tentNetwork?.source ?? null,
       terminals: allTerminals
     });
   });
@@ -8711,6 +8719,93 @@ app.post('/api/log', express.json(), (req, res) => {
       if (hit) return res.json(hit.body);
       res.status(502).json({ error: 'Postajni odhodi niso dosegljivi', detail: e?.message });
     }
+  });
+
+  /* ------------------------------------------------------------------ *
+   * Which of these places the EU actually designates.
+   *
+   * This app calls thirteen Slovenian yards "terminals" and drapes TEN-T
+   * corridor labels over them. The Commission's own TENtec map services say
+   * something narrower: Slovenia has one core rail-road terminal, one
+   * comprehensive one, and one core port. Everything else on that list is a
+   * real freight yard, which is not the same claim.
+   *
+   * TENtec publishes geometry and classification but no names, so a node is
+   * matched to a yard by position and nothing else. Beyond about five
+   * kilometres they are treated as different places.
+   * ------------------------------------------------------------------ */
+  type TentNode = {
+    kind: string; network: string; country: string;
+    corridors: string | null; type: string | null; lat: number; lon: number;
+  };
+  let tentNetwork: { source: string; sourceUrl: string; retrieved: string; nodes: TentNode[]; railwaySummary: Record<string, any> } | null = null;
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'tentNetwork.json');
+    if (fs.existsSync(p)) {
+      tentNetwork = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log('[TEN-T] TENtec nodes loaded:', tentNetwork!.nodes.length);
+    }
+  } catch (e: any) {
+    console.warn('[TEN-T] Could not load TENtec nodes:', e?.message);
+  }
+
+  const TENT_MATCH_MAX_KM = 5;
+
+  /**
+   * Nearest designated TEN-T node to a yard, or null when there is none near.
+   *
+   * Only rail-road terminals and ports are candidates. Airports are TEN-T
+   * nodes too and matching on distance alone put Zagreb's marshalling yard on
+   * one five kilometres away, which is a different kind of place entirely. A
+   * rail-road terminal wins over a port at equal distance, since that is the
+   * designation a yard would actually hold.
+   */
+  const TENT_MATCHABLE = new Set(['rail-road terminal', 'port']);
+
+  function tentStatusFor(lat: number, lon: number): any {
+    if (!tentNetwork) return null;
+    let best: { node: TentNode; km: number } | null = null;
+    for (const node of tentNetwork.nodes) {
+      if (node.lat == null || node.lon == null) continue;
+      if (!TENT_MATCHABLE.has(node.kind)) continue;
+      const dLat = (node.lat - lat) * 111.32;
+      const dLon = (node.lon - lon) * 111.32 * Math.cos((lat * Math.PI) / 180);
+      const km = Math.sqrt(dLat * dLat + dLon * dLon);
+      const better = !best
+        || km < best.km - 0.001
+        || (Math.abs(km - best.km) <= 0.001 && node.kind === 'rail-road terminal' && best.node.kind !== 'rail-road terminal');
+      if (better) best = { node, km };
+    }
+    if (!best || best.km > TENT_MATCH_MAX_KM) {
+      return {
+        designated: false,
+        note: 'Ni med vozlišči TEN-T po TENtec — dejansko tovorno postajališče, a brez uradne oznake terminala.'
+      };
+    }
+    return {
+      designated: true,
+      kind: best.node.kind,
+      network: best.node.network,
+      corridors: best.node.corridors,
+      type: best.node.type,
+      distanceKm: Number(best.km.toFixed(2)),
+      source: tentNetwork.source
+    };
+  }
+
+  app.get('/api/tent/network', (req, res) => {
+    if (!tentNetwork) return res.status(503).json({ error: 'TENtec podatki niso naloženi' });
+    const country = String(req.query.country || '').toUpperCase().slice(0, 2);
+    const nodes = country ? tentNetwork.nodes.filter(n => n.country === country) : tentNetwork.nodes;
+    res.json({
+      source: tentNetwork.source,
+      sourceUrl: tentNetwork.sourceUrl,
+      retrieved: tentNetwork.retrieved,
+      note: 'TENtec objavlja lego in razvrstitev vozlišč, ne pa imen.',
+      nodeCount: nodes.length,
+      nodes,
+      railwaySummary: country ? { [country]: tentNetwork.railwaySummary[country] } : tentNetwork.railwaySummary
+    });
   });
 
   app.get('/api/freight/network', (req, res) => {
