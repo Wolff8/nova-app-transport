@@ -24,6 +24,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   // Data states
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [koperShips, setKoperShips] = useState<any>(null);
+  const [msDepartures, setMsDepartures] = useState<any>(null);
+  const [feedHealth, setFeedHealth] = useState<any>(null);
   const [terminalsData, setTerminalsData] = useState<any[]>([]);
   const [corridorsData, setCorridorsData] = useState<any>(null);
   const [modalSplitData, setModalSplitData] = useState<any>(null);
@@ -97,6 +99,20 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     loadKoperShips();
     const koperTimer = setInterval(loadKoperShips, 120000);
 
+    // Murska Sobota's own departures, and how fresh the feed behind them is.
+    const loadStationLive = () => {
+      fetch('/api/motis/departures?stopId=sz_1122956&n=10')
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then(d => { if (d?.departures) setMsDepartures(d); })
+        .catch(() => {});
+      fetch('/api/motis/health')
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then(d => { if (d?.feeds) setFeedHealth(d); })
+        .catch(() => {});
+    };
+    loadStationLive();
+    const stationTimer = setInterval(loadStationLive, 60000);
+
     fetch('/api/freight/terminals')
       .then(res => res.json())
       .then(data => setTerminalsData(data.terminals || []))
@@ -135,6 +151,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
       clearInterval(trainTimer);
       clearInterval(msTimer);
       clearInterval(koperTimer);
+      clearInterval(stationTimer);
     };
   }, [isOpen]);
 
@@ -1463,6 +1480,80 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   </button>
                 </div>
               </div>
+
+              {/* The station's own departures, from the SŽ GTFS-RT feed. The
+                  app could show a board for Villa Opicina but not for any
+                  Slovenian station, which was backwards for an app about this
+                  corridor. Each row says whether its time is observed or only
+                  scheduled, so the two are never confused. */}
+              {msDepartures?.departures?.length > 0 && (
+                <div className="p-4 rounded-xl bg-slate-900/70 border border-sky-500/25 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                      <Clock size={14} className="text-sky-400" />
+                      Odhodi — Murska Sobota
+                    </h4>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {msDepartures.realtimeCount}/{msDepartures.departures.length} v realnem času
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    {msDepartures.departures.map((d: any, i: number) => (
+                      <div key={`${d.tripId}-${i}`} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/70 text-[11px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono font-bold text-white shrink-0">{d.train}</span>
+                          <span className="text-slate-400 truncate">{d.headsign}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 font-mono">
+                          {d.cancelled ? (
+                            <span className="text-rose-400 font-bold">odpovedan</span>
+                          ) : (
+                            <>
+                              <span className={d.delayMin ? 'text-slate-500 line-through' : 'text-slate-200'}>
+                                {d.scheduled ? new Date(d.scheduled).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                              </span>
+                              {d.delayMin ? (
+                                <span className="text-rose-300 font-bold">
+                                  {new Date(d.actual).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}
+                                  <span className="text-rose-400/80"> +{d.delayMin}</span>
+                                </span>
+                              ) : null}
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.isRealtime ? 'bg-emerald-400' : 'bg-slate-600'}`}
+                                    title={d.isRealtime ? 'Realni čas' : 'Samo vozni red'} />
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Feed quality, stated rather than implied by a "live" dot. */}
+                  {feedHealth?.agencies?.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800 text-[10px] text-slate-400 leading-relaxed font-mono">
+                      {feedHealth.agencies
+                        // Only the feeds that carry trains through here; the
+                        // gateway also serves Montenegro, which says nothing
+                        // about Prekmurje.
+                        .filter((a: any) => a.running > 0 && (a.tag === 'sz' || a.tag === 'hzpp'))
+                        .map((a: any) => (
+                          <span key={a.tag} className="inline-block mr-3">
+                            {a.tag.toUpperCase()}:{' '}
+                            <strong className={a.realtimePercent >= 80 ? 'text-emerald-300' : 'text-amber-300'}>
+                              {a.withRealtime}/{a.running}
+                            </strong>{' '}
+                            v živo
+                          </span>
+                        ))}
+                      {feedHealth.totals?.worstFeedAgeSeconds != null && (
+                        <span className="block mt-1 text-slate-500">
+                          Vir GTFS-RT star {feedHealth.totals.worstFeedAgeSeconds} s · polna pika = izmerjen čas, prazna = vozni red
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 4 Radar Metric KPIs */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

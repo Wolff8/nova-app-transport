@@ -8572,6 +8572,147 @@ app.post('/api/log', express.json(), (req, res) => {
     });
   });
 
+  /* ------------------------------------------------------------------ *
+   * How good is the live feed, right now.
+   *
+   * The MOTIS gateway this app already reads exposes Prometheus metrics, which
+   * answer a question the app could not previously answer about itself: how
+   * stale the data is, and how much of it is real rather than scheduled.
+   *
+   *   nigiri_gtfsrt_feed_timestamp_seconds{tag="sz"}         -> feed age
+   *   current_trips_running_scheduled_count{...}             -> trips running
+   *   current_trips_running_scheduled_with_realtime_count{}  -> of which live
+   *
+   * Typically the SŽ feed is under a minute old and 35 of 38 running trains
+   * carry real GTFS-RT data. Saying so is worth more than an unqualified
+   * "live" badge, and it exposes the difference honestly when a feed goes
+   * stale — the failure this app spent days chasing blind.
+   * ------------------------------------------------------------------ */
+  const MOTIS_BASE = 'https://mapper-motis.ojpp-gateway.derp.si';
+  const MOTIS_HEALTH_TTL_MS = 30000;
+  let motisHealthCache: { data: any; ts: number } = { data: null, ts: 0 };
+  let motisHealthRefreshing = false;
+
+  async function refreshMotisHealth(): Promise<void> {
+    if (motisHealthRefreshing) return;
+    motisHealthRefreshing = true;
+    try {
+      const r = await fetch(`${MOTIS_BASE}/metrics`, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) return;
+      const text = await r.text();
+      const nowSec = Date.now() / 1000;
+
+      const feeds: any[] = [];
+      for (const m of text.matchAll(/nigiri_gtfsrt_feed_timestamp_seconds\{tag="([^"]+)"\}\s+(\d+)/g)) {
+        const errors = new RegExp(`nigiri_gtfsrt_updates_error_total\\{tag="${m[1]}"\\}\\s+(\\d+)`).exec(text);
+        feeds.push({
+          tag: m[1],
+          feedTimestamp: new Date(Number(m[2]) * 1000).toISOString(),
+          ageSeconds: Math.max(0, Math.round(nowSec - Number(m[2]))),
+          failedUpdates: errors ? Number(errors[1]) : null
+        });
+      }
+
+      const agencies: any[] = [];
+      for (const m of text.matchAll(/current_trips_running_scheduled_count\{agency_id="([^"]*)",agency_name="([^"]*)",tag="([^"]*)"\}\s+(\d+)/g)) {
+        const rt = new RegExp(
+          `current_trips_running_scheduled_with_realtime_count\\{agency_id="${m[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^}]*\\}\\s+(\\d+)`
+        ).exec(text);
+        const running = Number(m[4]);
+        const withRealtime = rt ? Number(rt[1]) : 0;
+        agencies.push({
+          tag: m[3],
+          agency: m[2],
+          running,
+          withRealtime,
+          realtimePercent: running > 0 ? Math.round((withRealtime / running) * 100) : null
+        });
+      }
+      if (feeds.length === 0 && agencies.length === 0) return;
+
+      motisHealthCache = {
+        data: {
+          source: 'MOTIS gateway (mapper-motis.ojpp-gateway.derp.si) Prometheus metrics',
+          checkedAt: new Date().toISOString(),
+          feeds,
+          agencies,
+          totals: {
+            running: agencies.reduce((s, a) => s + a.running, 0),
+            withRealtime: agencies.reduce((s, a) => s + a.withRealtime, 0),
+            worstFeedAgeSeconds: feeds.length ? Math.max(...feeds.map(f => f.ageSeconds)) : null
+          }
+        },
+        ts: Date.now()
+      };
+    } catch (e: any) {
+      console.warn('[MOTIS health] failed:', e?.message);
+    } finally {
+      motisHealthRefreshing = false;
+    }
+  }
+  refreshMotisHealth();
+  setInterval(() => { refreshMotisHealth(); }, MOTIS_HEALTH_TTL_MS);
+
+  app.get('/api/motis/health', (req, res) => {
+    if (!motisHealthCache.data) return res.status(503).json({ error: 'Metrike še niso naložene' });
+    res.json(motisHealthCache.data);
+  });
+
+  /**
+   * Station departure boards, straight from the same gateway.
+   *
+   * The app could show a board for Villa Opicina but not for any Slovenian
+   * station, which is backwards for an app about this corridor. Each entry
+   * carries its own realtime flag, so a scheduled time is never dressed up as
+   * an observed one.
+   */
+  const motisStopTimesCache = new Map<string, { body: any; ts: number }>();
+  const MOTIS_STOPTIMES_TTL_MS = 45000;
+
+  app.get('/api/motis/departures', async (req, res) => {
+    const stopId = String(req.query.stopId || '').trim();
+    if (!stopId) return res.status(400).json({ error: 'Manjka stopId' });
+    const n = Math.min(30, Math.max(1, Number(req.query.n) || 12));
+    const key = `${stopId}|${n}`;
+    const hit = motisStopTimesCache.get(key);
+    if (hit && Date.now() - hit.ts < MOTIS_STOPTIMES_TTL_MS) return res.json(hit.body);
+    try {
+      const r = await fetch(`${MOTIS_BASE}/api/v1/stoptimes?stopId=${encodeURIComponent(stopId)}&n=${n}`, {
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const raw: any = await r.json();
+      const departures = (raw.stopTimes ?? []).map((s: any) => {
+        const place = s.place ?? {};
+        const actual = place.departure ?? place.arrival ?? null;
+        const scheduled = place.scheduledDeparture ?? place.scheduledArrival ?? null;
+        const hasRealtime = Boolean(s.realTime) && actual && scheduled;
+        return {
+          train: s.routeShortName ?? null,
+          headsign: s.headsign ?? null,
+          tripId: s.tripId ?? null,
+          scheduled,
+          actual: hasRealtime ? actual : null,
+          delayMin: hasRealtime ? Math.round((new Date(actual).getTime() - new Date(scheduled).getTime()) / 60000) : null,
+          isRealtime: Boolean(s.realTime),
+          cancelled: Boolean(s.cancelled || s.tripCancelled)
+        };
+      });
+      const body = {
+        stopId,
+        source: 'MOTIS /api/v1/stoptimes (GTFS-RT: SŽ, HŽ)',
+        fetchedAt: new Date().toISOString(),
+        realtimeCount: departures.filter((d: any) => d.isRealtime).length,
+        departures
+      };
+      motisStopTimesCache.set(key, { body, ts: Date.now() });
+      res.json(body);
+    } catch (e: any) {
+      if (hit) return res.json(hit.body);
+      res.status(502).json({ error: 'Postajni odhodi niso dosegljivi', detail: e?.message });
+    }
+  });
+
   app.get('/api/freight/network', (req, res) => {
     if (!rinfRaw && !szNetworkStatement) {
       return res.status(503).json({ error: 'Registri omrežja niso naloženi' });
