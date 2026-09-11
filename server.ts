@@ -12599,7 +12599,21 @@ app.get("/api/era/track", async (req, res) => {
         }
       }
     }));
+    // SPA fallback — but ONLY for navigations, never for asset requests.
+    //
+    // A request for a hashed file that no longer exists (a page cached before a
+    // deploy asking for that deploy's chunks) must return 404, not index.html.
+    // Returning index.html gave the browser HTML where it expected a
+    // JavaScript module: it could not parse it, the app never booted, and the
+    // page hung with nothing clickable. A clean 404 instead lets the client
+    // detect the stale chunk and reload into the current version.
     app.get('*', (req, res) => {
+      // Anything with a file extension is an asset, not a route.
+      if (/\.[a-z0-9]+$/i.test(req.path)) {
+        res.status(404).type('text/plain').send('Not found');
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

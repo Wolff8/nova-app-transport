@@ -28,6 +28,29 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Self-heal for a page cached across a deploy: if a module script 404s
+      // (its hashed chunk is gone), reload once to fetch the current index and
+      // its chunks. index.html is served no-cache, so the reload is clean.
+      (function () {
+        var KEY = 'nova:boot-reload';
+        function stale() {
+          var last = 0;
+          try { last = +sessionStorage.getItem(KEY) || 0; } catch (e) {}
+          if (Date.now() - last < 30000) return;              // never loop
+          try { sessionStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+          location.reload();
+        }
+        window.addEventListener('error', function (e) {
+          var t = e && e.target;
+          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK') && t.src !== location.href) stale();
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          var m = e && e.reason && (e.reason.message || String(e.reason));
+          if (m && /dynamically imported module|module script|Loading chunk|ChunkLoadError|MIME type|Importing a module/i.test(m)) stale();
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

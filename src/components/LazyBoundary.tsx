@@ -16,7 +16,7 @@ import React from 'react';
 type Props = { name: string; children: React.ReactNode };
 type State = { failed: boolean };
 
-const STALE_CHUNK = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk/i;
+const STALE_CHUNK = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk|MIME type|module script/i;
 const RELOAD_KEY = 'nova:chunk-reload';
 
 export class LazyBoundary extends React.Component<Props, State> {
