@@ -1,18 +1,402 @@
 {
- "source": "Mediterranean Rail Freight Corridor (RFC6) — Pre-arranged Paths catalogue",
- "sourceUrl": "https://www.medrfc.eu/wp-content/uploads/2025/01/mediterranean-rfc-2026-pap-offer.xlsx",
+ "source": "RFC Mediterranean — PaP catalogue TT2026, sheets \"East W-E\" and \"East E-W\"",
+ "sourceFile": "MED_TT2026_pap.xlsx",
+ "locationCodesSource": "ERA RINF (era:uopid), https://graph.data.era.europa.eu/repositories/rinf-plus",
  "timetableYear": 2026,
  "validFrom": "2025-12-14",
  "validTo": "2026-12-12",
- "retrieved": "2026-09-11",
- "note": "Pre-arranged paths are capacity OFFERED by the infrastructure managers and published in the corridor catalogue. The catalogue does not say whether a path was booked by a railway undertaking, nor whether a train runs on any given day.",
- "trainNumberNote": "trainNumberSZ is the national path number published by SŽ-Infrastruktura in the catalogue column \"SZ-I\". It is the Core of the TAF TSI composite train identifier for this path.",
+ "note": "Objavljena ponujena zmogljivost (pre-arranged paths), ne žive pozicije. Katalog ne pove, ali je prevoznik pot rezerviral niti ali danes kaj vozi po njej.",
+ "generated": "2026-09-11T13:58:52.361Z",
  "paths": [
+  {
+   "papId": "C6NPPOZG02",
+   "trainNumberSZ": "60601",
+   "relation": "Portogruaro to Zagreb",
+   "corridor": "opicina-dobova",
+   "direction": "forward",
+   "daysOfWeek": [
+    3,
+    5,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "07:15"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "07:27",
+     "departure": "08:35"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "10:33",
+     "departure": "11:23"
+    },
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "13:02"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62505",
+     "days": "3,5,7",
+     "points": [
+      {
+       "location": "Portogruaro",
+       "times": [
+        "05:03"
+       ]
+      },
+      {
+       "location": "Villa Opicina Arr",
+       "times": [
+        "06:14"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70951",
+     "days": "2 - 7",
+     "points": [
+      {
+       "location": "Dobova",
+       "times": [
+        "13:53"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "14:02"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "14:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "C6NPPOZG04",
+   "trainNumberSZ": "60603",
+   "relation": "Portogruaro to Zagreb",
+   "corridor": "opicina-dobova",
+   "direction": "forward",
+   "daysOfWeek": [
+    2,
+    4,
+    6
+   ],
+   "timingPoints": [
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "10:00"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "10:12",
+     "departure": "10:54"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "12:41",
+     "departure": "12:47"
+    },
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "14:31"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62607",
+     "days": "2,4,6",
+     "points": [
+      {
+       "location": "Portogruaro",
+       "times": [
+        "06:22"
+       ]
+      },
+      {
+       "location": "Villa Opicina Arr",
+       "times": [
+        "07:36"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70953",
+     "days": "2,4,6",
+     "points": [
+      {
+       "location": "Dobova",
+       "times": [
+        "15:50"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "15:59"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "16:31"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "C6NPPOZG06",
+   "trainNumberSZ": "60605",
+   "relation": "Portogruaro to Zagreb",
+   "corridor": "opicina-dobova",
+   "direction": "forward",
+   "daysOfWeek": [
+    1,
+    2,
+    5,
+    6
+   ],
+   "timingPoints": [
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "14:03"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "14:15",
+     "departure": "14:21"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "16:24",
+     "departure": "18:16"
+    },
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "20:36"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62601",
+     "days": "1,2,5,6",
+     "points": [
+      {
+       "location": "Portogruaro",
+       "times": [
+        "11:46"
+       ]
+      },
+      {
+       "location": "Villa Opicina Arr",
+       "times": [
+        "13:05"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70955",
+     "days": "1,2,5,6",
+     "points": [
+      {
+       "location": "Dobova",
+       "times": [
+        "22:21"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "22:30"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "23:00"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "C610NP602",
+   "trainNumberSZ": "60607",
+   "relation": "Venezia to Belgrad",
+   "corridor": "opicina-dobova",
+   "direction": "forward",
+   "daysOfWeek": [
+    3,
+    5
+   ],
+   "timingPoints": [
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "00:15"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "00:27",
+     "departure": "00:35"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "02:25",
+     "departure": "03:02"
+    },
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "04:44"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62603",
+     "days": "1 - 4",
+     "points": [
+      {
+       "location": "Venezia",
+       "times": [
+        "19:35"
+       ]
+      },
+      {
+       "location": "Villa Opicina Arr",
+       "times": [
+        "23:00"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70911",
+     "days": "3,5",
+     "points": [
+      {
+       "location": "Dobova",
+       "times": [
+        "05:55"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "06:04"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "06:50",
+        "07:04"
+       ]
+      },
+      {
+       "location": "Duego Selo",
+       "times": [
+        "07:31"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
   {
    "papId": "C6NPKOFE02",
    "trainNumberSZ": "42000",
-   "relation": "Koper to Ferencváros",
-   "direction": "toward Hungary",
+   "relation": "Koper to Frencvaros",
+   "corridor": "koper-hodos",
+   "direction": "forward",
    "daysOfWeek": [
     1,
     2,
@@ -25,29 +409,45 @@
    "timingPoints": [
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "00:22"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "03:45",
      "departure": "04:10"
     },
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "08:51"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "VPE/MAV",
+     "nationalId": null,
+     "days": null,
+     "points": [],
+     "note": "Total closure of Veszprém – Boba section , rerouting possible: · Hodos – Zalaszentiván (change dir.) – Szombathely – Csorna – Győr – Budapest (completely electrified) · Hodos – Zalaszentiván – Boba – Porpác (change dir.) – Csorna – Győr – Budapest (completely electrified) · Hodos – Zalaszentiván (change to diesel) – Nagykanizsa (change back to electric loco and change dir.) – Székesfehérvár – Budapest · Hodos – Zalaszentiván – Boba – Celldömölk-rendező (change to diesel loc.) – Győr (change to electric loc. and change dir.) – Budapest"
     }
    ]
   },
   {
    "papId": "C6NPKOFE04",
    "trainNumberSZ": "42004",
-   "relation": "Koper to Ferencváros",
-   "direction": "toward Hungary",
+   "relation": "Koper to Frencvaros",
+   "corridor": "koper-hodos",
+   "direction": "forward",
    "daysOfWeek": [
     1,
     2,
@@ -60,29 +460,37 @@
    "timingPoints": [
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "08:12"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "11:33",
      "departure": "11:49"
     },
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "17:26"
     }
-   ]
+   ],
+   "foreignSections": []
   },
   {
    "papId": "C6NPKOFE06",
    "trainNumberSZ": "42020",
-   "relation": "Koper to Ferencváros",
-   "direction": "toward Hungary",
+   "relation": "Koper to Frencvaros",
+   "corridor": "koper-hodos",
+   "direction": "forward",
    "daysOfWeek": [
     1,
     2,
@@ -95,29 +503,37 @@
    "timingPoints": [
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "10:10"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "13:17",
      "departure": "13:54"
     },
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "20:51"
     }
-   ]
+   ],
+   "foreignSections": []
   },
   {
    "papId": "C6NPKOFE08",
    "trainNumberSZ": "42006",
-   "relation": "Koper to Ferencváros",
-   "direction": "toward Hungary",
+   "relation": "Koper to Frencvaros",
+   "corridor": "koper-hodos",
+   "direction": "forward",
    "daysOfWeek": [
     1,
     2,
@@ -130,29 +546,37 @@
    "timingPoints": [
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "10:20"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "14:07",
      "departure": "15:07"
     },
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "20:12"
     }
-   ]
+   ],
+   "foreignSections": []
   },
   {
    "papId": "C6NPKOFE10",
    "trainNumberSZ": "42002",
-   "relation": "Koper to Ferencváros",
-   "direction": "toward Hungary",
+   "relation": "Koper to Frencvaros",
+   "corridor": "koper-hodos",
+   "direction": "forward",
    "daysOfWeek": [
     1,
     2,
@@ -165,29 +589,37 @@
    "timingPoints": [
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "16:54"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "20:12",
      "departure": "20:44"
     },
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "01:10"
     }
-   ]
+   ],
+   "foreignSections": []
   },
   {
    "papId": "C611KOZI02",
    "trainNumberSZ": "47910",
    "relation": "Koper to Zilina",
-   "direction": "toward Hungary",
+   "corridor": "koper-hodos",
+   "direction": "forward",
    "daysOfWeek": [
     1,
     2,
@@ -200,21 +632,582 @@
    "timingPoints": [
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "19:17"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "23:11",
      "departure": "23:42"
     },
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": "05:49",
      "departure": "07:20"
+    }
+   ],
+   "foreignSections": []
+  },
+  {
+   "papId": "C6NPGYPO01",
+   "trainNumberSZ": "60604",
+   "relation": "Gyekenyes to Portogruaro",
+   "corridor": "opicina-dobova",
+   "direction": "reverse",
+   "daysOfWeek": [
+    1,
+    3,
+    5
+   ],
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "08:00"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "12:46",
+     "departure": "13:31"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "15:30",
+     "departure": "16:00"
+    },
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "16:14"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70950",
+     "days": "1,3,5",
+     "points": [
+      {
+       "location": "Gyekenyes",
+       "times": [
+        "03:00"
+       ]
+      },
+      {
+       "location": "Koprivnica",
+       "times": [
+        "03:19",
+        "03:28"
+       ]
+      },
+      {
+       "location": "Duego Selo",
+       "times": [
+        "04:33",
+        "04:35"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "05:08",
+        "05:43"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "06:24"
+       ]
+      },
+      {
+       "location": "Dobova",
+       "times": [
+        "06:33"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62604",
+     "days": "1,3,5",
+     "points": [
+      {
+       "location": "Villa Opicina",
+       "times": [
+        "18:05"
+       ]
+      },
+      {
+       "location": "Portogruaro",
+       "times": [
+        "19:09"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "C6NPZGFI01",
+   "trainNumberSZ": "60604",
+   "relation": "Zagreb to Portogruaro",
+   "corridor": "opicina-dobova",
+   "direction": "reverse",
+   "daysOfWeek": [
+    2,
+    4,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "08:00"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "12:46",
+     "departure": "13:31"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "15:30",
+     "departure": "18:10"
+    },
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "18:27"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70950",
+     "days": "2,4,7",
+     "points": [
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "05:43"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "06:24"
+       ]
+      },
+      {
+       "location": "Dobova",
+       "times": [
+        "06:33"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62606",
+     "days": "2,4,7",
+     "points": [
+      {
+       "location": "Villa Opicina",
+       "times": [
+        "19:35"
+       ]
+      },
+      {
+       "location": "Parma",
+       "times": [
+        "00:19",
+        "00:21"
+       ]
+      },
+      {
+       "location": "Modena",
+       "times": [
+        "01:08",
+        "04:28"
+       ]
+      },
+      {
+       "location": "Fiorenzuola",
+       "times": [
+        "05:58"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "C6NPGYPO03",
+   "trainNumberSZ": "60600",
+   "relation": "Gyekenyes to Portogruaro",
+   "corridor": "opicina-dobova",
+   "direction": "reverse",
+   "daysOfWeek": [
+    1,
+    2,
+    5,
+    6
+   ],
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "03:21"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "05:01",
+     "departure": "05:08"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "07:07",
+     "departure": "08:15"
+    },
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "08:27"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70952",
+     "days": "1,4,5,7",
+     "points": [
+      {
+       "location": "Gyekenyes",
+       "times": [
+        "22:02"
+       ]
+      },
+      {
+       "location": "Koprivnica",
+       "times": [
+        "22:21",
+        "22:30"
+       ]
+      },
+      {
+       "location": "Duego Selo",
+       "times": [
+        "23:45",
+        "23:50"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "00:25",
+        "00:58"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "01:49"
+       ]
+      },
+      {
+       "location": "Dobova",
+       "times": [
+        "01:58"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62600",
+     "days": "1,2,5,6",
+     "points": [
+      {
+       "location": "Villa Opicina",
+       "times": [
+        "09:09"
+       ]
+      },
+      {
+       "location": "Portogruaro",
+       "times": [
+        "10:56"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "C6NPGYPO05",
+   "trainNumberSZ": "60602",
+   "relation": "Gyekenyes to Portogruaro",
+   "corridor": "opicina-dobova",
+   "direction": "reverse",
+   "daysOfWeek": [
+    2,
+    4,
+    6
+   ],
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "04:05"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "05:51",
+     "departure": "07:15"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "09:18",
+     "departure": "09:45"
+    },
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "09:57"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70954",
+     "days": "1,3,5",
+     "points": [
+      {
+       "location": "Gyekenyes",
+       "times": [
+        "23:25"
+       ]
+      },
+      {
+       "location": "Koprivnica",
+       "times": [
+        "23:44",
+        "23:50"
+       ]
+      },
+      {
+       "location": "Duego Selo",
+       "times": [
+        "01:26",
+        "01:28"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "01:57",
+        "02:19"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "02:58"
+       ]
+      },
+      {
+       "location": "Dobova",
+       "times": [
+        "03:07"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62602",
+     "days": "2,4,6",
+     "points": [
+      {
+       "location": "Villa Opicina",
+       "times": [
+        "11:25"
+       ]
+      },
+      {
+       "location": "Portogruaro",
+       "times": [
+        "12:38"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "C610NP603",
+   "trainNumberSZ": "60606",
+   "relation": "Belgrad to Venezia",
+   "corridor": "opicina-dobova",
+   "direction": "reverse",
+   "daysOfWeek": [
+    3,
+    6
+   ],
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "uopid": "SI42001",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "00:03"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "01:44",
+     "departure": "02:36"
+    },
+    {
+     "location": "Sežana",
+     "uopid": "SI44500",
+     "lat": 45.7040572,
+     "lon": 13.8635336,
+     "arrival": "04:35",
+     "departure": "04:45"
+    },
+    {
+     "location": "Villa Opicina",
+     "uopid": "IT03466",
+     "lat": 45.6889,
+     "lon": 13.8033,
+     "arrival": null,
+     "departure": "04:57"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70910",
+     "days": "2,5",
+     "points": [
+      {
+       "location": "Duego Selo",
+       "times": [
+        "20:34"
+       ]
+      },
+      {
+       "location": "Zagreb RK",
+       "times": [
+        "21:00",
+        "22:16"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "22:59"
+       ]
+      },
+      {
+       "location": "Dobova",
+       "times": [
+        "23:08"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "RFI",
+     "nationalId": "62608",
+     "days": "3,4,5,6",
+     "points": [
+      {
+       "location": "Villa Opicina",
+       "times": [
+        "06:00"
+       ]
+      },
+      {
+       "location": "Venezia Marghera Scalo",
+       "times": [
+        "08:34"
+       ]
+      }
+     ],
+     "note": null
     }
    ]
   },
@@ -222,7 +1215,8 @@
    "papId": "C6NPFEKO01",
    "trainNumberSZ": "42003",
    "relation": "Ferencvaros to Koper",
-   "direction": "toward Koper",
+   "corridor": "koper-hodos",
+   "direction": "reverse",
    "daysOfWeek": [
     1,
     2,
@@ -236,20 +1230,35 @@
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "18:40"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "23:16",
      "departure": "00:36"
     },
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "04:02"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "VPE/MAV",
+     "nationalId": null,
+     "days": null,
+     "points": [],
+     "note": "Total closure of Veszprém – Boba section , rerouting possible: · Hodos – Zalaszentiván (change dir.) – Szombathely – Csorna – Győr – Budapest (completely electrified) · Hodos – Zalaszentiván – Boba – Porpác (change dir.) – Csorna – Győr – Budapest (completely electrified) · Hodos – Zalaszentiván (change to diesel) – Nagykanizsa (change back to electric loco and change dir.) – Székesfehérvár – Budapest · Hodos – Zalaszentiván – Boba – Celldömölk-rendező (change to diesel loc.) – Győr (change to electric loc. and change dir.) – Budapest"
     }
    ]
   },
@@ -257,7 +1266,8 @@
    "papId": "C6NPFEKO03",
    "trainNumberSZ": "42005",
    "relation": "Ferencvaros to Koper",
-   "direction": "toward Koper",
+   "corridor": "koper-hodos",
+   "direction": "reverse",
    "daysOfWeek": [
     1,
     2,
@@ -271,28 +1281,36 @@
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "02:09"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "06:53",
      "departure": "07:27"
     },
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "10:13"
     }
-   ]
+   ],
+   "foreignSections": []
   },
   {
    "papId": "C6NPFEKO05",
    "trainNumberSZ": "42001",
    "relation": "Ferencvaros to Koper",
-   "direction": "toward Koper",
+   "corridor": "koper-hodos",
+   "direction": "reverse",
    "daysOfWeek": [
     1,
     2,
@@ -306,28 +1324,36 @@
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": null,
      "departure": "10:41"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "15:19",
      "departure": "17:00"
     },
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "20:01"
     }
-   ]
+   ],
+   "foreignSections": []
   },
   {
    "papId": "C116NPDSKO01",
    "trainNumberSZ": "41915",
-   "relation": "Dunajská to Koper",
-   "direction": "toward Koper",
+   "relation": "Dunajska to Koper",
+   "corridor": "koper-hodos",
+   "direction": "reverse",
    "daysOfWeek": [
     1,
     2,
@@ -341,28 +1367,36 @@
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": "03:39",
      "departure": "04:43"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "09:15",
      "departure": "11:02"
     },
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "14:00"
     }
-   ]
+   ],
+   "foreignSections": []
   },
   {
    "papId": "C116NPZIKO01",
    "trainNumberSZ": "47911",
    "relation": "Zilina to Koper",
-   "direction": "toward Koper",
+   "corridor": "koper-hodos",
+   "direction": "reverse",
    "daysOfWeek": [
     1,
     2,
@@ -376,22 +1410,29 @@
     {
      "location": "Hodoš",
      "uopid": "SI43777",
+     "lat": 46.8200896,
+     "lon": 16.329218,
      "arrival": "06:39",
      "departure": "07:57"
     },
     {
      "location": "Ljubljana Zalog",
      "uopid": "SI42211",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
      "arrival": "13:28",
      "departure": "14:44"
     },
     {
      "location": "Koper tovorna",
-     "uopid": "SI44353",
+     "uopid": "SI44361",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
      "arrival": null,
      "departure": "18:42"
     }
-   ]
+   ],
+   "foreignSections": []
   }
  ]
 }

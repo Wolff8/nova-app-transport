@@ -609,10 +609,13 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     if (isModelledFreight) {
       // A published path is not a sighting. The badge says which of the two
       // this is, in the header, before any number below it is read.
-      const spd = node.rawPayload?.speedKmh;
+      // The badge carries the line limit, not a speed for this train: the
+      // catalogue publishes no running speed, and the average its timings
+      // imply is not one.
+      const lim = node.rawPayload?.lineSpeedKmh;
       return (
         <span className="bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-          🚆 KATALOŠKA POT{spd != null ? ` · ${spd} km/h` : ''}
+          🚆 KATALOŠKA POT{lim != null ? ` · PROGA ≤${lim} KM/H` : ''}
         </span>
       );
     }
@@ -930,9 +933,12 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         <span className="px-2.5 py-0.5 rounded-full text-[13px] font-mono font-bold bg-orange-500/20 text-orange-200 border border-orange-500/40">
                           {raw.trainNumber || raw.papId || 'Tovorna pot'}
                         </span>
-                        {raw.speedKmh != null && (
-                          <span className="px-2 py-0.5 rounded-md text-[12px] font-mono bg-white/10 text-white/90">
-                            {raw.speedKmh} km/h
+                        {raw.lineSpeedKmh != null && (
+                          <span
+                            title={raw.lineSpeedSection ? `Odsek ${raw.lineSpeedSection} — ERA RINF` : undefined}
+                            className="px-2 py-0.5 rounded-md text-[12px] font-mono bg-white/10 text-white/90"
+                          >
+                            proga ≤ {raw.lineSpeedKmh} km/h
                           </span>
                         )}
                       </div>
@@ -968,12 +974,64 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         </div>
                       </div>
                     </div>
-                    {raw.speedBasis && (
-                      <p className="mt-2 text-[10px] leading-snug text-text-dim border-t border-white/10 pt-2">
-                        {raw.speedBasis}. {raw.speedClass}
-                      </p>
-                    )}
+                    {/* The three numbers, kept apart. Merging them is what put
+                        "40 km/h" under a train that passes a platform at 80. */}
+                    <div className="mt-2 border-t border-white/10 pt-2 space-y-1">
+                      {raw.lineSpeedKmh != null && (
+                        <p className="text-[10px] leading-snug text-text-dim">
+                          <span className="text-white/80 font-mono">proga ≤ {raw.lineSpeedKmh} km/h</span>
+                          {raw.lineSpeedSection ? ` — odsek ${raw.lineSpeedSection}. ` : ' — '}
+                          {raw.lineSpeedBasis}
+                        </p>
+                      )}
+                      {raw.legAverageKmh != null && (
+                        <p className="text-[10px] leading-snug text-text-dim">
+                          <span className="text-white/80 font-mono">povprečje odseka {raw.legAverageKmh} km/h</span>
+                          {' — '}{raw.legAverageBasis}
+                        </p>
+                      )}
+                      {raw.speedClass && (
+                        <p className="text-[10px] leading-snug text-text-dim">{raw.speedClass}</p>
+                      )}
+                    </div>
                   </div>
+
+                  {/* The legs outside Slovenia, so a train that only crosses
+                      the country can be read end to end. */}
+                  {(() => {
+                    const fs: any[] = unpack(raw.foreignSections) || [];
+                    if (!fs.length) return null;
+                    return (
+                      <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                        <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim mb-2">
+                          Pot izven Slovenije
+                        </div>
+                        <div className="space-y-2">
+                          {fs.map((s: any, i: number) => (
+                            <div key={i}>
+                              <div className="flex items-center gap-2 text-[10.5px] font-mono">
+                                <span className="px-1.5 py-0.5 rounded bg-white/10 text-white/80">{s.infrastructureManager}</span>
+                                {s.nationalId && <span className="text-orange-300">št. {s.nationalId}</span>}
+                                {s.days && <span className="text-text-dim">dnevi {s.days}</span>}
+                              </div>
+                              {s.points?.length ? (
+                                <div className="mt-1 pl-1 text-[11px] text-white/75 leading-snug">
+                                  {s.points.map((p: any) => `${p.location} ${(p.times || []).join('/')}`).join('  ·  ')}
+                                </div>
+                              ) : null}
+                              {/* Engineering works the catalogue records against
+                                  this path — a closure and its diversions. */}
+                              {s.note ? (
+                                <div className="mt-1 pl-1 text-[10.5px] leading-snug text-amber-200/80">
+                                  ⚠ {s.note}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Every point the catalogue times, with its TAF location code */}
                   {tps.length > 0 && (

@@ -9828,10 +9828,18 @@ app.post('/api/log', express.json(), (req, res) => {
    * so it is exact at Koper, Ljubljana Zalog and Hodoš and an estimate in
    * between.
    */
-  type CorridorPathTiming = { location: string; uopid: string; arrival: string | null; departure: string };
+  type CorridorPathTiming = {
+    location: string; uopid: string; arrival: string | null; departure: string;
+    lat?: number; lon?: number;
+  };
+  type CorridorForeignSection = {
+    infrastructureManager: string; nationalId: string | null; days: string | null;
+    points: { location: string; times: string[] }[];
+  };
   type CorridorPath = {
     papId: string; trainNumberSZ: string | null; relation: string;
-    direction: string; daysOfWeek: number[] | null; timingPoints: CorridorPathTiming[];
+    corridor: string; direction: string; daysOfWeek: number[] | null;
+    timingPoints: CorridorPathTiming[]; foreignSections?: CorridorForeignSection[];
   };
   let corridorPathData: { paths: CorridorPath[]; [k: string]: any } | null = null;
   try {
@@ -9842,32 +9850,127 @@ app.post('/api/log', express.json(), (req, res) => {
     }
   } catch (e) { console.error('[RFC6] path catalogue load failed', e); }
 
-  /** Koper → Hodoš as one polyline, with the km of each published timing point on it. */
-  function corridorPathTrack() {
-    const track = [
-      ...GEO_KOPER_ZALOG,
-      ...GEO_ZALOG_PRAGERSKO.slice(1),
-      ...GEO_PRAGERSKO_HODOS.slice(1)
-    ] as [number, number][];
-    const legKm = (seg: [number, number][]) => measurePolyline(seg).totalDist * 111.32;
-    const kmKoperZalog = legKm(GEO_KOPER_ZALOG);
-    const kmZalogPragersko = legKm(GEO_ZALOG_PRAGERSKO);
-    const totalKm = legKm(track);
-    return {
-      track, totalKm,
-      // Distance from Koper tovorna to each point the catalogue actually times.
-      kmAt: {
-        'Koper tovorna': 0,
-        'Ljubljana Zalog': kmKoperZalog,
-        'Pragersko': kmKoperZalog + kmZalogPragersko,
-        'Hodoš': totalKm
-      } as Record<string, number>
-    };
+  /**
+   * The corridors the catalogue's paths run on, each as one polyline.
+   *
+   * There are two. Koper–Ljubljana–Hodoš is the one that passes Murska Sobota.
+   * Villa Opicina–Sežana–Ljubljana–Dobova is the other Slovenian axis in the
+   * Mediterranean catalogue, and it carries the trains that only cross the
+   * country — Venezia–Belgrade, Portogruaro–Zagreb — which is why it is here.
+   */
+  /**
+   * Maximum permitted speed of each section of line, from ERA RINF.
+   *
+   * This is the property of the track, not of a train: it is what the
+   * infrastructure allows, and it is the figure that matches what you see from
+   * a platform — Murska Sobota to Puconci is 100 km/h, Lipovci to Murska
+   * Sobota 160. It exists here because the catalogue's own timings cannot give
+   * a running speed: with three timing points across 363 km, the average they
+   * imply (about 40 km/h) has an hour of standing still smeared through it.
+   */
+  type LineSpeedSection = { from: string; to: string; speedKmh: number; a: [number, number]; b: [number, number] };
+  let lineSpeedData: { sections: LineSpeedSection[]; [k: string]: any } | null = null;
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'lineSpeeds.json');
+    if (fs.existsSync(p)) {
+      lineSpeedData = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log(`[RINF] Line speeds loaded: ${lineSpeedData!.sections.length} sections`);
+    }
+  } catch (e) { console.error('[RINF] line speed load failed', e); }
+
+  type CorridorSpeedBand = { fromKm: number; toKm: number; speedKmh: number; section: string };
+  type CorridorTrack = {
+    track: [number, number][]; totalKm: number; kmAt: Record<string, number>;
+    speedBands: CorridorSpeedBand[];
+  };
+  const corridorTrackCache = new Map<string, CorridorTrack | null>();
+
+  /**
+   * Where a timing point sits along a corridor, measured rather than assumed.
+   *
+   * The previous version added up whole leg lengths, which only works when
+   * every timing point happens to be a leg boundary. Sežana sits on the
+   * Divača–Villa Opicina branch and Dobova past Zidani Most, so their
+   * distances are found by projecting the station's RINF coordinate onto the
+   * polyline and accumulating the distance to that point.
+   */
+  function kmAlongTrack(track: [number, number][], lat: number, lon: number): { km: number; offKm: number } {
+    const { dists } = measurePolyline(track);
+    let bestKm = 0, bestD2 = Infinity, run = 0;
+    for (let i = 0; i < track.length - 1; i++) {
+      const [ax, ay] = track[i], [bx, by] = track[i + 1];
+      // Degrees are compared in a locally-equal-area frame so that a longitude
+      // difference at 46°N is not counted as if it were a latitude one.
+      const kx = Math.cos((ay + by) / 2 * Math.PI / 180);
+      const dx = (bx - ax) * kx, dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 > 0 ? Math.max(0, Math.min(1, (((lon - ax) * kx) * dx + (lat - ay) * dy) / len2)) : 0;
+      const px = ax + (bx - ax) * t, py = ay + (by - ay) * t;
+      const ex = (lon - px) * kx, ey = lat - py;
+      const d2 = ex * ex + ey * ey;
+      if (d2 < bestD2) { bestD2 = d2; bestKm = (run + (dists[i] ?? 0) * t) * 111.32; }
+      run += dists[i] ?? 0;
+    }
+    // How far off the corridor the point actually is, so a parallel branch
+    // line cannot be mistaken for a section of this one.
+    return { km: bestKm, offKm: Math.sqrt(bestD2) * 111.32 };
+  }
+
+  function corridorPathTrack(corridor: string): CorridorTrack | null {
+    if (corridorTrackCache.has(corridor)) return corridorTrackCache.get(corridor)!;
+
+    let track: [number, number][] | null = null;
+    if (corridor === 'koper-hodos' && GEO_KOPER_ZALOG?.length) {
+      track = [
+        ...GEO_KOPER_ZALOG,
+        ...GEO_ZALOG_PRAGERSKO.slice(1),
+        ...GEO_PRAGERSKO_HODOS.slice(1)
+      ] as [number, number][];
+    } else if (corridor === 'opicina-dobova' && GEO_DIVACA_SEZANA_OPICINA?.length && GEO_ZIDANI_MOST_DOBOVA?.length) {
+      // Drawn Villa Opicina -> Dobova, so the stored geometry that runs
+      // Divača -> Opicina is reversed onto the front.
+      track = [
+        ...GEO_DIVACA_SEZANA_OPICINA.slice().reverse(),
+        ...GEO_DIVACA_ZALOG.slice(1),
+        ...GEO_ZALOG_PRAGERSKO.slice(1, 2229),
+        ...GEO_ZIDANI_MOST_DOBOVA
+      ] as [number, number][];
+    }
+    if (!track || track.length < 2) { corridorTrackCache.set(corridor, null); return null; }
+
+    const totalKm = measurePolyline(track).totalDist * 111.32;
+
+    // Project each RINF section onto this corridor. A section counts as being
+    // on it only if both of its operational points lie within 1.5 km of the
+    // polyline — otherwise the branch to Kočevje or a yard neck a few hundred
+    // metres away would claim a stretch of the main line's speed profile.
+    const speedBands: CorridorSpeedBand[] = [];
+    for (const s of (lineSpeedData?.sections ?? [])) {
+      const A = kmAlongTrack(track, s.a[1], s.a[0]);
+      const B = kmAlongTrack(track, s.b[1], s.b[0]);
+      if (A.offKm > 1.5 || B.offKm > 1.5) continue;
+      const fromKm = Math.min(A.km, B.km), toKm = Math.max(A.km, B.km);
+      if (toKm - fromKm < 0.2) continue;
+      speedBands.push({ fromKm, toKm, speedKmh: s.speedKmh, section: `${s.from} – ${s.to}` });
+    }
+    // Shortest first, so a specific band (a station throat) is found before the
+    // long one it sits inside.
+    speedBands.sort((x, y) => (x.toKm - x.fromKm) - (y.toKm - y.fromKm));
+
+    const result: CorridorTrack = { track, totalKm, kmAt: {}, speedBands };
+    corridorTrackCache.set(corridor, result);
+    console.log(`[RFC6] corridor ${corridor}: ${Math.round(totalKm)} km, ${speedBands.length} sections with a published line speed`);
+    return result;
+  }
+
+  /** Permitted line speed where a train is, or null if no section covers it. */
+  function lineSpeedAt(geo: CorridorTrack, km: number): CorridorSpeedBand | null {
+    for (const b of geo.speedBands) if (km >= b.fromKm && km <= b.toKm) return b;
+    return null;
   }
 
   function corridorFreightPositions() {
     if (!corridorPathData || !GEO_KOPER_ZALOG?.length) return null;
-    const geo = corridorPathTrack();
     const now = new Date();
     // Slovenian wall clock — the catalogue times are local.
     const local = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Ljubljana' }));
@@ -9879,9 +9982,20 @@ app.post('/api/log', express.json(), (req, res) => {
     const board: any[] = [];
 
     for (const p of corridorPathData.paths) {
+      const geo = corridorPathTrack(p.corridor);
+      if (!geo) continue;
+      // Each timing point's distance along this corridor, measured once from
+      // its RINF coordinate and then reused.
+      for (const t of p.timingPoints) {
+        if (geo.kmAt[t.location] == null && t.lat != null && t.lon != null) {
+          geo.kmAt[t.location] = kmAlongTrack(geo.track, t.lat, t.lon).km;
+        }
+      }
       const pts = p.timingPoints.filter(t => geo.kmAt[t.location] != null);
       if (pts.length < 2) continue;
-      const towardHungary = p.direction !== 'toward Koper';
+      // The polylines are drawn Koper -> Hodoš and Villa Opicina -> Dobova; a
+      // path marked "forward" travels with that direction, "reverse" against.
+      const forward = p.direction === 'forward';
 
       // Absolute minutes from the path's own start, unwrapping midnight.
       const legs: { km: number; min: number; loc: string }[] = [];
@@ -9924,31 +10038,57 @@ app.post('/api/log', express.json(), (req, res) => {
         }
         if (elapsed > t1) km = b.km;
       }
-      // kmAt measures from Koper, so the interpolated km is already the
-      // position on the track for both directions — a southbound train simply
-      // counts down. Mirroring it (totalKm - km) put trains approaching Koper
-      // at the Hungarian end instead, which is what the first version did.
+      // kmAt is measured along the corridor polyline, so the interpolated km
+      // is already the position on the track for both directions — a train
+      // running against the polyline simply counts down. Mirroring it
+      // (totalKm - km) put trains approaching Koper at the Hungarian end
+      // instead, which is what the first version did.
       const alongKm = km;
       const pos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, alongKm / geo.totalKm)));
-      // The polyline runs Koper -> Hodoš, so its bearing is the direction of
-      // travel only for the northbound trains. The others face the other way.
-      const heading = towardHungary ? pos.bearing : (pos.bearing + 180) % 360;
-      // A freight path is capped at 100 km/h by the H1 speed class in SŽ's
-      // network statement; a leg average above that means the published times
-      // include a stop, so it is reported as an average and labelled as one.
-      const speedKmh = legSpeed != null ? Math.round(legSpeed) : null;
+      // The polyline's own bearing is the direction of travel only for the
+      // paths running with it. The others face the other way.
+      const heading = forward ? pos.bearing : (pos.bearing + 180) % 360;
+      // Three different numbers, kept apart because they are three different
+      // claims and merging them is what put "40 km/h" under a train that
+      // passes a platform at eighty.
+      //
+      //  legAverageKmh — distance over time between two published points. With
+      //    timing points 150-210 km apart, every intermediate stop is smeared
+      //    into it, so it runs 30-55 km/h and is NOT a running speed.
+      //  lineSpeedKmh  — what the infrastructure permits here, from RINF. This
+      //    is the one that matches observation from the lineside.
+      //  the category cap — what a freight train may do regardless.
+      const legAverageKmh = legSpeed != null ? Math.round(legSpeed) : null;
+      const band = lineSpeedAt(geo, alongKm);
+      const lineSpeedKmh = band?.speedKmh ?? null;
 
       const entry = {
         papId: p.papId,
         trainNumber: p.trainNumberSZ,
         relation: p.relation,
-        direction: towardHungary ? 'proti Madžarski' : 'proti Kopru',
+        corridor: p.corridor,
+        corridorLabel: p.corridor === 'koper-hodos'
+          ? 'Koper – Ljubljana – Hodoš'
+          : 'Villa Opicina – Sežana – Ljubljana – Dobova',
+        direction: p.corridor === 'koper-hodos'
+          ? (forward ? 'proti Madžarski' : 'proti Kopru')
+          : (forward ? 'proti Hrvaški' : 'proti Italiji'),
         daysOfWeek: p.daysOfWeek,
         runsToday, active,
-        speedKmh,
-        speedBasis: 'Povprečje med objavljenima točkama, ne trenutna hitrost',
+        // Permitted line speed here — the figure that matches what is visible
+        // from the lineside, and what the map now shows.
+        lineSpeedKmh,
+        lineSpeedSection: band?.section ?? null,
+        lineSpeedBasis: 'Največja dovoljena progovna hitrost odseka (ERA RINF). Ni hitrost tega vlaka.',
+        // Kept, but no longer presented as the train's speed.
+        legAverageKmh,
+        legAverageBasis: 'Povprečje med dvema objavljenima točkama kataloga, vključno s postanki vmes — ne trenutna hitrost.',
         speedClass: 'H1 — tovorni vlaki, največ 100 km/h (Program omrežja SŽ)',
         prevPoint, nextPoint,
+        // The legs run outside Slovenia, so a train that only crosses the
+        // country can be read end to end instead of appearing from nowhere.
+        foreignSections: (p as any).foreignSections ?? null,
+        transitsOnly: !/kop|hodo|ljubljan|sežana|dobova/i.test(p.relation || ''),
         progressPercent: active ? Math.round((elapsed / journeyMin) * 100) : null,
         journeyMin: Math.round(journeyMin),
         elapsedMin: active ? Math.round(elapsed) : null,

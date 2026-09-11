@@ -1396,10 +1396,19 @@ export class MapController {
       this.map.addLayer({
         id: 'freight_paths_label', type: 'symbol', source: 'freight_paths',
         layout: {
+          // The number under the train is the permitted line speed of the
+          // section, marked "proga" and prefixed with a limit sign so it
+          // cannot be read as this train's speed. What used to be here was the
+          // catalogue's leg average — around 40 km/h, because it has an hour
+          // of standing still smeared through it — which is simply not what a
+          // freight train is doing as it passes a platform.
           'text-field': [
             'concat',
             ['coalesce', ['get', 'trainNumber'], ['get', 'papId']],
-            ['case', ['has', 'speedKmh'], ['concat', ' · ', ['get', 'speedKmh'], ' km/h'], ''],
+            ['case',
+              ['has', 'lineSpeedKmh'],
+              ['concat', ' · proga ≤', ['get', 'lineSpeedKmh'], ' km/h'],
+              ''],
             '\n', ['get', 'direction']
           ],
           'text-size': 10.5,
@@ -4374,11 +4383,19 @@ export class MapController {
 
       // What it is and where it is going — the published facts, first.
       if (data.relation) metrics.push({ label: 'Relacija', value: data.relation, highlight: true });
+      if (data.corridorLabel) metrics.push({ label: 'Koridor', value: data.corridorLabel, highlight: false });
       if (data.direction) metrics.push({ label: 'Smer', value: data.direction, highlight: false });
-      if (data.speedKmh != null) {
-        metrics.push({ label: 'Hitrost', value: data.speedKmh, unit: 'km/h', highlight: true });
-        if (data.speedBasis) metrics.push({ label: '  ↳ kako je izračunana', value: data.speedBasis, highlight: false });
-        if (data.speedClass) metrics.push({ label: '  ↳ hitrostni razred', value: data.speedClass, highlight: false });
+
+      // Three different quantities, never merged into one "speed".
+      if (data.lineSpeedKmh != null) {
+        metrics.push({ label: 'Progovna hitrost (odsek)', value: `≤ ${data.lineSpeedKmh}`, unit: 'km/h', highlight: true });
+        if (data.lineSpeedSection) metrics.push({ label: '  ↳ odsek', value: data.lineSpeedSection, highlight: false });
+        metrics.push({ label: '  ↳ vir', value: 'ERA RINF — največja dovoljena hitrost proge, ne hitrost tega vlaka', highlight: false });
+      }
+      if (data.speedClass) metrics.push({ label: 'Hitrostni razred vlaka', value: data.speedClass, highlight: false });
+      if (data.legAverageKmh != null) {
+        metrics.push({ label: 'Povprečje na odseku kataloga', value: data.legAverageKmh, unit: 'km/h', highlight: false });
+        if (data.legAverageBasis) metrics.push({ label: '  ↳ pozor', value: data.legAverageBasis, highlight: false });
       }
       if (prev?.location) {
         metrics.push({ label: 'Nazadnje mimo', value: `${prev.location}${prev.time ? ` ob ${prev.time}` : ''}`, highlight: false });
