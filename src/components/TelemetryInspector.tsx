@@ -571,6 +571,18 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
   const rawPayloadDelay = Number(node?.rawPayload?.delay ?? node?.rawPayload?.delayMin ?? 0);
   const tripDelay = Number(trainTripData?.delayMinutes ?? 0);
   const effectiveTrainDelay = Math.max(tripDelay, activeStopDelay, maxStopoverDelay, metricDelay, rawPayloadDelay);
+  /**
+   * Whether a delay figure was actually reported, as opposed to defaulting to
+   * zero. Every source above falls back to 0 when it has nothing, so a train
+   * the feed says nothing about looked exactly like a train running to time —
+   * and the panel then claimed it was on time against a published timetable.
+   * "No delay reported" and "reported as zero" are different statements.
+   */
+  const hasDelayReading = Boolean(
+    node?.rawPayload?.delay != null || node?.rawPayload?.delayMin != null ||
+    trainTripData?.delayMinutes != null ||
+    node?.metrics?.some(x => x.label === 'Prijavljena zamuda' || x.label === 'Zamuda')
+  );
 
   const getStatusBadge = () => {
     if (node.type === 'yard') {
@@ -606,14 +618,14 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     }
 
     if (isTrain) {
-      if (isFreightTrain) {
-        return <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">⏱️ TRASA SŽ (MODELIRANO)</span>;
-      }
       if (effectiveTrainDelay > 3) {
         return <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold animate-pulse">⚠️ ZAMUDA +{effectiveTrainDelay} min</span>;
       }
       if (effectiveTrainDelay > 0) {
         return <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">🟡 +{effectiveTrainDelay} min</span>;
+      }
+      if (!hasDelayReading) {
+        return <span className="bg-slate-700/40 text-slate-300 border border-slate-600/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-medium">ZAMUDA NI SPOROČENA</span>;
       }
       return <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">🟢 TOČNO</span>;
     }
@@ -1190,24 +1202,33 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                     <div className={`mt-3 p-2.5 rounded-lg border flex items-center justify-between gap-2 ${
                       effectiveTrainDelay > 3
                         ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
-                        : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200'
+                        : hasDelayReading
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200'
+                          : 'bg-slate-700/25 border-slate-600/40 text-slate-300'
                     }`}>
                       <div className="flex items-center gap-2">
                         {effectiveTrainDelay > 3 ? (
                           <AlertTriangle size={15} className="text-amber-400 shrink-0" />
-                        ) : (
+                        ) : hasDelayReading ? (
                           <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                        ) : (
+                          <Info size={15} className="text-slate-400 shrink-0" />
                         )}
                         <div>
                           <div className="font-mono font-bold text-[12px] flex items-center gap-2">
                             <span>
-                              {effectiveTrainDelay > 0 
-                                ? `ZAMUDA: +${effectiveTrainDelay} MINUT` 
-                                : 'TOČNO PO VOZNEM REDU (0 MIN)'}
+                              {effectiveTrainDelay > 0
+                                ? `ZAMUDA: +${effectiveTrainDelay} MINUT`
+                                : (hasDelayReading ? 'TOČNO PO VOZNEM REDU (0 MIN)' : 'ZAMUDA NI SPOROČENA')}
                             </span>
                           </div>
                           <p className="text-[10.5px] opacity-90 leading-tight">
-                            {trainTripData?.delayReason || (effectiveTrainDelay > 0 ? 'Vlak beleži operativno zamudo na relaciji' : (isAustria ? 'Vlak vozi skladno z objavljenim voznim redom ÖBB' : 'Vlak vozi skladno z objavljenim voznim redom SŽ'))}
+                            {trainTripData?.delayReason
+                              || (effectiveTrainDelay > 0
+                                ? 'Vlak beleži operativno zamudo na relaciji'
+                                : hasDelayReading
+                                  ? (isAustria ? 'Vlak vozi skladno z objavljenim voznim redom ÖBB' : 'Vlak vozi skladno z objavljenim voznim redom SŽ')
+                                  : 'Vir za ta vlak ne sporoča zamude — to ni enako kot vožnja po voznem redu')}
                           </p>
                         </div>
                       </div>
