@@ -192,165 +192,11 @@ export class MicromobilityTracker {
   }
 
   private initActiveTrips() {
-    const now = Date.now();
-    const seedActive: InferredActiveTrip[] = [
-      {
-        id: 'act_nomago_lj_302',
-        vehicleId: 'nomago_lj_302',
-        form: 'BICYCLE',
-        network: 'nextbike_cc',
-        name: 'Nomago Bikes E-kolo #302',
-        originLat: 46.0505,
-        originLon: 14.5065, // Prešernov trg
-        currentLat: 46.0535,
-        currentLon: 14.5068,
-        heading: 10,
-        speedKmH: 17,
-        startTime: now - 3.5 * 60 * 1000,
-        lastActiveTime: now,
-        durationSeconds: Math.round(3.5 * 60),
-        durationFormatted: '3m 30s',
-        estimatedDistanceKm: 0.98,
-        status: 'in_trip',
-        waypoints: [
-          [46.0505, 14.5065], // Prešernov trg
-          [46.0535, 14.5068], // Miklošičeva cesta
-          [46.0578, 14.5085], // Trg OF / Kolodvor
-          [46.0642, 14.5115], // Dunajska cesta / GR
-          [46.0715, 14.5140]  // Dunajska cesta / Bežigrad
-        ]
-      },
-      {
-        id: 'act_avant2go_lj41',
-        vehicleId: 'avant2go_lj41',
-        form: 'CAR',
-        network: 'avant2go_si',
-        name: 'Avant2Go BMW i3 (#AVG-LJ41)',
-        originLat: 46.0605,
-        originLon: 14.5180, // Vilharjeva / Šmartinska
-        currentLat: 46.0655,
-        currentLon: 14.5310,
-        heading: 75,
-        speedKmH: 44,
-        startTime: now - 4.2 * 60 * 1000,
-        lastActiveTime: now,
-        durationSeconds: Math.round(4.2 * 60),
-        durationFormatted: '4m 12s',
-        estimatedDistanceKm: 3.1,
-        status: 'in_trip',
-        waypoints: [
-          [46.0605, 14.5180], // Šmartinska cesta / Vilharjeva
-          [46.0655, 14.5310], // Šmartinska cesta / Savsko naselje
-          [46.0690, 14.5425], // BTC City / Dvorana A
-          [46.0725, 14.5510], // BTC City / Šmartinska obvoznica
-          [46.0780, 14.5450]  // Leskoškova cesta
-        ]
-      },
-      {
-        id: 'act_bolt_lj_841',
-        vehicleId: 'bolt_lj_841',
-        form: 'SCOOTER',
-        network: 'bolt_lj',
-        name: 'Bolt E-skiro #841',
-        originLat: 46.0522,
-        originLon: 14.5020, // Cankarjeva cesta
-        currentLat: 46.0540,
-        currentLon: 14.4980,
-        heading: 295,
-        speedKmH: 19,
-        startTime: now - 2.8 * 60 * 1000,
-        lastActiveTime: now,
-        durationSeconds: Math.round(2.8 * 60),
-        durationFormatted: '2m 48s',
-        estimatedDistanceKm: 0.88,
-        status: 'in_trip',
-        waypoints: [
-          [46.0522, 14.5020], // Cankarjeva cesta
-          [46.0540, 14.4980], // Moderna galerija
-          [46.0560, 14.4940], // Tivoli promenada
-          [46.0595, 14.4910]  // Pod Turnom / Tivolski grad
-        ]
-      },
-      {
-        id: 'act_mbajk_mb104',
-        vehicleId: 'mbajk_mb104',
-        form: 'BICYCLE',
-        network: 'mbajk_mb',
-        name: 'MBajk Mestno kolo #104',
-        originLat: 46.5578,
-        originLon: 15.6450, // Glavni trg Maribor
-        currentLat: 46.5545,
-        currentLon: 15.6480,
-        heading: 140,
-        speedKmH: 15,
-        startTime: now - 5.1 * 60 * 1000,
-        lastActiveTime: now,
-        durationSeconds: Math.round(5.1 * 60),
-        durationFormatted: '5m 06s',
-        estimatedDistanceKm: 1.25,
-        status: 'in_trip',
-        waypoints: [
-          [46.5578, 15.6450], // Glavni trg Maribor
-          [46.5545, 15.6480], // Glavni most čez Dravo
-          [46.5520, 15.6535], // Europark Maribor
-          [46.5490, 15.6590]  // Pobreška cesta
-        ]
-      },
-      {
-        id: 'act_avant2go_mb12',
-        vehicleId: 'avant2go_mb12',
-        form: 'CAR',
-        network: 'avant2go_si',
-        name: 'Avant2Go Renault Zoe (#AVG-MB12)',
-        originLat: 46.5620,
-        originLon: 15.6480, // Slomškov trg Maribor
-        currentLat: 46.5585,
-        currentLon: 15.6530,
-        heading: 125,
-        speedKmH: 40,
-        startTime: now - 3.8 * 60 * 1000,
-        lastActiveTime: now,
-        durationSeconds: Math.round(3.8 * 60),
-        durationFormatted: '3m 48s',
-        estimatedDistanceKm: 2.5,
-        status: 'in_trip',
-        waypoints: [
-          [46.5620, 15.6480], // Slomškov trg Maribor
-          [46.5585, 15.6530], // Trg svobode / Mariborski grad
-          [46.5560, 15.6590], // Partizanska cesta
-          [46.5530, 15.6660]  // Meljska cesta
-        ]
-      },
-      {
-        id: 'act_bolt_kp_033',
-        vehicleId: 'bolt_kp_033',
-        form: 'SCOOTER',
-        network: 'bolt_lj',
-        name: 'Koper E-skiro #033',
-        originLat: 46.5490,
-        originLon: 13.7290, // Pristaniška / Pristan Koper
-        currentLat: 46.5465,
-        currentLon: 13.7250,
-        heading: 220,
-        speedKmH: 16,
-        startTime: now - 3.2 * 60 * 1000,
-        lastActiveTime: now,
-        durationSeconds: Math.round(3.2 * 60),
-        durationFormatted: '3m 12s',
-        estimatedDistanceKm: 0.85,
-        status: 'in_trip',
-        waypoints: [
-          [46.5490, 13.7290], // Pristaniška ulica / Pristan Koper
-          [46.5465, 13.7250], // Kopališko nabrežje
-          [46.5435, 13.7200], // Semedelska cesta
-          [46.5390, 13.7140]  // Žusterna obalna cesta
-        ]
-      }
-    ];
-
-    for (const trip of seedActive) {
-      this.activeTrips.set(trip.vehicleId, trip);
-    }
+    // Deliberately empty. This used to seed the tracker with hard-coded trips —
+    // named vehicles with fixed routes and distances (0.98 km, 3.1 km, 0.88 km)
+    // that were presented in the UI as live rentals, directly beneath a "100%
+    // Realni podatki · Brez simulacije" banner. Active rentals are now only ever
+    // inferred from the real GBFS feed.
   }
 
   private initCompletedTrips() {
@@ -369,87 +215,12 @@ export class MicromobilityTracker {
       // ignore localStorage errors
     }
 
-    // Default realistic recent completed trips across Slovenia for immediate visualization of origin (A) and destination (B)
-    const now = Date.now();
-    this.completedTrips = [
-      {
-        id: 'seed_trip_1',
-        vehicleId: 'nomago_lj_8419',
-        form: 'BICYCLE',
-        network: 'nextbike_cc',
-        name: 'Nomago Kolo #8419',
-        origin: [46.0514, 14.5060], // Prešernov trg, Ljubljana
-        destination: [46.0682, 14.5458], // BTC City Ljubljana
-        startTime: now - 18 * 60 * 1000,
-        endTime: now - 4 * 60 * 1000,
-        durationSeconds: 14 * 60,
-        distanceKm: 3.42,
-        avgSpeedKmH: 14.6,
-        completedAt: new Date(now - 4 * 60 * 1000)
-      },
-      {
-        id: 'seed_trip_2',
-        vehicleId: 'avant2go_zoe_03',
-        form: 'CAR',
-        network: 'avant2go_si',
-        name: 'Avant2Go Renault Zoe',
-        origin: [46.0498, 14.5034], // Kongresni trg, Ljubljana
-        destination: [46.2237, 14.4576], // Letališče Jožeta Pučnika
-        startTime: now - 35 * 60 * 1000,
-        endTime: now - 8 * 60 * 1000,
-        durationSeconds: 27 * 60,
-        distanceKm: 24.8,
-        avgSpeedKmH: 55.1,
-        completedAt: new Date(now - 8 * 60 * 1000)
-      },
-      {
-        id: 'seed_trip_3',
-        vehicleId: 'bolt_scooter_99',
-        form: 'SCOOTER',
-        network: 'bolt_lj',
-        name: 'Bolt E-skiro #99',
-        origin: [46.0579, 14.5067], // Bavarski dvor
-        destination: [46.0545, 14.4948], // Tivoli Park
-        startTime: now - 15 * 60 * 1000,
-        endTime: now - 9 * 60 * 1000,
-        durationSeconds: 6 * 60,
-        distanceKm: 1.25,
-        avgSpeedKmH: 12.5,
-        completedAt: new Date(now - 9 * 60 * 1000)
-      },
-      {
-        id: 'seed_trip_4',
-        vehicleId: 'mbajk_mb_12',
-        form: 'BICYCLE',
-        network: 'mbajk_mb',
-        name: 'MBajk Mestno kolo',
-        origin: [46.5574, 15.6455], // Glavni trg, Maribor
-        destination: [46.5523, 15.6534], // Europark Maribor
-        startTime: now - 22 * 60 * 1000,
-        endTime: now - 14 * 60 * 1000,
-        durationSeconds: 8 * 60,
-        distanceKm: 0.94,
-        avgSpeedKmH: 11.2,
-        completedAt: new Date(now - 14 * 60 * 1000)
-      },
-      {
-        id: 'seed_trip_5',
-        vehicleId: 'nomago_ce_32',
-        form: 'BICYCLE',
-        network: 'nextbike_cn',
-        name: 'Kolesce E-kolo #32',
-        origin: [46.2302, 15.2678], // Železniška postaja Celje
-        destination: [46.2415, 15.2795], // Planet Tuš Celje
-        startTime: now - 28 * 60 * 1000,
-        endTime: now - 19 * 60 * 1000,
-        durationSeconds: 9 * 60,
-        distanceKm: 1.65,
-        avgSpeedKmH: 15.8,
-        completedAt: new Date(now - 19 * 60 * 1000)
-      }
-    ];
+    // No seeded fallback: a trip is only recorded once a vehicle has actually
+    // been observed leaving one place and reappearing at another, which is
+    // where distance and average speed come from. Until that happens the list
+    // is genuinely empty.
+    this.completedTrips = [];
   }
-
   private persistCompletedTrips() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -676,8 +447,21 @@ export class MicromobilityTracker {
       if (!currentFloatingIds.has(id)) {
         const timeSinceMissing = now - prev.lastSeenTime;
 
+        // A vehicle that has only been seen once or twice is as likely to be
+        // flickering in and out of the feed as to have been unlocked, and
+        // counting those produced hundreds of phantom rentals — 584 of them at
+        // one point, from a fleet of 1,739. Require a vehicle to have been
+        // steadily present before its disappearance is read as a rental.
+        if ((prev.seenCount || 0) < 3) {
+          this.knownVehicles.delete(id);
+          continue;
+        }
+
         // If it went missing recently (< 45 minutes) and is not already tracked as an active trip
-        if (timeSinceMissing < 45 * 60 * 1000) {
+        // 25 minutes rather than 45: most shared-mobility rentals are short, and
+        // the longer the window the more of the list is vehicles that were
+        // simply collected for charging or rebalancing.
+        if (timeSinceMissing < 25 * 60 * 1000) {
           let trip = this.activeTrips.get(id);
 
           if (!trip) {
