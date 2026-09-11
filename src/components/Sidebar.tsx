@@ -35,8 +35,8 @@ const CATEGORIES = [
     accent: '#22c55e'
   },
   { 
-    name: 'Mikromobilnost & EV Polnilnice', 
-    keys: ['bikeshare', 'evcharge'], 
+    name: 'EV Polnilnice', 
+    keys: ['evcharge'], 
     icon: Navigation,
     accent: '#84cc16'
   },

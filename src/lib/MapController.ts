@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
@@ -463,7 +463,7 @@ export class MapController {
         'transit', 'hafas', 'aircraft', 'eurorail', 'freight_trains', 
         'stations_layer', 'rinf', 'rinf_network_line', 
         'traffic', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 
-        'ttn', 'lorawan', 'nbiot', 'evcharge', 'bike', 'quakes', 'air', 'spat', 'hydro', 'yard'
+        'ttn', 'lorawan', 'nbiot', 'evcharge', 'quakes', 'air', 'spat', 'hydro', 'yard'
       ];
       interactiveLayers.forEach(layer => {
         this.map.on('mouseenter', layer, () => {
@@ -728,16 +728,6 @@ export class MapController {
 
 
       // Bikes (Nomago, BicikeLJ)
-      this.map.addSource('bike', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      this.map.addLayer({
-        id: 'bike', type: 'symbol', source: 'bike', layout: { 'icon-image': 'icon-bike', 'icon-size': 0.7, 'icon-allow-overlap': true }
-      });
-      this.map.addLayer({
-        id: 'bike_label', type: 'symbol', source: 'bike',
-        layout: { 'text-field': ['concat', ['get', 'network'], ': ', ['get', 'free_bikes'], ' koles'], 'text-size': 10, 'text-offset': [0, 1], 'text-anchor': 'top' },
-        paint: { 'text-color': '#d9f99d', 'text-halo-color': '#000', 'text-halo-width': 1.5 }
-      });
-
       // LoRaWAN TTN
       this.map.addSource('lorawan', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addLayer({
@@ -1419,7 +1409,7 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
         });
         
         if (features.length) {
@@ -2505,7 +2495,7 @@ export class MapController {
             fetchWithTimeout(loadAir(errors), 3000, []),
             fetchWithTimeout(loadQuakes(errors), 3000, []),
             loadEVCharging(errors),
-            fetchWithTimeout(loadBikes(errors), 3000, []),
+            Promise.resolve([] as any[]),  // kolesa (GBFS) odstranjena
             fetchWithTimeout(loadWeather(errors), 3000, []),
             Promise.resolve([] as any[]),
             fetchWithTimeout(loadAprs(errors), 3000, []),
@@ -2688,7 +2678,6 @@ export class MapController {
         ...this.latestGtfsRealtime
       ];
 
-      this.updateGeoJSONSource('bike', bikes);
       this.updateGeoJSONSource('transit', allTransit);
       this.updateGeoJSONSource('weather', weather);
       this.updateGeoJSONSource('hafas', deduplicatedHafas);
