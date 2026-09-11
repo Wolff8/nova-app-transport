@@ -116,7 +116,20 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     !!node?.rawPayload?.isStation
   );
 
-  const isFreightTrain = !isStation && Boolean(
+  /**
+   * A modelled freight train is deliberately kept out of the passenger journey
+   * panel. That panel is built for a train with a published timetable: when a
+   * field is missing it falls back to Ljubljana, to Maribor, and to "vozi
+   * skladno z objavljenim voznim redom SŽ". For a modelled position every one
+   * of those is a claim nobody made, so this gets its own panel instead.
+   */
+  const isModelledFreight = Boolean(
+    node?.type === 'freight_modelled' ||
+    node?.rawPayload?.type === 'freight_modelled' ||
+    node?.rawPayload?.isModelled === true
+  );
+
+  const isFreightTrain = !isStation && !isModelledFreight && Boolean(
     node?.type === 'freight_train' ||
     node?.type === 'freight' ||
     node?.rawPayload?.type === 'freight_train' ||
@@ -137,8 +150,8 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     ))
   );
 
-  const isTrain = !isStation && (
-    node?.type === 'train' || 
+  const isTrain = !isStation && !isModelledFreight && (
+    node?.type === 'train' ||
     node?.type === 'hafas' || 
     node?.type === 'eurorail' || 
     node?.type === 'freight_train' || 
@@ -221,7 +234,13 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
 
   useEffect(() => {
     if (!node) return;
-    if (isTrain) {
+    if (isModelledFreight) {
+      // No trip to fetch: there is no published working to look up.
+      setActiveTab('journey');
+      setStationDepartures([]);
+      setStationMeta(null);
+      setTrainTripData(null);
+    } else if (isTrain) {
       setActiveTab('journey');
       fetchTrainTrip();
       setStationDepartures([]);
@@ -572,6 +591,18 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
       return <span className="bg-red-500/20 text-red-300 border border-red-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold">🔴 RDEČA LUČ</span>;
     }
 
+    // Not "TRASA SŽ": no path was allocated to this and SŽ never published it.
+    // The badge carries the position error so the uncertainty is visible from
+    // the header, before anything else in the panel is read.
+    if (isModelledFreight) {
+      const km = node.rawPayload?.uncertaintyKm;
+      return (
+        <span className="bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+          📦 MODELIRANA LEGA{km != null ? ` ±${km} km` : ''}
+        </span>
+      );
+    }
+
     if (isTrain) {
       if (isFreightTrain) {
         return <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">⏱️ TRASA SŽ (MODELIRANO)</span>;
@@ -713,8 +744,19 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
         <>
           {/* Dynamic Tabs Navigation */}
           <div className="flex border-b border-line bg-black/30 text-[11px] font-medium overflow-x-auto no-scrollbar shrink-0">
+            {isModelledFreight && (
+              <button
+                onClick={() => setActiveTab('journey')}
+                className={`flex-1 min-w-[135px] py-2 px-2.5 text-center border-b-2 transition-colors cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'journey' ? 'border-fuchsia-400 text-fuchsia-300 font-semibold bg-fuchsia-500/10' : 'border-transparent text-text-dim hover:text-white'
+                }`}
+              >
+                <TrainFront size={12} className={activeTab === 'journey' ? 'text-fuchsia-400' : 'text-text-dim'} />
+                <span>Ocena lege</span>
+              </button>
+            )}
             {isTrain && (
-              <button 
+              <button
                 onClick={() => {
                   setActiveTab('journey');
                   if (!trainTripData && !loadingTrip) fetchTrainTrip();
@@ -848,6 +890,158 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3 text-[12px]">
             
             {/* TRAIN JOURNEY / POTEK VOŽNJE TAB */}
+            {/* MODELLED FREIGHT — its own panel, with nothing borrowed from a timetable */}
+            {activeTab === 'journey' && isModelledFreight && (() => {
+              const raw: any = node.rawPayload || {};
+              const unpack = (v: any) => {
+                if (v == null) return null;
+                if (typeof v !== 'string') return v;
+                try { return JSON.parse(v); } catch { return null; }
+              };
+              const oc = unpack(raw.operatorCandidates);
+              const taf = unpack(raw.tafIdentity);
+              const hhmm = (iso: any) => {
+                if (!iso) return null;
+                const d = new Date(iso);
+                return isNaN(d.getTime()) ? null : d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
+              };
+              const dep = hhmm(raw.startedAt);
+              const arr = hhmm(raw.arrivesAt);
+              const conf = raw.confidence != null ? Math.round(Number(raw.confidence) * 100) : null;
+              const likely = oc?.candidates?.filter((c: any) => c.likelyForThisCargo) ?? [];
+              const shown = (likely.length ? likely : (oc?.candidates ?? [])).slice(0, 4);
+              const [fromLabel, toLabel] = String(raw.direction || raw.corridor || '')
+                .split(/\s*(?:→|➔|–|-)\s*/).length >= 2
+                  ? String(raw.direction || raw.corridor).split(/\s*(?:→|➔|–|-)\s*/)
+                  : [null, null];
+
+              return (
+                <div className="space-y-3">
+                  {/* What this is. Said first, before any number. */}
+                  <div className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 p-3">
+                    <div className="flex items-center gap-2 font-mono font-bold text-[12px] text-fuchsia-200">
+                      <Info size={14} className="text-fuchsia-400 shrink-0" />
+                      <span>MODELIRANA LEGA — NI OPAŽEN VLAK</span>
+                    </div>
+                    <p className="mt-1 text-[10.5px] leading-snug text-fuchsia-100/80">
+                      Noben javni vir ne objavlja leg tovornih vlakov v Sloveniji. Ta oznaka je izračun
+                      iz objavljenega števila vlakov na koridorju, ne posnetek resničnega vlaka.
+                      {conf != null && ` Zaupanje modela ${conf} %.`}
+                    </p>
+                  </div>
+
+                  {/* Corridor, times — all labelled as modelled */}
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                    <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim mb-2">
+                      Koridor (modelirano)
+                    </div>
+                    <div className="text-[14px] font-bold text-white">{raw.corridor || '—'}</div>
+                    {(fromLabel && toLabel) && (
+                      <div className="mt-1 flex items-center gap-1.5 text-[11.5px] font-mono text-white/80">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        <span className="truncate">{fromLabel}</span>
+                        <ArrowRight size={11} className="text-text-dim shrink-0" />
+                        <span className="truncate">{toLabel}</span>
+                      </div>
+                    )}
+                    <div className="mt-2.5 grid grid-cols-2 gap-2">
+                      <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5">
+                        <div className="text-[9.5px] uppercase font-mono text-emerald-400">Odhod (model)</div>
+                        <div className="text-[15px] font-bold text-white font-mono">{dep || '--:--'}</div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5">
+                        <div className="text-[9.5px] uppercase font-mono text-sky-400">Prihod (model)</div>
+                        <div className="text-[15px] font-bold text-white font-mono">{arr || '--:--'}</div>
+                      </div>
+                    </div>
+                    {raw.journeyMin != null && (
+                      <div className="mt-1.5 text-[10.5px] font-mono text-text-dim">
+                        Vozni čas {raw.journeyMin} min
+                        {raw.uncertaintyKm != null && ` · lega ±${raw.uncertaintyKm} km`}
+                      </div>
+                    )}
+                    {raw.timingSource && (
+                      <p className="mt-2 text-[10px] leading-snug text-text-dim border-t border-white/10 pt-2">
+                        {raw.timingSource}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* The operator: the part that IS checkable */}
+                  {shown.length > 0 && (
+                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-emerald-300 mb-2 flex items-center gap-1.5">
+                        <ShieldCheck size={12} /> Možni prevoznik — iz registra
+                      </div>
+                      <div className="space-y-1.5">
+                        {shown.map((c: any) => (
+                          <div key={c.code} className="flex items-start gap-2 text-[11.5px]">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-mono font-bold text-[10px] shrink-0">
+                              {c.code}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-white font-medium leading-tight">{c.name}</div>
+                              <div className="text-[9.5px] font-mono text-text-dim">
+                                {(c.roles || []).join(' · ')}
+                                {c.keeperMarkings?.length ? ` · VKM ${c.keeperMarkings.join(', ')}` : ''}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {oc?.licensedCount != null && (
+                        <div className="mt-2 pt-2 border-t border-emerald-500/20 text-[10px] font-mono text-emerald-200/70">
+                          {oc.licensedCount} licenciranih tovornih prevoznikov v SI
+                        </div>
+                      )}
+                      {oc?.inferenceNote && (
+                        <p className="mt-1 text-[10px] leading-snug text-amber-200/80">⚠ {oc.inferenceNote}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* The number: honestly empty */}
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                    <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim mb-1">
+                      Številka vlaka
+                    </div>
+                    <div className="text-[14px] font-bold font-mono text-amber-300">
+                      {taf?.core ?? 'Ni javno objavljena'}
+                    </div>
+                    {taf?.note && (
+                      <p className="mt-1.5 text-[10px] leading-snug text-text-dim">{taf.note}</p>
+                    )}
+                    {taf?.structure && (
+                      <p className="mt-1 text-[9.5px] font-mono text-text-dim/70">TAF TSI: {taf.structure}</p>
+                    )}
+                  </div>
+
+                  {/* Modelled composition */}
+                  <div className="rounded-xl border border-white/10 bg-black/40 p-3 grid grid-cols-2 gap-2 text-[11px]">
+                    {[
+                      ['Tovor (model)', raw.cargo],
+                      ['Serija vagonov', raw.wagonSeries],
+                      ['Vagonov', raw.wagons],
+                      ['Bruto masa', raw.grossWeightTons != null ? `${raw.grossWeightTons} t` : null],
+                      ['Hitrost (model)', raw.speedKmh != null ? `${raw.speedKmh} km/h` : null],
+                      ['Zamuda koridorja', raw.corridorDelayMin != null ? `+${raw.corridorDelayMin} min` : null]
+                    ].filter(([, v]) => v != null && v !== '').map(([k, v]) => (
+                      <div key={String(k)}>
+                        <div className="text-[9.5px] uppercase font-mono text-text-dim">{k}</div>
+                        <div className="text-white font-semibold">{String(v)}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {raw.corridorBasisNote && (
+                    <p className="text-[10px] leading-snug text-text-dim px-1">
+                      Vir števila vlakov: {raw.corridorBasisNote}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
             {activeTab === 'journey' && isTrain && (() => {
               const isAustria = Boolean(
                 (node?.coordinates && (

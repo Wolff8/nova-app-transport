@@ -4399,7 +4399,7 @@ export class MapController {
         id: data.id || 'freight_modelled',
         title: nodeTitle,
         category: 'TOVORNI VLAK — MODELIRANA LEGA',
-        type: 'freight_train',
+        type: 'freight_modelled',
         coordinates: coords,
         timestamp: new Date(),
         metrics,
