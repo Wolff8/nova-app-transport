@@ -917,7 +917,7 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   async function fetchEurostat(dataset: string, query: string): Promise<any | null> {
     try {
       const r = await fetch(`${EUROSTAT_BASE}/${dataset}?format=JSON&lang=EN&${query}`, {
-        signal: AbortSignal.timeout(12000)
+        signal: AbortSignal.timeout(25000)
       });
       if (!r.ok) return null;
       return await r.json();
@@ -978,19 +978,40 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
     };
   }
 
+  /**
+   * Warm the Slovenian split in the background rather than on the first
+   * request. The first live call after a deploy timed out and answered 503 —
+   * a cold instance on a fraction of a CPU could not spare the twelve seconds
+   * while it was still starting up — and since the client asks once when the
+   * modal opens, that one failure left the panel reading "loading" for good.
+   * Refreshing off a timer means the request path only ever reads the cache.
+   *
+   * A failed refresh keeps whatever is already cached; the yearly figures do
+   * not go stale in six hours, so a stale answer beats no answer.
+   */
+  async function refreshModalSplit(): Promise<void> {
+    const body = await buildModalSplit('SI');
+    if (body) modalSplitCache = { body, ts: Date.now() };
+  }
+  refreshModalSplit();
+  setInterval(() => { refreshModalSplit(); }, MODAL_SPLIT_TTL_MS);
+
   app.get('/api/freight/modal-split', async (req, res) => {
     const geo = String(req.query.geo || 'SI').toUpperCase().slice(0, 2);
-    const cacheable = geo === 'SI';
-    if (cacheable && modalSplitCache.body && Date.now() - modalSplitCache.ts < MODAL_SPLIT_TTL_MS) {
-      return res.json(modalSplitCache.body);
-    }
-    const body = await buildModalSplit(geo);
-    if (!body) {
+    if (geo === 'SI') {
       if (modalSplitCache.body) return res.json(modalSplitCache.body);
-      return res.status(503).json({ error: 'Eurostat ni dosegljiv', source: 'Eurostat' });
+      // Nothing warmed yet — the boot fetch is probably still in flight.
+      const body = await buildModalSplit(geo);
+      if (body) modalSplitCache = { body, ts: Date.now() };
+      return body
+        ? res.json(body)
+        : res.status(503).json({ error: 'Eurostat ni dosegljiv', source: 'Eurostat' });
     }
-    if (cacheable) modalSplitCache = { body, ts: Date.now() };
-    res.json(body);
+    // Other countries are asked for rarely enough not to be worth warming.
+    const body = await buildModalSplit(geo);
+    return body
+      ? res.json(body)
+      : res.status(503).json({ error: 'Eurostat ni dosegljiv', source: 'Eurostat' });
   });
 
   // 6. Interactive UIC Freight Wagon Decoder & Rolling Stock Catalog

@@ -95,10 +95,26 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
       .then(data => setCorridorsData(data))
       .catch(err => console.error('Failed to load freight corridors:', err));
 
-    fetch('/api/freight/modal-split')
-      .then(res => res.json())
-      .then(data => setModalSplitData(data))
-      .catch(err => console.error('Failed to load modal split:', err));
+    // A 503 body parses perfectly well as JSON, so storing whatever comes back
+    // used to leave an error object sitting where the statistics should be and
+    // the panel stuck on its loading line. Only a response carrying figures
+    // counts, and one attempt is retried in case the server was still warming.
+    const loadModalSplit = (attemptsLeft: number) => {
+      fetch('/api/freight/modal-split')
+        .then(res => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+        .then(data => {
+          if (data && data.tonneKm) setModalSplitData(data);
+          else throw new Error('Modal split response carried no figures');
+        })
+        .catch(err => {
+          if (attemptsLeft > 0) {
+            setTimeout(() => loadModalSplit(attemptsLeft - 1), 4000);
+          } else {
+            console.error('Failed to load modal split:', err);
+          }
+        });
+    };
+    loadModalSplit(2);
 
     // Initial UIC decoder lookup
     runUicDecoder('SGGRSS');
