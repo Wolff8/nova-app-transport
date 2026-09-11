@@ -1145,6 +1145,80 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
     return { lon: last[0], lat: last[1], bearing: 0, segmentIndex: points.length - 1 };
   }
 
+  /**
+   * Relative speed weighting along a freight slot's route, as a fraction of its
+   * own average. A loaded freight train does not cover its path at a uniform
+   * rate: it accelerates slowly out of a yard, brakes early on the approach to
+   * one, and is held well below line speed on steep ramps.
+   */
+  const FREIGHT_PROFILE_SAMPLES = 240;
+
+  function freightSpeedShape(slot: any, km: number): number {
+    const routeKm = Math.max(1, slot.routeKm);
+    let w = 1;
+
+    // A 1,400-tonne train needs kilometres, not metres, to get up to line speed
+    // and to brake back down again.
+    const accelKm = Math.min(4, routeKm * 0.05);
+    const brakeKm = Math.min(5, routeKm * 0.06);
+    if (km < accelKm) w *= 0.30 + 0.70 * (km / accelKm);
+    if (km > routeKm - brakeKm) w *= 0.30 + 0.70 * ((routeKm - km) / brakeKm);
+
+    // The 26‰ Kraški rob ramp between Koper and Divača is the binding
+    // constraint on this corridor: loaded trains grind up it far below line
+    // speed, and come down it restrained by electrodynamic braking.
+    const fromKoper = String(slot.fromName || '').includes('Koper');
+    const toKoper = String(slot.toName || '').includes('Koper');
+    if (fromKoper && km < 35) w *= 0.55;
+    else if (toKoper && km > routeKm - 35) w *= 0.70;
+
+    return Math.max(0.18, w);
+  }
+
+  /**
+   * Where a timetabled freight slot has actually got to, and how fast it is
+   * going, from one consistent model.
+   *
+   * Position previously advanced linearly with elapsed time — a constant
+   * average speed for the whole run — while the speed displayed beside it was a
+   * sine wave of progress. The two described different trains: the marker moved
+   * at a steady rate the number never matched, and the marker sat at line speed
+   * through the Kraški rob climb where a real train crawls.
+   *
+   * The speed profile above is integrated into a time-distance curve and scaled
+   * so the run still takes exactly its scheduled time, keeping the official
+   * timetable authoritative. Distance is then read off that curve and the
+   * reported speed is the derivative of the very same curve, so position and
+   * speed can no longer disagree.
+   */
+  function freightMotion(slot: any, elapsedMin: number, durationMin: number): { km: number; progress: number; speedKmh: number } {
+    const routeKm = Math.max(1, slot.routeKm);
+    const step = routeKm / FREIGHT_PROFILE_SAMPLES;
+
+    // Integrate 1/v along the route; `total` comes out in km-equivalent units.
+    const cumulative: number[] = [0];
+    let total = 0;
+    for (let i = 0; i < FREIGHT_PROFILE_SAMPLES; i++) {
+      total += step / freightSpeedShape(slot, (i + 0.5) * step);
+      cumulative.push(total);
+    }
+
+    const fraction = Math.max(0, Math.min(1, elapsedMin / Math.max(1, durationMin)));
+    const target = fraction * total;
+    let idx = 0;
+    while (idx < FREIGHT_PROFILE_SAMPLES && cumulative[idx + 1] < target) idx++;
+    const span = cumulative[idx + 1] - cumulative[idx] || 1;
+    const within = (target - cumulative[idx]) / span;
+    const km = Math.min(routeKm, (idx + within) * step);
+
+    // v = shape(s) * total / T, which reduces to routeKm / T when the profile is
+    // flat — i.e. the scheduled average is preserved exactly.
+    const durationH = Math.max(1, durationMin) / 60;
+    const speedKmh = freightSpeedShape(slot, km) * (total / durationH);
+
+    return { km, progress: km / routeKm, speedKmh };
+  }
+
   // Load high-density, vector-exact railway corridor geometry (Over 18,000 track coordinates from MOTIS & OpenRailwayMap)
   const EXACT_CORRIDORS: Record<string, [number, number][]> = JSON.parse(
     fs.readFileSync(path.join(process.cwd(), 'src/data/exact_rail_corridors.json'), 'utf-8')
@@ -3356,9 +3430,13 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
             ? (nowMin >= depM ? (nowMin - depM) : (nowMin + 1440 - depM))
             : (nowMin - depM);
           
-          progress = Math.max(0.001, Math.min(0.999, elapsedMin / durationMin));
           remainingMin = Math.max(0, Math.round(durationMin - elapsedMin));
-          currentKm = Math.round(progress * slot.routeKm);
+
+          // Position and speed both come from the same motion model, so the
+          // marker and the figure beside it always describe the same train.
+          const motion = freightMotion(slot, elapsedMin, durationMin);
+          progress = Math.max(0.001, Math.min(0.999, motion.progress));
+          currentKm = Math.round(motion.km);
 
           // Interpolate exact position along real railway track geometry
           const inter = interpolatePolyline(slot.routeGeometry, progress);
@@ -3367,19 +3445,16 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           bearing = inter.bearing || 90;
           segmentIndex = inter.segmentIndex;
 
-          // Physics-informed speed calculation based on track incline and location
+          // Line speed still caps the result; the profile only shapes it.
           const [minSpd, maxSpd] = slot.speedRange;
-          speedKmh = Math.round(minSpd + (maxSpd - minSpd) * (0.6 + 0.4 * Math.sin(progress * Math.PI * 6)));
-          
-          // Realistic steep incline handling on Koper-Divača (26‰ climb)
+          speedKmh = Math.round(Math.max(5, Math.min(maxSpd, motion.speedKmh)));
+          void minSpd;
+
           if (slot.fromName.includes('Koper') && currentKm < 35) {
-            speedKmh = Math.max(38, Math.min(48, speedKmh - 14));
             status = 'V vožnji: strmi vzpon 26‰ na Kraški rob (Divača)';
           } else if (slot.toName.includes('Koper') && currentKm > slot.routeKm - 35) {
-            speedKmh = Math.max(45, Math.min(55, speedKmh - 10));
             status = 'V vožnji: spust 26‰ proti Kopru (elektrodinamično zaviranje)';
           } else if (currentKm >= slot.routeKm - 10) {
-            speedKmh = Math.max(30, Math.min(50, speedKmh - 15));
             status = 'Približevanje ciljni postaji / vstop v ranžirni tir';
           } else {
             status = (slot as any).isTransit ? 'Mednarodni tranzit v vožnji po TEN-T koridorju' : 'V vožnji po koridorju';
