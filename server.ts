@@ -7297,6 +7297,112 @@ app.post('/api/log', express.json(), (req, res) => {
   res.sendStatus(200);
 });
 
+  /** Last non-empty transit snapshot, served when an upstream poll comes back empty. */
+  let transitCache: { data: any[]; ts: number } = { data: [], ts: 0 };
+  const TRANSIT_CACHE_TTL_MS = 120000;
+
+  /**
+   * Live Hungarian trains from MÁV's vonatinfo service.
+   *
+   * TRAVIC and MOTIS between them surface very little Hungarian rail — measured
+   * on the live endpoint, 17 trains against 2,320 Budapest city vehicles — even
+   * though the Slovenian corridor runs straight into Hungary at Hodoš. MÁV
+   * publish their own live train positions, and crucially each record carries
+   * the train's reported delay in minutes, which no other source here provides
+   * for Hungarian services.
+   *
+   * Refreshed in the background rather than awaited: the transit endpoint
+   * already aborts slow upstreams, and blocking on a third one would risk the
+   * empty responses that wipe the map.
+   */
+  let mavCache: { data: any[]; ts: number } = { data: [], ts: 0 };
+  let mavRefreshing = false;
+  const MAV_TTL_MS = 20000;
+
+  async function refreshMavTrains(): Promise<void> {
+    try {
+      const response = await fetch('https://vonatinfo.mav.hu/map.aspx/getData', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Referer': 'https://vonatinfo.mav.hu/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({ a: 'TRAINS', jo: { history: false, id: false } }),
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) return;
+
+      const payload: any = await response.json();
+      const resultRaw = payload?.d?.result ?? payload?.result;
+      const result = typeof resultRaw === 'string' ? JSON.parse(resultRaw) : resultRaw;
+      const rawTrains = result?.Trains?.Train;
+      const list: any[] = Array.isArray(rawTrains) ? rawTrains : (rawTrains ? [rawTrains] : []);
+
+      const trains = list.map((t: any) => {
+        const lat = Number(t['@Lat']);
+        const lon = Number(t['@Lon']);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+        const trainNum = String(t['@TrainNumber'] ?? '').trim();
+        const relation = String(t['@Relation'] ?? '').trim();
+        const [origin, destination] = relation.split('-').map((s: string) => s.trim());
+        const delayMin = Math.round(Number(t['@Delay']) || 0);
+        const carrier = String(t['@Menetvonal'] ?? 'MAV').toUpperCase();
+        const operator = carrier.includes('GYSEV') ? 'GYSEV' : 'MÁV-START';
+
+        return {
+          id: `mav_${trainNum}_${t['@ElviraID'] ?? ''}`,
+          tripId: String(t['@ElviraID'] ?? trainNum),
+          name: trainNum ? `MÁV ${trainNum}` : 'MÁV vlak',
+          trainNum,
+          type: 'train',
+          lat,
+          lon,
+          // Neither heading nor speed is published; both are derived on the
+          // client from successive positions, which is more reliable anyway.
+          status: 'moving',
+          operator,
+          countryCode: 'HU',
+          delay: delayMin,
+          delayMin,
+          origin: origin || '',
+          destination: destination || '',
+          relation,
+          source: 'MÁV vonatinfo'
+        };
+      }).filter(Boolean) as any[];
+
+      if (trains.length > 0) mavCache = { data: trains, ts: Date.now() };
+    } catch (e: any) {
+      console.warn('[MAV] refresh failed:', e?.message);
+    }
+  }
+
+  function getMavTrains(): any[] {
+    if (!mavRefreshing && Date.now() - mavCache.ts > MAV_TTL_MS) {
+      mavRefreshing = true;
+      refreshMavTrains().finally(() => { mavRefreshing = false; });
+    }
+    return mavCache.data;
+  }
+
+  // Warm the cache so the first client poll already has Hungarian trains.
+  setTimeout(() => { getMavTrains(); }, 1500);
+
+  app.get('/api/mav', (req, res) => {
+    const trains = getMavTrains();
+    const delayed = trains.filter(t => t.delayMin > 0);
+    res.json({
+      source: 'MÁV vonatinfo (vonatinfo.mav.hu)',
+      updatedAt: mavCache.ts ? new Date(mavCache.ts).toISOString() : null,
+      total: trains.length,
+      delayedCount: delayed.length,
+      worstDelayMin: delayed.reduce((m, t) => Math.max(m, t.delayMin), 0),
+      trains
+    });
+  });
+
   app.get('/api/transit', async (req, res) => {
     try {
       const d = new Date();
@@ -7701,10 +7807,44 @@ app.post('/api/log', express.json(), (req, res) => {
           } catch(e) {}
       }
 
-      const allTransit = [...motisVehicles, ...travicVehicles];
-      return res.json(allTransit);
+      const baseTransit = [...motisVehicles, ...travicVehicles];
+
+      // Fold in MÁV's own Hungarian trains. Where the same train number is
+      // already present from TRAVIC/MOTIS the existing record wins, so this
+      // only ever adds services the other sources do not carry — and those
+      // arrive with a real reported delay attached.
+      const knownTrainNumbers = new Set(
+        baseTransit
+          .filter(v => v.type === 'train')
+          .map(v => String(v.trainNum ?? '').trim())
+          .filter(Boolean)
+      );
+      const mavAdditions = getMavTrains().filter(t => !knownTrainNumbers.has(t.trainNum));
+      const allTransit = [...baseTransit, ...mavAdditions];
+
+      // MOTIS and TRAVIC are both fetched with a short abort timeout, and a
+      // single slow response used to empty the whole layer: the client replaces
+      // the transit source with whatever comes back, so one unlucky poll wiped
+      // every train off the map until the next one succeeded. Measured against
+      // the live endpoint, roughly one request in three came back empty while
+      // its neighbours returned ~3,400 vehicles.
+      //
+      // Serve the last good snapshot instead of nothing. A slightly stale
+      // position for a few seconds is far closer to the truth than claiming
+      // there are no trains running.
+      if (allTransit.length > 0) {
+        transitCache = { data: allTransit, ts: Date.now() };
+        return res.json(allTransit);
+      }
+      if (transitCache.data.length > 0 && (Date.now() - transitCache.ts) < TRANSIT_CACHE_TTL_MS) {
+        return res.json(transitCache.data);
+      }
+      return res.json([]);
     } catch (error) {
       console.error('Hybrid fetch error:', error);
+      if (transitCache.data.length > 0 && (Date.now() - transitCache.ts) < TRANSIT_CACHE_TTL_MS) {
+        return res.json(transitCache.data);
+      }
       return res.json([]);
     }
   });
