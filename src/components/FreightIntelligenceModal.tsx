@@ -89,7 +89,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     // The one live freight source on this corridor — reread while the modal is
     // open, since ships are worked and moved through the day.
     const loadKoperShips = () => {
-      fetch('/api/koper/ships')
+      fetch('/api/freight/port-rail')
         .then(res => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
         .then(data => { if (data && data.atBerth) setKoperShips(data); })
         .catch(() => {});
@@ -817,9 +817,26 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     </h3>
                     <span className="text-[10px] text-slate-400 font-mono">
-                      {koperShips.totals.working} na vezu · {koperShips.totals.arriving} najavljenih · {koperShips.totals.pilotMovements} premikov
+                      {koperShips.shipTotals?.working} na vezu · {koperShips.shipTotals?.arriving} najavljenih · {koperShips.shipTotals?.pilotMovements} premikov
                     </span>
                   </div>
+
+                  {/* What the ships mean for the railway, in aggregate. */}
+                  {koperShips.totals && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { label: 'Tovor na ladjah', value: `${Number(koperShips.totals.cargoTonnes).toLocaleString('sl-SI')} t`, tone: 'text-slate-200' },
+                        { label: 'Od tega po tiru', value: `${Number(koperShips.totals.railTonnes).toLocaleString('sl-SI')} t`, tone: 'text-amber-300' },
+                        { label: 'Vagonov', value: Number(koperShips.totals.wagons).toLocaleString('sl-SI'), tone: 'text-sky-300' },
+                        { label: 'Vlakov', value: Number(koperShips.totals.trains).toLocaleString('sl-SI'), tone: 'text-emerald-300' }
+                      ].map(c => (
+                        <div key={c.label} className="p-2 rounded-lg bg-slate-950/60 border border-slate-800/80 text-center">
+                          <div className={`font-mono font-bold text-base ${c.tone}`}>{c.value}</div>
+                          <div className="text-[9.5px] text-slate-400 uppercase tracking-wider">{c.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     {koperShips.atBerth.map((s: any, i: number) => (
@@ -848,26 +865,66 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                             </div>
                           </div>
                         )}
+                        {/* The rail side of the same cargo. Derived, and the
+                            wagon series is a classification, so both are worded
+                            as consequences rather than as readings. */}
+                        {s.rail?.isFreight ? (
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[10px] font-mono">
+                            <span className="text-slate-400">
+                              ≈ <strong className="text-amber-300">{Number(s.rail.railTonnes).toLocaleString('sl-SI')} t</strong> po tiru
+                            </span>
+                            <span className="text-slate-400 text-right">
+                              ≈ <strong className="text-sky-300">{s.rail.wagonsAtPortAverage}</strong> vagonov
+                              {s.rail.wagonSeries && <span className="text-slate-500"> {s.rail.wagonSeries}</span>}
+                              {s.rail.trains > 0 && <> · <strong className="text-emerald-300">{s.rail.trains}</strong> vlakov</>}
+                            </span>
+                          </div>
+                        ) : s.rail?.note ? (
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-500">
+                            {s.rail.note}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
 
-                  {koperShips.arrivals?.length > 0 && (
+                  {koperShips.arriving?.length > 0 && (
                     <div className="pt-2 border-t border-slate-800 space-y-1">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Najavljeni prihodi</span>
-                      {koperShips.arrivals.slice(0, 6).map((a: any, i: number) => (
+                      {koperShips.arriving.slice(0, 6).map((a: any, i: number) => (
                         <div key={`${a.callNumber}-${i}`} className="flex items-center justify-between gap-2 text-[10.5px] font-mono">
                           <span className="text-slate-200 truncate">{a.vessel}</span>
-                          <span className="text-slate-400 shrink-0 truncate max-w-[45%] text-right">
+                          <span className="text-slate-400 shrink-0 truncate max-w-[55%] text-right">
                             {a.cargo}{a.cargoTonnes ? ` · ${Number(a.cargoTonnes).toLocaleString('sl-SI')} t` : ''}
+                            {a.rail?.isFreight && a.rail.wagonsAtPortAverage
+                              ? ` → ${a.rail.wagonsAtPortAverage} vag.`
+                              : ''}
                           </span>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <p className="text-[10px] text-emerald-400/80 font-mono break-words pt-1 border-t border-slate-800">
-                    Vir: {koperShips.source} · osveženo {new Date(koperShips.updatedAt).toLocaleTimeString('sl-SI')}
+                  {koperShips.outboundLine && (
+                    <div className="pt-2 border-t border-slate-800 text-[10px] text-slate-400 leading-relaxed">
+                      Vse to zapušča pristanišče po isti progi:{' '}
+                      <strong className="text-slate-200">
+                        {koperShips.outboundLine.from} → {koperShips.outboundLine.to}, {koperShips.outboundLine.km} km
+                      </strong>{' '}
+                      prek {koperShips.outboundLine.operationalPoints} službenih mest (RINF). {koperShips.outboundLine.note}
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-slate-500 leading-relaxed pt-1 border-t border-slate-800">
+                    Ladje, tovor in tonaža so v živo iz Luke Koper. Pretvorba v vagone in vlake je{' '}
+                    <span className="text-amber-400/90">izračun</span>, ne meritev: {koperShips.basis?.railSharePercent} % tovora po tiru,{' '}
+                    {koperShips.basis?.tonnesPerTrain} t na vlak in {koperShips.basis?.tonnesPerWagon} t na vagon so povprečja,
+                    izpeljana iz objavljenih letnih številk pristanišča za {koperShips.basis?.reportingYear}
+                    {' '}({Number(koperShips.basis?.annualTrains).toLocaleString('sl-SI')} vlakov,{' '}
+                    {Number(koperShips.basis?.annualWagons).toLocaleString('sl-SI')} vagonov). Tip vagona je uvrstitev po vrsti tovora.
+                  </p>
+                  <p className="text-[10px] text-emerald-400/80 font-mono break-words">
+                    Vir: {koperShips.shipSource} · osveženo {new Date(koperShips.updatedAt).toLocaleTimeString('sl-SI')}
                   </p>
                 </div>
               )}

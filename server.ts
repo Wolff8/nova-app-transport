@@ -8415,6 +8415,163 @@ app.post('/api/log', express.json(), (req, res) => {
     res.json({ ...koperShipsCache.data, cachedAt: new Date(koperShipsCache.ts).toISOString() });
   });
 
+  /* ------------------------------------------------------------------ *
+   * From ship to wagon: what the live port data means for the railway.
+   *
+   * The two halves of this app never met. Ships are real and live; the trains
+   * are a template. Rather than pretend a given ship's cargo rides a given
+   * train, this converts tonnage into the rail movement it implies, and every
+   * step of the conversion is arithmetic over figures the port itself
+   * published for 2025:
+   *
+   *   rail tonnage   = 23,003,522 t × 51 %      = 11,731,796 t
+   *   per train      = 11,731,796 t ÷ 20,886    ≈ 562 t
+   *   per wagon      = 11,731,796 t ÷ 270,516   ≈ 43 t
+   *   wagons a train = 270,516 ÷ 20,886         ≈ 13
+   *
+   * So a 4,400 t urea ship implies roughly 2,244 t by rail, about 52 wagons,
+   * about four trains. That is a derivation, not an observation, and it says so
+   * in what it returns.
+   *
+   * Which wagon carries what is a classification over the UIC catalogue in this
+   * file — containers to Sggrss, fuels to Zacns tanks, vehicles to Laaers — and
+   * is likewise marked as a judgement rather than a reading.
+   * ------------------------------------------------------------------ */
+  const KOPER_CARGO_TO_WAGON: { match: RegExp; series: string; label: string }[] = [
+    { match: /kontejner|container|g\.?t\.?\s*v\s*kont/i, series: 'SGGRSS', label: 'Pomorski zabojniki' },
+    { match: /ulsd|gasoline|diesel|dizel|jet|bencin|nafta|kemik|etanol|plin/i, series: 'ZACNS', label: 'Tekoči tovor' },
+    { match: /vozila|avtomobil|car|ro-?ro/i, series: 'LAAERS', label: 'Vozila' },
+    { match: /coal|premog|ruda|boksit|klinker/i, series: 'EANOS', label: 'Razsuti tovor' },
+    { match: /urea|žito|zito|grain|pšenic|koruz|soja|gnojil/i, series: 'TAGNPPS', label: 'Razsuti tovor pod streho' },
+    { match: /jeklo|steel|coil|pločevin|alumini/i, series: 'SHIMMNS', label: 'Jeklo in kolobarji' },
+    { match: /papir|paleti|celuloz|les|timber/i, series: 'HABBIILLNS', label: 'Splošni tovor' }
+  ];
+  // Cruise calls are counted in tonnes by the port but never see a wagon.
+  const KOPER_NON_FREIGHT = /potnik|passenger|kruzer|cruise/i;
+
+  function koperRailBasis() {
+    const tonnage = 23003522, railSharePercent = 51, trains = 20886, wagons = 270516;
+    const railTonnes = tonnage * (railSharePercent / 100);
+    return {
+      reportingYear: 2025,
+      source: 'Luka Koper d.d., objava letnih rezultatov 2025',
+      sourceUrl: 'https://www.luka-kp.si/en/news/2025-performance-highlights/',
+      isDerived: true,
+      note: 'Povprečja so izpeljana iz objavljenih letnih številk pristanišča, ne iz meritve posamezne ladje.',
+      annualTonnage: tonnage,
+      railSharePercent,
+      annualRailTonnes: Math.round(railTonnes),
+      annualTrains: trains,
+      annualWagons: wagons,
+      tonnesPerTrain: Number((railTonnes / trains).toFixed(1)),
+      tonnesPerWagon: Number((railTonnes / wagons).toFixed(1)),
+      wagonsPerTrain: Number((wagons / trains).toFixed(1))
+    };
+  }
+
+  // Below this a call is a tug, a pilot boat or a bunkering run, not a cargo
+  // ship: the port lists those with a cargo of "0" and a tonne of weight, and
+  // converting them produced a phantom wagon and a phantom train each.
+  const KOPER_MIN_CARGO_TONNES = 100;
+
+  function railConsequenceFor(cargo: string | null, tonnes: number | null, basis: ReturnType<typeof koperRailBasis>) {
+    if (!tonnes || tonnes < KOPER_MIN_CARGO_TONNES) {
+      return { isFreight: false, note: 'Pristaniško plovilo ali prazen ticanje — brez tovora za železnico.' };
+    }
+    if (cargo && KOPER_NON_FREIGHT.test(cargo)) {
+      return { isFreight: false, note: 'Potniška ladja — ne ustvari železniškega prevoza.' };
+    }
+    const hit = cargo ? KOPER_CARGO_TO_WAGON.find(w => w.match.test(cargo)) : undefined;
+    const wagonInfo = hit ? decodeUicFreightWagon(hit.series) : null;
+    const payload = wagonInfo?.matchedWagon?.maxPayloadTons ?? null;
+    const railTonnes = tonnes * (basis.railSharePercent / 100);
+    return {
+      isFreight: true,
+      railTonnes: Math.round(railTonnes),
+      // Two wagon counts, because they answer different questions: what the
+      // port's own average implies, and what this wagon type could physically
+      // take if loaded to its limit.
+      wagonsAtPortAverage: Math.ceil(railTonnes / basis.tonnesPerWagon),
+      wagonsAtTypeCapacity: payload ? Math.ceil(railTonnes / payload) : null,
+      trains: Math.round(railTonnes / basis.tonnesPerTrain),
+      wagonSeries: hit ? (wagonInfo?.matchedWagon?.typeCode ?? hit.series) : null,
+      wagonCategory: hit?.label ?? null,
+      wagonPayloadTons: payload,
+      classificationIsInferred: true,
+      unmatchedCargo: !hit
+    };
+  }
+
+  app.get('/api/freight/port-rail', (req, res) => {
+    const ships = koperShipsCache.data;
+    if (!ships) return res.status(503).json({ error: 'Podatki Luke Koper še niso naloženi' });
+    const basis = koperRailBasis();
+
+    const enrich = (rows: any[]) => rows.map(r => ({
+      vessel: r.vessel,
+      callNumber: r.callNumber,
+      berth: r.berth ?? null,
+      cargo: r.cargo,
+      cargoTonnes: r.cargoTonnes,
+      operation: r.operation ?? r.status ?? null,
+      handledTonnes: r.handledTonnes ?? null,
+      percentComplete: r.percentComplete ?? null,
+      rail: railConsequenceFor(r.cargo, r.cargoTonnes, basis)
+    }));
+
+    const atBerth = enrich(ships.atBerth ?? []);
+    const arriving = enrich(ships.arrivals ?? []);
+    // A ship alongside is also listed as an announced arrival, so the two lists
+    // overlap and the totals would count its cargo twice. One row per call, the
+    // berthed one winning because it carries the transhipment progress.
+    const byCall = new Map<string, any>();
+    for (const r of [...arriving, ...atBerth]) byCall.set(r.callNumber ?? r.vessel, r);
+    const freightOnly = [...byCall.values()].filter(r => r.rail?.isFreight);
+
+    const byCategory: Record<string, { tonnes: number; railTonnes: number; wagons: number; ships: number }> = {};
+    for (const r of freightOnly) {
+      const key = r.rail!.wagonCategory ?? 'Nerazvrščeno';
+      const acc = byCategory[key] ?? (byCategory[key] = { tonnes: 0, railTonnes: 0, wagons: 0, ships: 0 });
+      acc.tonnes += r.cargoTonnes ?? 0;
+      acc.railTonnes += r.rail!.railTonnes ?? 0;
+      acc.wagons += r.rail!.wagonsAtPortAverage ?? 0;
+      acc.ships += 1;
+    }
+
+    const totalRailTonnes = freightOnly.reduce((s, r) => s + (r.rail!.railTonnes ?? 0), 0);
+    // The line every one of those wagons has to use, measured over the register.
+    const koperRoute = routeOverRinf('Koper tovorna', 'Ljubljana Zalog');
+
+    res.json({
+      basis,
+      shipSource: ships.source,
+      shipSourceUrl: ships.sourceUrl,
+      updatedAt: ships.updatedAt,
+      shipTotals: ships.totals,
+      pilotage: ships.pilotage ?? [],
+      atBerth,
+      arriving,
+      byCategory,
+      totals: {
+        ships: freightOnly.length,
+        cargoTonnes: Math.round(freightOnly.reduce((s, r) => s + (r.cargoTonnes ?? 0), 0)),
+        railTonnes: Math.round(totalRailTonnes),
+        wagons: freightOnly.reduce((s, r) => s + (r.rail!.wagonsAtPortAverage ?? 0), 0),
+        trains: freightOnly.reduce((s, r) => s + (r.rail!.trains ?? 0), 0)
+      },
+      outboundLine: koperRoute && !koperRoute.detourSuspected
+        ? {
+            from: 'Koper tovorna',
+            to: 'Ljubljana Zalog',
+            km: koperRoute.km,
+            operationalPoints: koperRoute.points.length,
+            source: rinfRaw?.source ?? null,
+            note: 'Enotirni odsek Koper–Divača je ozko grlo za ves ta tovor.'
+          }
+        : null
+    });
+  });
+
   app.get('/api/freight/network', (req, res) => {
     if (!rinfRaw && !szNetworkStatement) {
       return res.status(503).json({ error: 'Registri omrežja niso naloženi' });
