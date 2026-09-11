@@ -7774,17 +7774,17 @@ app.post('/api/log', express.json(), (req, res) => {
     });
   });
 
-  app.get('/api/transit', async (req, res) => {
-    // Serve the recent snapshot rather than rebuilding it for every poll.
-    const age = Date.now() - transitCache.ts;
-    if (transitCache.data.length > 0 && age < TRANSIT_FRESH_MS) {
-      return res.json(transitCache.data);
-    }
-    // A rebuild is already running: hand this caller the previous snapshot
-    // instead of starting a second one alongside it.
-    if (transitRefreshing && transitCache.data.length > 0) {
-      return res.json(transitCache.data);
-    }
+  /**
+   * Build the transit snapshot.
+   *
+   * This runs on a timer rather than inside a request. Assembling it means two
+   * upstream fetches and parsing several thousand segments, which blocks the
+   * event loop while it happens; doing that in the request path on a fraction
+   * of a CPU made requests hang and the container get restarted underneath us.
+   * Requests now only ever read the cache this produces.
+   */
+  async function buildTransitSnapshot(): Promise<void> {
+    if (transitRefreshing) return;
     transitRefreshing = true;
     try {
       const d = new Date();
@@ -8243,31 +8243,33 @@ app.post('/api/log', express.json(), (req, res) => {
       // good snapshot then served a nearly empty map for as long as it stayed
       // fresh. Keep the fuller previous result instead; the vehicles in it are
       // a few seconds old, not absent.
-      const primarySourcesAnswered = motisVehicles.length > 0 || travicVehicles.length > 0;
-      if (allTransit.length > 0 && (primarySourcesAnswered || transitCache.data.length === 0)) {
-        transitCache = { data: allTransit, ts: Date.now() };
-        return res.json(allTransit);
+      // Only accept the new snapshot if it is not a degraded one. When MOTIS
+      // and TRAVIC both fail, what survives is the MÁV trains alone — seen live
+      // as 376 and 459 vehicles where the healthy figure was ~3,000 — and
+      // storing that served a nearly empty map. A result less than half the size
+      // of a still-fresh previous one is treated as a partial outage and
+      // discarded; positions a few seconds old beat absent ones.
+      if (allTransit.length === 0) return;
+      const previous = transitCache.data.length;
+      const cacheStillFresh = (Date.now() - transitCache.ts) < TRANSIT_CACHE_TTL_MS;
+      if (previous > 0 && cacheStillFresh && allTransit.length < previous * 0.5) {
+        console.warn(`[transit] discarding degraded snapshot (${allTransit.length} vs ${previous})`);
+        return;
       }
-      if (allTransit.length > 0 && transitCache.data.length > allTransit.length) {
-        return res.json(transitCache.data);
-      }
-      if (allTransit.length > 0) {
-        transitCache = { data: allTransit, ts: Date.now() };
-        return res.json(allTransit);
-      }
-      if (transitCache.data.length > 0 && (Date.now() - transitCache.ts) < TRANSIT_CACHE_TTL_MS) {
-        return res.json(transitCache.data);
-      }
-      return res.json([]);
+      transitCache = { data: allTransit, ts: Date.now() };
     } catch (error) {
       console.error('Hybrid fetch error:', error);
-      if (transitCache.data.length > 0 && (Date.now() - transitCache.ts) < TRANSIT_CACHE_TTL_MS) {
-        return res.json(transitCache.data);
-      }
-      return res.json([]);
     } finally {
       transitRefreshing = false;
     }
+  }
+
+  // Keep the snapshot warm, and serve it without ever doing the work inline.
+  buildTransitSnapshot();
+  setInterval(() => { buildTransitSnapshot(); }, 6000);
+
+  app.get('/api/transit', (req, res) => {
+    res.json(transitCache.data);
   });
 
   let brezavtaCache: { data: any[]; ts: number } = { data: [], ts: 0 };
