@@ -2967,7 +2967,28 @@ export class MapController {
   
   
   
-      private updateGeoJSONSource(sourceId: string, data: any[]) {
+  /**
+   * Consecutive empty responses seen per vehicle source, so one bad poll cannot
+   * clear the map.
+   */
+  private emptyUpdateStreak = new Map<string, number>();
+  private static readonly EMPTY_UPDATES_BEFORE_CLEARING = 3;
+
+  private updateGeoJSONSource(sourceId: string, data: any[]) {
+    // A moving-vehicle feed returning nothing is nearly always a hiccup — a
+    // slow upstream, a dropped request, an instance restarting — not every
+    // train in the country simultaneously ceasing to exist. Replacing the
+    // source with an empty list on the first such response is what made trains
+    // appear for a few seconds and then vanish. Hold the last known positions
+    // until several polls agree the feed really is empty.
+    if (DYNAMIC_MOVING_SOURCES.has(sourceId) && (!data || data.length === 0)) {
+      const streak = (this.emptyUpdateStreak.get(sourceId) || 0) + 1;
+      this.emptyUpdateStreak.set(sourceId, streak);
+      if (streak < MapController.EMPTY_UPDATES_BEFORE_CLEARING) return;
+    } else {
+      this.emptyUpdateStreak.delete(sourceId);
+    }
+
     // Queue data to be processed in the next requestAnimationFrame
     this.pendingUpdates.set(sourceId, data);
   }
