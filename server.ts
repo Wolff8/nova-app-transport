@@ -9924,8 +9924,15 @@ app.post('/api/log', express.json(), (req, res) => {
         }
         if (elapsed > t1) km = b.km;
       }
-      const alongKm = towardHungary ? km : geo.totalKm - km;
+      // kmAt measures from Koper, so the interpolated km is already the
+      // position on the track for both directions — a southbound train simply
+      // counts down. Mirroring it (totalKm - km) put trains approaching Koper
+      // at the Hungarian end instead, which is what the first version did.
+      const alongKm = km;
       const pos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, alongKm / geo.totalKm)));
+      // The polyline runs Koper -> Hodoš, so its bearing is the direction of
+      // travel only for the northbound trains. The others face the other way.
+      const heading = towardHungary ? pos.bearing : (pos.bearing + 180) % 360;
       // A freight path is capped at 100 km/h by the H1 speed class in SŽ's
       // network statement; a leg average above that means the published times
       // include a stop, so it is reported as an average and labelled as one.
@@ -9961,7 +9968,7 @@ app.post('/api/log', express.json(), (req, res) => {
         geometry: { type: 'Point', coordinates: [pos.lon, pos.lat] },
         properties: {
           ...entry, id: `pap_${p.papId}`, type: 'corridor_freight_path',
-          heading: Math.round(pos.bearing), bearing: Math.round(pos.bearing),
+          heading: Math.round(heading), bearing: Math.round(heading),
           kmAlong: Math.round(alongKm * 10) / 10, routeKm: Math.round(geo.totalKm * 10) / 10,
           isPublishedPath: true
         }
