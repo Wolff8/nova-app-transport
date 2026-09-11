@@ -7605,7 +7605,21 @@ app.post('/api/log', express.json(), (req, res) => {
   const TRANSITOUS_MODES = new Set(['REGIONAL_RAIL', 'LONG_DISTANCE', 'HIGHSPEED_RAIL', 'NIGHT_RAIL', 'TRAM', 'METRO']);
   let transitousCache: { data: any[]; ts: number } = { data: [], ts: 0 };
   let transitousRefreshing = false;
-  const TRANSITOUS_TTL_MS = 30000;
+  /**
+   * Deliberately narrow, and deliberately infrequent.
+   *
+   * The first version of this requested the whole Slovenia-Croatia-Hungary box.
+   * That response is ~5.8 MB, and parsing it every 30s on a 512 MB instance put
+   * the service into a crash-restart loop — health checks alternated 200/502 and
+   * every train layer read zero. Attribution showed the wide box was not even
+   * earning its cost: Croatia was already covered by TRAVIC (only 7 HŽ trains
+   * and 17 Zagreb trams were new), and the one genuinely missing country was
+   * Italy. Restricting the box to the Italian corridor takes the payload to
+   * ~2.1 MB and keeps the Trenitalia services that were the actual gain.
+   */
+  const TRANSITOUS_BBOX = 'min=45.4,12.3&max=46.7,14.3';
+  const TRANSITOUS_TTL_MS = 150000;
+  const TRANSITOUS_MAX_SEGMENTS = 200;
 
   async function refreshTransitous(): Promise<void> {
     try {
@@ -7613,7 +7627,7 @@ app.post('/api/log', express.json(), (req, res) => {
       const t2 = d.toISOString();
       d.setMinutes(d.getMinutes() - 2);
       const t1 = d.toISOString();
-      const url = `https://api.transitous.org/api/v1/map/trips?min=44.8,13.4&max=46.6,19.5&startTime=${t1}&endTime=${t2}&zoom=20`;
+      const url = `https://api.transitous.org/api/v1/map/trips?${TRANSITOUS_BBOX}&startTime=${t1}&endTime=${t2}&zoom=20`;
       // Transitous rejects generic user agents with a 403, so identify the app.
       const r = await fetch(url, {
         headers: { 'User-Agent': 'NOVA-APP-TRANSPORT/1.0 (live transit map; github.com/Wolff8/nova-app-transport)' },
@@ -7625,7 +7639,14 @@ app.post('/api/log', express.json(), (req, res) => {
       }
       const segments: any[] = await r.json();
       if (!Array.isArray(segments)) return;
-      const kept = segments.filter(s => TRANSITOUS_MODES.has(s?.mode));
+      // Cap what is retained so a surprise in the upstream response can never
+      // grow this cache without bound. The feed tag is stamped here, once per
+      // refresh, rather than in the request path — copying these segments per
+      // request meant hundreds of large object clones every few seconds.
+      const kept = segments
+        .filter(s => TRANSITOUS_MODES.has(s?.mode))
+        .slice(0, TRANSITOUS_MAX_SEGMENTS);
+      for (const s of kept) s.__feed = 'tt';
       transitousCache = { data: kept, ts: Date.now() };
     } catch (e: any) {
       console.warn('[Transitous] refresh failed:', e?.message);
@@ -7655,7 +7676,7 @@ app.post('/api/log', express.json(), (req, res) => {
    * services in different countries, and both are kept.
    */
   function dropDuplicateTransitous(vehicles: any[]): any[] {
-    const isTransitous = (v: any) => String(v?.id || '').startsWith('travic_hr_');
+    const isTransitous = (v: any) => String(v?.id || '').startsWith('travic_tt_');
     const byName = new Map<string, any[]>();
     for (const v of vehicles) {
       if (isTransitous(v)) continue;
@@ -7742,8 +7763,9 @@ app.post('/api/log', express.json(), (req, res) => {
               }
           } catch (e) {}
       }
+      // Already tagged at cache time, so these are pushed by reference.
       for (const s of getTransitousSegments()) {
-          if (s) mergedMotis.push({ ...s, __feed: 'hr' });
+          if (s) mergedMotis.push(s);
       }
 
       if (mergedMotis.length > 0) {
