@@ -644,6 +644,12 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                                   {train.registerData.operators.registered.map((o: any) => (
                                     <span key={o.code} className="block font-mono text-emerald-300 truncate">
                                       {o.name} <span className="text-slate-500">[{o.code}]</span>
+                                      {/* Keeper marking is a separate registration
+                                          from the operating licence; shown when the
+                                          VKM register has one under the same name. */}
+                                      {o.keeperMarkings?.length > 0 && (
+                                        <span className="text-sky-400/90"> · VKM {o.keeperMarkings.map((k: any) => k.vkm).join(', ')}</span>
+                                      )}
                                     </span>
                                   ))}
                                   {train.registerData.operators.unregistered.map((name: string) => (
@@ -885,6 +891,14 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                         {/* The rail side of the same cargo. Derived, and the
                             wagon series is a classification, so both are worded
                             as consequences rather than as readings. */}
+                        {/* Where a ship's agent is also a registered rail
+                            vehicle keeper, the same company appears on both
+                            sides of the quay. */}
+                        {s.agentIsRailKeeper?.length > 0 && (
+                          <div className="mt-1 text-[9.5px] font-mono text-sky-400/90 truncate">
+                            Agent je tudi imetnik vagonov: {s.agentIsRailKeeper.map((k: any) => `${k.vkm}`).join(', ')}
+                          </div>
+                        )}
                         {s.rail?.isFreight ? (
                           <>
                             <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 flex items-center justify-between gap-2 flex-wrap text-[10px] font-mono">
@@ -935,7 +949,14 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Najavljeni prihodi</span>
                       {koperShips.arriving.slice(0, 6).map((a: any, i: number) => (
                         <div key={`${a.callNumber}-${i}`} className="flex items-center justify-between gap-2 text-[10.5px] font-mono">
-                          <span className="text-slate-200 truncate">{a.vessel}</span>
+                          <span className="text-slate-200 truncate">
+                            {a.vessel}
+                            {a.agentIsRailKeeper?.length > 0 && (
+                              <span className="text-sky-400/90" title={`Agent ${a.agent} je registriran imetnik železniških vozil`}>
+                                {' '}· VKM {a.agentIsRailKeeper.map((k: any) => k.vkm).join(', ')}
+                              </span>
+                            )}
+                          </span>
                           <span className="text-slate-400 shrink-0 truncate max-w-[55%] text-right">
                             {a.cargo}{a.cargoTonnes ? ` · ${Number(a.cargoTonnes).toLocaleString('sl-SI')} t` : ''}
                             {a.rail?.isFreight && a.rail.wagonsAtPortAverage

@@ -8209,8 +8209,13 @@ app.post('/api/log', express.json(), (req, res) => {
     const unregistered: string[] = [];
     for (const part of parts) {
       const hit = lookupOrganisation(part);
-      if (hit && !registered.some(r => r.code === hit.code)) registered.push(hit);
-      else if (!hit) unregistered.push(part);
+      if (hit && !registered.some(r => r.code === hit.code)) {
+        // Holding a licence and owning vehicles are separate registrations, so
+        // the keeper marking is looked up separately and attached where found.
+        registered.push({ ...hit, keeperMarkings: vkmKeepersNamed(part) });
+      } else if (!hit) {
+        unregistered.push(part);
+      }
     }
     return { registered, unregistered };
   }
@@ -8560,17 +8565,26 @@ app.post('/api/log', express.json(), (req, res) => {
     if (!ships) return res.status(503).json({ error: 'Podatki Luke Koper še niso naloženi' });
     const basis = koperRailBasis();
 
-    const enrich = (rows: any[]) => rows.map(r => ({
-      vessel: r.vessel,
-      callNumber: r.callNumber,
-      berth: r.berth ?? null,
-      cargo: r.cargo,
-      cargoTonnes: r.cargoTonnes,
-      operation: r.operation ?? r.status ?? null,
-      handledTonnes: r.handledTonnes ?? null,
-      percentComplete: r.percentComplete ?? null,
-      rail: railConsequenceFor(r.cargo, r.cargoTonnes, basis)
-    }));
+    const enrich = (rows: any[]) => rows.map(r => {
+      // Several ship agents on the port board are also registered rail vehicle
+      // keepers — T.T. CARGO, Petrol, Luka Koper itself — so the same company
+      // appears on both sides of the quay. Where the register agrees, say so.
+      const agentName = String(r.agent ?? '').replace(/\(.*?\)/g, '').trim();
+      const keepers = agentName ? vkmKeepersNamed(agentName) : [];
+      return {
+        vessel: r.vessel,
+        callNumber: r.callNumber,
+        berth: r.berth ?? null,
+        cargo: r.cargo,
+        cargoTonnes: r.cargoTonnes,
+        operation: r.operation ?? r.status ?? null,
+        handledTonnes: r.handledTonnes ?? null,
+        percentComplete: r.percentComplete ?? null,
+        agent: r.agent ?? null,
+        agentIsRailKeeper: keepers.length > 0 ? keepers : null,
+        rail: railConsequenceFor(r.cargo, r.cargoTonnes, basis)
+      };
+    });
 
     const atBerth = enrich(ships.atBerth ?? []);
     const arriving = enrich(ships.arrivals ?? []);
@@ -8846,6 +8860,101 @@ app.post('/api/log', express.json(), (req, res) => {
       source: tentNetwork.source
     };
   }
+
+  /* ------------------------------------------------------------------ *
+   * Who actually owns the wagons.
+   *
+   * Every vehicle running on the European network carries a Vehicle Keeper
+   * Marking, and ERA and OTIF publish the whole register — 4,988 markings,
+   * issue 196 of July 2026, with the status of each. This app had invented
+   * ones ("D-VTG", "CZ-METR", "A-RCW") sitting in its wagon registry.
+   *
+   * Sixteen keepers are registered in Slovenia, and they are the names you
+   * would expect on the Koper corridor: SZTP for SŽ Tovorni promet, LK for
+   * Luka Koper itself, ADT for Adria Transport, AK for Adria kombi, PETRL for
+   * Petrol, TTCNG for T.T. CARGO — which is also an agent named in today's
+   * live ship list, so the port board and the wagon register describe some of
+   * the same companies.
+   * ------------------------------------------------------------------ */
+  type VkmEntry = { v: string; n: string; c: string; s: number };
+  let vkmRegister: { source: string; sourceUrl: string; issue: string; issueDate: string; keepers: VkmEntry[] } | null = null;
+  const vkmByCode = new Map<string, VkmEntry>();
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'vkmRegister.json');
+    if (fs.existsSync(p)) {
+      vkmRegister = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      for (const k of vkmRegister!.keepers) {
+        const key = k.v.toUpperCase();
+        // An in-use marking wins over a revoked one carrying the same letters.
+        if (!vkmByCode.has(key) || k.s === 1) vkmByCode.set(key, k);
+      }
+      console.log('[VKM] Keeper register loaded:', vkmRegister!.keepers.length, 'markings, issue', vkmRegister!.issue);
+    }
+  } catch (e: any) {
+    console.warn('[VKM] Could not load keeper register:', e?.message);
+  }
+
+  const VKM_STATUS = ['revoked', 'in use', 'blocked'];
+
+  /** Resolve a marking such as "SZTP" or "SI-SZTP" to its registered keeper. */
+  function lookupVkm(code: string): any | null {
+    const raw = String(code || '').toUpperCase().trim();
+    if (!raw) return null;
+    // Markings are often written with a country prefix on the vehicle itself.
+    const bare = raw.includes('-') ? raw.split('-').slice(1).join('-') : raw;
+    const hit = vkmByCode.get(raw) ?? vkmByCode.get(bare);
+    if (!hit) return null;
+    return {
+      vkm: hit.v,
+      keeper: hit.n,
+      country: hit.c,
+      status: VKM_STATUS[hit.s] ?? 'unknown',
+      inUse: hit.s === 1,
+      issue: vkmRegister!.issue,
+      source: vkmRegister!.source
+    };
+  }
+
+  /** Registered keepers whose name matches a free-text company name. */
+  function vkmKeepersNamed(name: string, country?: string): any[] {
+    if (!vkmRegister) return [];
+    const key = normaliseOrgName(name);
+    if (!key || key.length < 3) return [];
+    const out: any[] = [];
+    for (const k of vkmRegister.keepers) {
+      if (country && k.c !== country) continue;
+      const n = normaliseOrgName(k.n);
+      if (!n || n.length < 3) continue;
+      if (n === key || n.startsWith(key) || key.startsWith(n)) {
+        out.push({ vkm: k.v, keeper: k.n, country: k.c, status: VKM_STATUS[k.s] ?? 'unknown' });
+      }
+      if (out.length >= 5) break;
+    }
+    return out;
+  }
+
+  app.get('/api/era/vkm', (req, res) => {
+    if (!vkmRegister) return res.status(503).json({ error: 'Register VKM ni naložen' });
+    const code = String(req.query.code || '').trim();
+    if (code) {
+      const hit = lookupVkm(code);
+      return hit ? res.json(hit) : res.status(404).json({ error: 'Oznaka ni v registru VKM', code });
+    }
+    const q = String(req.query.q || '').toLowerCase().trim();
+    const country = String(req.query.country || '').toUpperCase().slice(0, 2);
+    let list = vkmRegister.keepers;
+    if (country) list = list.filter(k => k.c === country);
+    if (q) list = list.filter(k => k.n.toLowerCase().includes(q) || k.v.toLowerCase().includes(q));
+    res.json({
+      source: vkmRegister.source,
+      sourceUrl: vkmRegister.sourceUrl,
+      issue: vkmRegister.issue,
+      issueDate: vkmRegister.issueDate,
+      total: vkmRegister.keepers.length,
+      matched: list.length,
+      keepers: list.slice(0, 200).map(k => ({ vkm: k.v, keeper: k.n, country: k.c, status: VKM_STATUS[k.s] ?? 'unknown' }))
+    });
+  });
 
   app.get('/api/tent/network', (req, res) => {
     if (!tentNetwork) return res.status(503).json({ error: 'TENtec podatki niso naloženi' });
