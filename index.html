@@ -1,18 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="sl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the map run under the notch and home indicator
+         on phones instead of leaving a letterboxed band; the layout already
+         uses 100dvh so nothing is hidden behind them. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1220" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="NOVA Transport" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>NOVA APP TRANSPORT</title>
     <meta name="description" content="Real-time transport intelligence dashboard with multi-source telemetry, GTFS-RT protobuf ingestion (ÖBB, VOR, MÁV, BKK), regional station timetables, passenger and freight wagon compositions, and live cross-border infrastructure." />
     <meta property="og:title" content="NOVA APP TRANSPORT" />
     <meta property="og:description" content="Real-time transport intelligence dashboard with multi-source telemetry, GTFS-RT protobuf ingestion (ÖBB, VOR, MÁV, BKK), regional station timetables, passenger and freight wagon compositions, and live cross-border infrastructure." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      /* Painted before any JavaScript arrives, so the first frame is the app's
+         own dark ground rather than a white flash followed by a dark one. */
+      html, body { margin: 0; background: #0b1220; }
+      #root { min-height: 100dvh; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

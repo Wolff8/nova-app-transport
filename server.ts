@@ -12579,7 +12579,26 @@ app.get("/api/era/track", async (req, res) => {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    // The rail-track geometry the client snaps trains to. It was compiled into
+    // the bundle (800 KB); it is now one cacheable file the client fetches once
+    // the map is up. The file only changes with a deploy, and its URL does not,
+    // so a day of caching is safe and revalidation is cheap.
+    app.get('/data/exact_rail_corridors.json', (req, res) => {
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+      res.sendFile(path.join(process.cwd(), 'src', 'data', 'exact_rail_corridors.json'));
+    });
+    app.use(express.static(distPath, {
+      // Hashed asset filenames change with their content, so they can be
+      // cached hard; index.html must not be, or a deploy would not be seen.
+      setHeaders(res, filePath) {
+        // Vite's content hashes are base64url (e.g. index-CnR0gauj.js), not hex.
+        if (/\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.\w+$/.test(filePath)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        }
+      }
+    }));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });

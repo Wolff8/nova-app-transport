@@ -1,13 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { MapController } from './lib/MapController';
 import { Sidebar } from './components/Sidebar';
-import { AiInsights } from './components/AiInsights';
-import { TelemetryInspector } from './components/TelemetryInspector';
-import { LiveTelemetryStream } from './components/LiveTelemetryStream';
 import { SearchBar } from './components/SearchBar';
 import { AlertSystem } from './components/AlertSystem';
-import { FreightIntelligenceModal } from './components/FreightIntelligenceModal';
-import { AnalyticsPanel } from './components/AnalyticsPanel';
+
+// Nothing below is needed to paint the map. The inspector alone is 230 KB of
+// source and the freight modal 120 KB; loading them after first render takes
+// them off the path between the user opening the page and seeing something.
+const TelemetryInspector = lazy(() => import('./components/TelemetryInspector').then(m => ({ default: m.TelemetryInspector })));
+const FreightIntelligenceModal = lazy(() => import('./components/FreightIntelligenceModal').then(m => ({ default: m.FreightIntelligenceModal })));
+const AnalyticsPanel = lazy(() => import('./components/AnalyticsPanel').then(m => ({ default: m.AnalyticsPanel })));
+const AiInsights = lazy(() => import('./components/AiInsights').then(m => ({ default: m.AiInsights })));
+const LiveTelemetryStream = lazy(() => import('./components/LiveTelemetryStream').then(m => ({ default: m.LiveTelemetryStream })));
 import { AppState, TelemetryNode, TelemetryLogEntry } from './types';
 import { Loader2, Radio, Train, Activity, Terminal, Anchor, Bus } from 'lucide-react';
 
@@ -26,12 +30,11 @@ export default function App() {
   // Ref buffer for telemetry logs to prevent re-render thrashing
   const logBufferRef = useRef<TelemetryLogEntry[]>([]);
 
-  // Safety net: never trap the user on the loading overlay. The overlay is
-  // normally dismissed by the first telemetry broadcast, but if the map or its
-  // data pipeline stalls (e.g. a basemap CDN hiccup), force it away so the map
-  // and controls become usable instead of showing an indefinite spinner.
+  // Safety net: never trap the user on the loading overlay. It is normally
+  // dismissed the moment the map style is usable (see onReady below); if even
+  // that stalls, force it away so the controls become usable.
   useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 20000);
+    const timeout = setTimeout(() => setLoading(false), 8000);
     return () => clearTimeout(timeout);
   }, []);
 
@@ -124,7 +127,11 @@ export default function App() {
         if (logBufferRef.current.length > 100) {
           logBufferRef.current.length = 100;
         }
-      }
+      },
+      // The overlay used to wait for the first telemetry broadcast, which on
+      // the production instance could be fifteen seconds behind the map being
+      // perfectly usable. The map is what the user is waiting for.
+      () => setLoading(false)
     );
 
     setMapController(controller);
@@ -219,7 +226,7 @@ export default function App() {
         <span className="w-1 h-1 rounded-full bg-line"></span>
         <div className="flex items-center gap-1.5 text-sky-400">
           <Train size={13} />
-          <span>Vlaki na tirih: <strong>{appState?.counts?.transit_trains ?? appState?.counts?.transit ?? appState?.counts?.hafas ?? 20}</strong></span>
+          <span>Vlaki na tirih: <strong>{appState?.counts?.transit_trains ?? appState?.counts?.transit ?? appState?.counts?.hafas ?? '—'}</strong></span>
         </div>
         <span className="w-1 h-1 rounded-full bg-line"></span>
         <button
@@ -244,12 +251,14 @@ export default function App() {
         </button>
       </div>
 
+      <Suspense fallback={null}>
       <AnalyticsPanel
         isOpen={analyticsOpen}
         onClose={() => setAnalyticsOpen(false)}
         mapController={mapController}
         onSelectNode={setSelectedNode}
       />
+      </Suspense>
 
       {/* Main Sidebar */}
       <Sidebar
@@ -265,13 +274,16 @@ export default function App() {
       />
 
       {/* AI Insights Flyout */}
+      <Suspense fallback={null}>
       <AiInsights 
         isOpen={insightsOpen} 
         onClose={() => setInsightsOpen(false)} 
         appState={appState} 
       />
+      </Suspense>
 
       {/* Interactive Telemetry Node Inspector */}
+      <Suspense fallback={null}>
       <TelemetryInspector 
         node={selectedNode}
         onClose={() => { 
@@ -285,16 +297,20 @@ export default function App() {
         onSelectTrain={handleSelectTrain}
         onHighlightRoute={handleHighlightRoute}
       />
+      </Suspense>
 
       {/* Live Telemetry Log Stream / Terminal */}
+      <Suspense fallback={null}>
       <LiveTelemetryStream
         isOpen={isStreamOpen}
         onClose={() => setIsStreamOpen(false)}
         logs={telemetryLogs}
         onSelectLog={handleSelectLog}
       />
+      </Suspense>
 
       {/* Multimodal Freight Intelligence Modal */}
+      <Suspense fallback={null}>
       <FreightIntelligenceModal
         isOpen={freightModalOpen}
         onClose={() => setFreightModalOpen(false)}
@@ -307,6 +323,7 @@ export default function App() {
           }
         }}
       />
+      </Suspense>
 
       {/* Bottom Footer Source Banner */}
       <div className="hidden sm:flex absolute bottom-2 right-3 z-10 

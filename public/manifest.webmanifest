@@ -1,0 +1,14 @@
+{
+  "name": "NOVA APP TRANSPORT",
+  "short_name": "NOVA Transport",
+  "description": "Živi promet v Pomurju in Sloveniji — vlaki, avtobusi, tovorni koridorji.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "sl",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

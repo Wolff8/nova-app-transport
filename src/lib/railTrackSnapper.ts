@@ -4,7 +4,6 @@
  * using the sub-meter MOTIS & OpenRailwayMap vector geometries.
  */
 
-import exactCorridorsData from '../data/exact_rail_corridors.json' with { type: 'json' };
 
 interface RailSegment {
   p1: [number, number]; // [lon, lat]
@@ -33,10 +32,9 @@ function calcBearing(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-export function initRailTrackSnapper(): void {
+export function initRailTrackSnapper(corridors: Record<string, [number, number][]>): void {
   if (isInitialized) return;
 
-  const corridors = exactCorridorsData as unknown as Record<string, [number, number][]>;
   for (const corridorName of Object.keys(corridors)) {
     const points = corridors[corridorName];
     if (!points || points.length < 2) continue;
@@ -90,6 +88,29 @@ export function initRailTrackSnapper(): void {
   isInitialized = true;
 }
 
+let loadPromise: Promise<void> | null = null;
+
+/**
+ * Fetch the track geometry and build the spatial grid from it.
+ *
+ * The 800 KB corridor file used to be compiled into the JavaScript bundle,
+ * so every visitor downloaded and parsed it before the app could start. It is
+ * now served as its own cacheable file and fetched after the map is up;
+ * `snapToRailTrack` returns the input unchanged until it has arrived.
+ */
+export function loadRailTrackGeometry(url: string): Promise<void> {
+  if (isInitialized) return Promise.resolve();
+  if (!loadPromise) {
+    loadPromise = fetch(url, { cache: 'force-cache' })
+      .then(r => { if (!r.ok) throw new Error(`rail geometry HTTP ${r.status}`); return r.json(); })
+      .then((data: Record<string, [number, number][]>) => { initRailTrackSnapper(data); })
+      .catch(err => { loadPromise = null; throw err; });
+  }
+  return loadPromise;
+}
+
+export function isRailTrackGeometryReady(): boolean { return isInitialized; }
+
 /**
  * Snaps a [lon, lat] coordinate to the nearest physical railway track segment.
  * @param lon Longitude
@@ -125,8 +146,16 @@ export function snapToRailTrack(
     };
   }
 
+  // Geometry not here yet: report honestly that nothing was snapped rather
+  // than block on a synchronous parse of an 800 KB file.
   if (!isInitialized) {
-    initRailTrackSnapper();
+    return {
+      lon,
+      lat,
+      bearing: routeBearing != null && !isNaN(routeBearing) ? Math.round(routeBearing) : undefined,
+      snapped: false,
+      distanceMeters: Infinity
+    };
   }
 
   const gx = Math.floor(lon / CELL_SIZE);

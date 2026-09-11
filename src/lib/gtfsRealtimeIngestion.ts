@@ -1,4 +1,15 @@
-import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
+/**
+ * The protobuf decoder is 620 KB of the bundle and is needed only once a
+ * GTFS-RT feed has actually been fetched, so it is loaded on first use rather
+ * than before the map can paint.
+ */
+let bindingsPromise: Promise<any> | null = null;
+function getBindings(): Promise<any> {
+  if (!bindingsPromise) {
+    bindingsPromise = import('gtfs-realtime-bindings').then(m => (m as any).default ?? m);
+  }
+  return bindingsPromise;
+}
 
 export interface GtfsRtVehicle {
   id: string;
@@ -137,6 +148,7 @@ export class GtfsRealtimeIngestionService {
             return [];
           }
 
+          const GtfsRealtimeBindings = await getBindings();
           const decoded = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(new Uint8Array(arrayBuffer));
           const vehicles: GtfsRtVehicle[] = [];
 

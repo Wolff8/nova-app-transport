@@ -4,7 +4,7 @@ import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadS
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
-import { snapToRailTrack } from './railTrackSnapper';
+import { snapToRailTrack, loadRailTrackGeometry } from './railTrackSnapper';
 import { MicromobilityTracker } from './micromobilityTracker';
 
 
@@ -197,7 +197,9 @@ export class MapController {
     private container: HTMLElement,
     private onStateUpdate?: (state: any) => void,
     private onSelectNode?: (node: TelemetryNode) => void,
-    private onTelemetryLog?: (log: TelemetryLogEntry) => void
+    private onTelemetryLog?: (log: TelemetryLogEntry) => void,
+    /** Fires once the map style is usable — before any data has arrived. */
+    private onReady?: () => void
   ) {
     this.popup = new maplibregl.Popup({
       closeButton: false,
@@ -240,6 +242,13 @@ export class MapController {
   this.map.once('style.load', async () => {
     await this.loadIcons();
       this.isReady = true;
+      // The map can be looked at and moved from here on; nothing the user sees
+      // should wait for the first telemetry round-trip.
+      try { this.onReady?.(); } catch {}
+      // The rail geometry used to snap trains to the track is 800 KB and was
+      // compiled into the bundle. It is fetched here instead, after the map is
+      // up; until it lands, trains simply are not snapped.
+      loadRailTrackGeometry('/data/exact_rail_corridors.json').catch(() => {});
 
       const addArrowCanvas = (id: string, color: string) => {
         const size = 32;
