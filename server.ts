@@ -10639,7 +10639,17 @@ app.post('/api/log', express.json(), (req, res) => {
       // progress returns the same vehicles (22,065 vs 21,441 for the stale
       // window), so there was nothing to gain by lagging behind.
       const travicNow = new Date();
-      const swy = 779236, swx = 5160979, ney = 2449028, nex = 6359345, orx = swy, ory = nex, z = 9;
+      // Slovenia plus a 0.45° margin, in Web Mercator metres (west/south/east/north).
+      //
+      // The box used to span 7°–22° E and 42°–49.4° N — Milan to Budapest — and
+      // the answer ran to 0.67–1.8 MB and up to 20,000 vehicles. On the 0.1-CPU
+      // instance the fetch could not finish inside its 6-second budget and was
+      // aborted on every build ("This operation was aborted"), which left the
+      // map with the Hungarian trains alone and everything frozen. This box
+      // measures 0.04 MB and ~400–1,500 vehicles for the same request. Graz,
+      // Zagreb, Trieste, Villach and the Hungarian border towns stay in; Vienna,
+      // Budapest and Milan — 150–300 km from anything this map is for — go.
+      const swy = 1436021, swx = 5621521, ney = 1903563, nex = 5999391, orx = swy, ory = nex, z = 9;
       const timeStr = new Intl.DateTimeFormat('sl-SI', { timeZone: 'Europe/Ljubljana', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(travicNow);
       const [h, m, s] = timeStr.split(':');
       const btime = `${h}:${m}:00.000`, etime = `${h}:${m}:59.000`;
@@ -10976,7 +10986,7 @@ app.post('/api/log', express.json(), (req, res) => {
                       const distM = Math.sqrt(dx * dx + dy * dy);
                       // Web Mercator metres are stretched by latitude; undo it
                       // so the speed is over the ground rather than on the map.
-                      const midY = 6359345 - ((p0.y + p1.y) / 2) * res;
+                      const midY = ory - ((p0.y + p1.y) / 2) * res;
                       const midLat = (2 * Math.atan(Math.exp(midY / 6378137)) - Math.PI / 2);
                       const groundM = distM * Math.cos(midLat);
                       const speedKmh = dt > 0 ? (groundM / dt) * 3.6 : 0;
@@ -10996,15 +11006,15 @@ app.post('/api/log', express.json(), (req, res) => {
                       if (!at) return;
                       const x = at.x;
                       const y = at.y;
-                      const X_meters = 779236 + x * res;
-                      const Y_meters = 6359345 - y * res;
+                      const X_meters = orx + x * res;
+                      const Y_meters = ory - y * res;
                       const lon = (X_meters / 6378137) * (180/Math.PI);
                       const lat = (2 * Math.atan(Math.exp(Y_meters / 6378137)) - Math.PI/2) * (180/Math.PI);
                       
                       const region = getGeoRegion(lat, lon);
 
                       // Regional corridor bounding filter: Slovenia and immediate cross-border rail corridors
-                      if (lat < 45.2 || lat > 47.6 || lon < 12.8 || lon > 19.5) return;
+                      if (lat < 45.0 || lat > 47.35 || lon < 12.9 || lon > 17.1) return;
 
                       // Skip ski lifts, cable cars, gondolas, funiculars (e.g. Petzen Bergbahnen, Vogel, Kanin, Krvavec)
                       if (v.t === 5 || v.t === 6 || v.t === 7) return;
