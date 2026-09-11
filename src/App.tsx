@@ -7,8 +7,9 @@ import { LiveTelemetryStream } from './components/LiveTelemetryStream';
 import { SearchBar } from './components/SearchBar';
 import { AlertSystem } from './components/AlertSystem';
 import { FreightIntelligenceModal } from './components/FreightIntelligenceModal';
+import { AnalyticsPanel } from './components/AnalyticsPanel';
 import { AppState, TelemetryNode, TelemetryLogEntry } from './types';
-import { Loader2, Radio, Train, Activity, Terminal, Anchor, Bus } from 'lucide-react';
+import { Loader2, Radio, Train, Activity, Terminal, Anchor, Bus, BarChart3 } from 'lucide-react';
 
 export default function App() {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -17,6 +18,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [freightModalOpen, setFreightModalOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<TelemetryNode | null>(null);
   const [isStreamOpen, setIsStreamOpen] = useState(false);
   const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLogEntry[]>([]);
@@ -242,8 +244,30 @@ export default function App() {
         </button>
       </div>
 
+      {/* Analitika živih podatkov — opens the data table for the live sources */}
+      <button
+        onClick={() => setAnalyticsOpen(o => !o)}
+        title="Analitika živih podatkov"
+        className={`absolute right-3 top-3 lg:top-16 z-30 flex items-center gap-1.5 px-3 py-2 rounded-xl border
+                    backdrop-blur-xl shadow-xl text-[11px] font-bold transition-colors cursor-pointer ${
+          analyticsOpen
+            ? 'bg-wheat text-ink border-wheat'
+            : 'bg-panel/90 border-line text-text-dim hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <BarChart3 size={14} />
+        <span className="hidden sm:inline">Analitika</span>
+      </button>
+
+      <AnalyticsPanel
+        isOpen={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        mapController={mapController}
+        onSelectNode={setSelectedNode}
+      />
+
       {/* Main Sidebar */}
-      <Sidebar 
+      <Sidebar
         appState={appState} 
         mapController={mapController} 
         onSelectNode={setSelectedNode}

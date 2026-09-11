@@ -334,6 +334,10 @@ export class MapController {
 
       this.startPolling();
 
+      // Layers are all registered synchronously below; declutter their labels
+      // once the style has settled.
+      this.map.once('idle', () => this.applyLabelDeclutter());
+
       
       
       // OpenRailwayMap - Real-world global and Slovenian railway track raster tiles
@@ -1646,6 +1650,84 @@ export class MapController {
     }
     if (layerKey === 'orm' || layerKey === 'sz_rail') {
        toggle('openrailwaymap-layer');
+    }
+  }
+
+  /**
+   * Text labels are only drawn once the view is zoomed in far enough for them
+   * to be readable. At regional zoom there can be several thousand live
+   * vehicles on screen at once and their labels bury the map completely, so the
+   * overview stays icons-only and the detail appears as you zoom in.
+   *
+   * This is applied as a zoom range rather than a visibility change so it never
+   * fights toggleLayer(), which owns visibility.
+   */
+  private readonly LABEL_MIN_ZOOM = 13.5;
+  private labelsEnabled = true;
+
+  private getLabelLayerIds(): string[] {
+    if (!this.map) return [];
+    try {
+      return this.map.getStyle().layers.map(l => l.id).filter(id => id.endsWith('_label'));
+    } catch {
+      return [];
+    }
+  }
+
+  private applyLabelDeclutter(): void {
+    for (const id of this.getLabelLayerIds()) {
+      try {
+        this.map.setLayerZoomRange(id, this.LABEL_MIN_ZOOM, 24);
+        // Let a label be dropped rather than displace its icon when crowded.
+        this.map.setLayoutProperty(id, 'text-optional', true);
+      } catch {
+        /* layer not present in this style */
+      }
+    }
+  }
+
+  public areLabelsVisible(): boolean {
+    return this.labelsEnabled;
+  }
+
+  /** Turn map labels off entirely, or back on above LABEL_MIN_ZOOM. */
+  public setLabelsVisible(visible: boolean): void {
+    this.labelsEnabled = visible;
+    for (const id of this.getLabelLayerIds()) {
+      try {
+        this.map.setLayerZoomRange(id, visible ? this.LABEL_MIN_ZOOM : 23.5, 24);
+      } catch {
+        /* layer not present in this style */
+      }
+    }
+  }
+
+  public isLayerVisible(layerId: string): boolean {
+    try {
+      return !!this.map.getLayer(layerId) && this.map.getLayoutProperty(layerId, 'visibility') !== 'none';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * The rows currently backing a map source — i.e. exactly the live records the
+   * map is drawing, with their real coordinates. Used by the analytics panel so
+   * the table and the map can never disagree about what is out there.
+   */
+  public getLiveDataset(sourceId: string): any[] {
+    if (!this.map) return [];
+    try {
+      const src: any = this.map.getSource(sourceId);
+      const data = src?.serialize?.().data;
+      if (!data || !Array.isArray(data.features)) return [];
+      return data.features.map((f: any) => ({
+        ...(f.properties || {}),
+        lon: f.geometry?.coordinates?.[0],
+        lat: f.geometry?.coordinates?.[1]
+      }));
+    } catch {
+      return [];
     }
   }
 
