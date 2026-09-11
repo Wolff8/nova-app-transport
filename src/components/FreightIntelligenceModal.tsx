@@ -23,6 +23,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   
   // Data states
   const [pipelineData, setPipelineData] = useState<any>(null);
+  const [koperShips, setKoperShips] = useState<any>(null);
   const [terminalsData, setTerminalsData] = useState<any[]>([]);
   const [corridorsData, setCorridorsData] = useState<any>(null);
   const [modalSplitData, setModalSplitData] = useState<any>(null);
@@ -85,6 +86,17 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
       })
       .catch(() => {});
 
+    // The one live freight source on this corridor — reread while the modal is
+    // open, since ships are worked and moved through the day.
+    const loadKoperShips = () => {
+      fetch('/api/koper/ships')
+        .then(res => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+        .then(data => { if (data && data.atBerth) setKoperShips(data); })
+        .catch(() => {});
+    };
+    loadKoperShips();
+    const koperTimer = setInterval(loadKoperShips, 120000);
+
     fetch('/api/freight/terminals')
       .then(res => res.json())
       .then(data => setTerminalsData(data.terminals || []))
@@ -122,6 +134,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     return () => {
       clearInterval(trainTimer);
       clearInterval(msTimer);
+      clearInterval(koperTimer);
     };
   }, [isOpen]);
 
@@ -791,6 +804,73 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   )}
                 </p>
               </div>
+
+              {/* Live ship movements — the only genuinely live freight source
+                  on this corridor, and what replaced the three invented
+                  vessels this tab used to name as berthed. */}
+              {koperShips?.atBerth && (
+                <div className="p-4 rounded-xl bg-slate-900/70 border border-emerald-500/25 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                      <Anchor size={14} className="text-emerald-400" />
+                      Ladje v Luki Koper — v živo
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {koperShips.totals.working} na vezu · {koperShips.totals.arriving} najavljenih · {koperShips.totals.pilotMovements} premikov
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {koperShips.atBerth.map((s: any, i: number) => (
+                      <div key={`${s.callNumber}-${i}`} className="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px]">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="font-bold text-white truncate">{s.vessel}</span>
+                          <span className="font-mono text-[10px] text-slate-400 shrink-0">
+                            Vez {s.berth} · {s.operation}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 mt-1 flex-wrap">
+                          <span className="text-amber-300 font-medium truncate">{s.cargo}</span>
+                          <span className="font-mono text-slate-300 shrink-0">
+                            {s.cargoTonnes != null ? `${Number(s.cargoTonnes).toLocaleString('sl-SI')} t` : ''}
+                          </span>
+                        </div>
+                        {s.percentComplete != null && (
+                          <div className="mt-1.5">
+                            <div className="flex justify-between text-[9.5px] text-slate-400 font-mono mb-0.5">
+                              <span>Pretovorjeno {Number(s.handledTonnes).toLocaleString('sl-SI')} t</span>
+                              <span className="text-emerald-300">{Number(s.percentComplete).toLocaleString('sl-SI')} %</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                              <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
+                                   style={{ width: `${Math.min(100, Math.max(0, s.percentComplete))}%` }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {koperShips.arrivals?.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800 space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Najavljeni prihodi</span>
+                      {koperShips.arrivals.slice(0, 6).map((a: any, i: number) => (
+                        <div key={`${a.callNumber}-${i}`} className="flex items-center justify-between gap-2 text-[10.5px] font-mono">
+                          <span className="text-slate-200 truncate">{a.vessel}</span>
+                          <span className="text-slate-400 shrink-0 truncate max-w-[45%] text-right">
+                            {a.cargo}{a.cargoTonnes ? ` · ${Number(a.cargoTonnes).toLocaleString('sl-SI')} t` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-emerald-400/80 font-mono break-words pt-1 border-t border-slate-800">
+                    Vir: {koperShips.source} · osveženo {new Date(koperShips.updatedAt).toLocaleTimeString('sl-SI')}
+                  </p>
+                </div>
+              )}
 
               {/* Outbound Corridors Breakdown */}
               <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">

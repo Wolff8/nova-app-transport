@@ -7857,19 +7857,26 @@ app.post('/api/log', express.json(), (req, res) => {
    * D1–D3, speed H1–H4. H1 is where the 100 km/h freight ceiling in this file
    * comes from; it is the published figure, not a guess.
    * ------------------------------------------------------------------ */
-  type RinfOp = { id: string; name: string; countries: string[]; type: string; isBorder: boolean; altNames: string[] };
-  type RinfSection = { from: string; to: string; km: number };
-  let rinfNetwork: { source: string; countries: string[]; retrieved: string; operationalPoints: RinfOp[]; sections: RinfSection[] } | null = null;
+  type RinfOp = { id: string; name: string; type: string; countries: string[] };
+  /**
+   * Stored compactly — points as [uopid, name, type, countries] and sections as
+   * [indexA, indexB, km]. The verbose object form of this graph ran to 1.2 MB
+   * for four countries; this holds fifteen in 3.2 MB, which matters on an
+   * instance with half a gigabyte of memory.
+   */
+  let rinfRaw: { source: string; retrieved: string; points: [string, string, string, string][]; sections: [number, number, number][] } | null = null;
+  let rinfOps: RinfOp[] = [];
   let szNetworkStatement: any = null;
 
   try {
     const rinfPath = path.join(process.cwd(), 'src', 'data', 'rinfNetwork.json');
     if (fs.existsSync(rinfPath)) {
-      rinfNetwork = JSON.parse(fs.readFileSync(rinfPath, 'utf-8'));
-      console.log('[RINF] Network loaded:',
-        rinfNetwork!.operationalPoints.length, 'operational points,',
-        rinfNetwork!.sections.length, 'sections,',
-        rinfNetwork!.countries.join('/'));
+      rinfRaw = JSON.parse(fs.readFileSync(rinfPath, 'utf-8'));
+      rinfOps = rinfRaw!.points.map(([id, name, type, cc]) => ({
+        id, name, type, countries: cc ? cc.split(',') : []
+      }));
+      console.log('[RINF] Network loaded:', rinfOps.length, 'operational points,',
+        rinfRaw!.sections.length, 'sections');
     }
   } catch (e: any) {
     console.warn('[RINF] Could not load network:', e?.message);
@@ -7884,9 +7891,22 @@ app.post('/api/log', express.json(), (req, res) => {
     console.warn('[SŽ] Could not load Network Statement tables:', e?.message);
   }
 
-  const rinfAdjacency = new Map<string, { to: string; km: number }[]>();
-  const rinfById = new Map<string, RinfOp>();
-  const rinfByName = new Map<string, RinfOp>();
+  /**
+   * Adjacency in compressed sparse row form: one offset per point, then flat
+   * arrays of neighbour and length.
+   *
+   * The obvious shape — an array of arrays of {to, km} — costs about 50 MB of
+   * resident memory for this graph, because every edge becomes an object. This
+   * instance has half a gigabyte for everything, and this app has already been
+   * killed once by memory pressure, so the edges live in three typed arrays
+   * totalling under a megabyte instead.
+   */
+  let rinfEdgeStart = new Int32Array(1);
+  let rinfEdgeTo = new Int32Array(0);
+  let rinfEdgeKm = new Float32Array(0);
+  let rinfSectionCount = 0;
+  let rinfNetworkKm = 0;
+  const rinfByName = new Map<string, number>();
 
   const normalisePlace = (s: string) => String(s || '')
     .toLowerCase()
@@ -7894,22 +7914,86 @@ app.post('/api/log', express.json(), (req, res) => {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
-  if (rinfNetwork) {
-    for (const op of rinfNetwork.operationalPoints) {
-      rinfById.set(op.id, op);
+  if (rinfRaw) {
+    rinfOps.forEach((op, i) => {
       const key = normalisePlace(op.name);
-      if (key && !rinfByName.has(key)) rinfByName.set(key, op);
-      for (const alt of op.altNames ?? []) {
-        const ak = normalisePlace(alt);
-        if (ak && !rinfByName.has(ak)) rinfByName.set(ak, op);
+      if (key && !rinfByName.has(key)) rinfByName.set(key, i);
+    });
+    const n = rinfOps.length;
+    const sections = rinfRaw.sections;
+    const degree = new Int32Array(n);
+    for (const [a, b] of sections) { degree[a]++; degree[b]++; }
+    rinfEdgeStart = new Int32Array(n + 1);
+    for (let i = 0; i < n; i++) rinfEdgeStart[i + 1] = rinfEdgeStart[i] + degree[i];
+    rinfEdgeTo = new Int32Array(sections.length * 2);
+    rinfEdgeKm = new Float32Array(sections.length * 2);
+    const cursor = rinfEdgeStart.slice(0, n);
+    for (const [a, b, km] of sections) {
+      rinfEdgeTo[cursor[a]] = b; rinfEdgeKm[cursor[a]] = km; cursor[a]++;
+      rinfEdgeTo[cursor[b]] = a; rinfEdgeKm[cursor[b]] = km; cursor[b]++;
+    }
+    // Everything the sections held now lives in the typed arrays, so let the
+    // thirty thousand little arrays go rather than keeping them resident for
+    // the life of the process.
+    rinfSectionCount = sections.length;
+    rinfNetworkKm = Number(sections.reduce((sum, s) => sum + s[2], 0).toFixed(1));
+    rinfRaw.sections = [];
+    rinfRaw.points = [];
+  }
+
+  /**
+   * Which countries actually border each other by rail, read off the register
+   * rather than assumed: an edge whose two ends carry different countries joins
+   * them, and a crossing node carrying no country of its own is transparent,
+   * joining the countries of everything it touches.
+   *
+   * This exists to catch a failure that is worse than finding no route at all.
+   * Austria's sections in RINF are sparse, so asking for Verona to München
+   * returns a path that is real in the data and nonsense on the ground: 1,176 km
+   * down through Slovenia, Hungary and Slovakia, because the Brenner crossing
+   * is not in the graph to be used. Comparing how many countries a path walks
+   * through against the fewest it could have gives that away — five hops where
+   * two would do — and such a route is reported as unreliable instead of being
+   * presented as a distance.
+   */
+  const countryAdjacency = new Map<string, Set<string>>();
+  if (rinfRaw) {
+    const countriesAt = (i: number): string[] => {
+      if (rinfOps[i].countries.length) return rinfOps[i].countries;
+      const via = new Set<string>();
+      for (let e = rinfEdgeStart[i]; e < rinfEdgeStart[i + 1]; e++) {
+        for (const c of rinfOps[rinfEdgeTo[e]].countries) via.add(c);
       }
+      return [...via];
+    };
+    const joinCountries = (x: string, y: string) => {
+      if (x === y) return;
+      if (!countryAdjacency.has(x)) countryAdjacency.set(x, new Set());
+      if (!countryAdjacency.has(y)) countryAdjacency.set(y, new Set());
+      countryAdjacency.get(x)!.add(y);
+      countryAdjacency.get(y)!.add(x);
+    };
+    for (const [a, b] of rinfRaw.sections) {
+      for (const x of countriesAt(a)) for (const y of countriesAt(b)) joinCountries(x, y);
     }
-    for (const s of rinfNetwork.sections) {
-      if (!rinfAdjacency.has(s.from)) rinfAdjacency.set(s.from, []);
-      if (!rinfAdjacency.has(s.to)) rinfAdjacency.set(s.to, []);
-      rinfAdjacency.get(s.from)!.push({ to: s.to, km: s.km });
-      rinfAdjacency.get(s.to)!.push({ to: s.from, km: s.km });
+  }
+
+  function minCountryHops(from: string, to: string): number {
+    if (!from || !to) return Infinity;
+    if (from === to) return 0;
+    const seen = new Set([from]);
+    let frontier = [from];
+    for (let hops = 1; hops <= 12 && frontier.length; hops++) {
+      const next: string[] = [];
+      for (const c of frontier) {
+        for (const n of countryAdjacency.get(c) ?? []) {
+          if (n === to) return hops;
+          if (!seen.has(n)) { seen.add(n); next.push(n); }
+        }
+      }
+      frontier = next;
     }
+    return Infinity;
   }
 
   /**
@@ -7922,23 +8006,25 @@ app.post('/api/log', express.json(), (req, res) => {
    * the same reason. Failing to resolve is a fine outcome — it yields no route
    * rather than a wrong one.
    */
-  const placeLookupCache = new Map<string, RinfOp | null>();
+  const placeLookupCache = new Map<string, number>();
 
-  function findOperationalPoint(text: string): RinfOp | null {
+  /** Index into rinfOps, or -1 when the place is not in the register. */
+  function findOperationalPoint(text: string): number {
     const cleaned = normalisePlace(
       String(text || '')
         .replace(/\(.*?\)/g, ' ')       // "(SI)", "(meja IT)"
         .split('➔')[0]                   // "... ➔ Dunaj"
         .replace(/\b(luka|terminal|kombiterminal|ranzirni|ranžirni|kolodvor|umschlagbahnhof|hafen|intermodal|cff)\b/gi, ' ')
     );
-    if (!cleaned) return null;
-    if (placeLookupCache.has(cleaned)) return placeLookupCache.get(cleaned)!;
+    if (!cleaned) return -1;
+    const cached = placeLookupCache.get(cleaned);
+    if (cached !== undefined) return cached;
 
-    let result: RinfOp | null = rinfByName.get(cleaned) ?? null;
-    if (!result) {
+    let result = rinfByName.get(cleaned) ?? -1;
+    if (result < 0) {
       const queryWords = cleaned.split(' ').filter(Boolean);
       let bestScore = 0;
-      for (const [name, op] of rinfByName) {
+      for (const [name, idx] of rinfByName) {
         const nameWords = name.split(' ').filter(Boolean);
         const nameInQuery = nameWords.every(w => queryWords.includes(w));
         const queryInName = queryWords.every(w => nameWords.includes(w));
@@ -7947,7 +8033,7 @@ app.post('/api/log', express.json(), (req, res) => {
         if (matched === 0) continue;
         if (matched === 1 && (nameInQuery ? nameWords[0] : queryWords[0]).length < 4) continue;
         const score = matched * 100 - Math.abs(nameWords.length - queryWords.length);
-        if (score > bestScore) { bestScore = score; result = op; }
+        if (score > bestScore) { bestScore = score; result = idx; }
       }
     }
     placeLookupCache.set(cleaned, result);
@@ -7959,7 +8045,7 @@ app.post('/api/log', express.json(), (req, res) => {
   /**
    * Shortest path over the register's own section lengths.
    *
-   * Nearly seven thousand nodes is too many to scan for the minimum on every
+   * Forty-five thousand nodes is far too many to scan for the minimum on every
    * step — that is quadratic, and these routes are resolved for every freight
    * path on a machine with a fraction of a CPU — so the frontier is a binary
    * heap. Results are memoised by endpoint pair, misses included, since a pair
@@ -7968,22 +8054,26 @@ app.post('/api/log', express.json(), (req, res) => {
   function routeOverRinf(fromText: string, toText: string): {
     km: number;
     points: { id: string; name: string; type: string; km: number; isBorder: boolean; countries: string[] }[];
+    countrySequence: string[];
+    countryHops: number;
+    minCountryHops: number;
+    detourSuspected: boolean;
   } | null {
-    if (!rinfNetwork) return null;
+    if (!rinfRaw) return null;
     const a = findOperationalPoint(fromText);
     const b = findOperationalPoint(toText);
-    if (!a || !b || a.id === b.id) return null;
+    if (a < 0 || b < 0 || a === b) return null;
 
-    const cacheKey = `${a.id}>${b.id}`;
+    const cacheKey = `${a}>${b}`;
     if (rinfRouteCache.has(cacheKey)) return rinfRouteCache.get(cacheKey);
 
-    const dist = new Map<string, number>([[a.id, 0]]);
-    const prev = new Map<string, string>();
-    const settled = new Set<string>();
+    const dist = new Map<number, number>([[a, 0]]);
+    const prev = new Map<number, number>();
+    const settled = new Set<number>();
 
-    // Binary min-heap of [distance, nodeId].
-    const heap: [number, string][] = [[0, a.id]];
-    const push = (item: [number, string]) => {
+    // Binary min-heap of [distance, nodeIndex].
+    const heap: [number, number][] = [[0, a]];
+    const push = (item: [number, number]) => {
       heap.push(item);
       let i = heap.length - 1;
       while (i > 0) {
@@ -7993,7 +8083,7 @@ app.post('/api/log', express.json(), (req, res) => {
         i = parent;
       }
     };
-    const pop = (): [number, string] | undefined => {
+    const pop = (): [number, number] | undefined => {
       if (heap.length === 0) return undefined;
       const top = heap[0];
       const last = heap.pop()!;
@@ -8019,37 +8109,60 @@ app.post('/api/log', express.json(), (req, res) => {
       const [d, u] = next;
       if (settled.has(u)) continue;
       settled.add(u);
-      if (u === b.id) break;
-      for (const edge of rinfAdjacency.get(u) ?? []) {
-        const nd = d + edge.km;
-        if (nd < (dist.get(edge.to) ?? Infinity)) {
-          dist.set(edge.to, nd);
-          prev.set(edge.to, u);
-          push([nd, edge.to]);
+      if (u === b) break;
+      for (let e = rinfEdgeStart[u]; e < rinfEdgeStart[u + 1]; e++) {
+        const v = rinfEdgeTo[e];
+        const nd = d + rinfEdgeKm[e];
+        if (nd < (dist.get(v) ?? Infinity)) {
+          dist.set(v, nd);
+          prev.set(v, u);
+          push([nd, v]);
         }
       }
     }
-    if (!settled.has(b.id)) { rinfRouteCache.set(cacheKey, null); return null; }
+    if (!settled.has(b)) { rinfRouteCache.set(cacheKey, null); return null; }
 
-    const chain: string[] = [];
-    for (let cur: string | undefined = b.id; cur !== undefined; cur = prev.get(cur)) chain.unshift(cur);
-    const points = chain.map(id => {
-      const op = rinfById.get(id)!;
+    const chain: number[] = [];
+    for (let cur: number | undefined = b; cur !== undefined; cur = prev.get(cur)) chain.unshift(cur);
+    const points = chain.map(i => {
+      const op = rinfOps[i];
       return {
         id: op.id,
         name: op.name,
         type: op.type,
-        km: Number((dist.get(id) ?? 0).toFixed(1)),
+        km: Number((dist.get(i) ?? 0).toFixed(1)),
         // A point both neighbours describe under one id is the crossing itself.
-        isBorder: op.isBorder || op.countries.length > 1,
+        isBorder: op.countries.length > 1,
         countries: op.countries
       };
     });
-    const result = { km: Number(dist.get(b.id)!.toFixed(1)), points };
+
+    // Countries walked through, collapsing runs, against the fewest the
+    // register says are needed to get from one end to the other.
+    const countrySequence: string[] = [];
+    for (const p of points) {
+      const c = p.countries[0];
+      if (c && countrySequence[countrySequence.length - 1] !== c) countrySequence.push(c);
+    }
+    const fromCountry = points[0].countries[0] ?? countrySequence[0];
+    const toCountry = points[points.length - 1].countries[0] ?? countrySequence[countrySequence.length - 1];
+    const needed = minCountryHops(fromCountry, toCountry);
+    const walked = Math.max(0, countrySequence.length - 1);
+
+    const result = {
+      km: Number(dist.get(b)!.toFixed(1)),
+      points,
+      countrySequence,
+      countryHops: walked,
+      minCountryHops: needed,
+      // One country more than necessary is ordinary — freight does not always
+      // take the straightest way. Two or more means the graph went around a
+      // hole in it.
+      detourSuspected: Number.isFinite(needed) && walked > needed + 1
+    };
     rinfRouteCache.set(cacheKey, result);
     return result;
   }
-
   /** Charging classes as the infrastructure manager defines them. */
   function classifyFreightTrain(grossWeightTons?: number, lengthM?: number): any | null {
     if (!szNetworkStatement) return null;
@@ -8099,19 +8212,34 @@ app.post('/api/log', express.json(), (req, res) => {
     const operators = lookupOperators(slot.operator);
     const classes = classifyFreightTrain(slot.grossWeightTons, slot.lengthM);
     return {
-      route: route
+      route: !route
         ? {
+            unresolved: true,
+            note: 'Ena ali obe končni točki nista v registru RINF.'
+          }
+        : route.detourSuspected
+        ? {
+            // A real path through the data, but the data has a hole in it: it
+            // walks through more countries than the network needs, which is
+            // what a missing crossing looks like from the inside. Reporting the
+            // distance would be worse than reporting nothing.
+            unreliable: true,
+            countrySequence: route.countrySequence,
+            countryHops: route.countryHops,
+            minCountryHops: route.minCountryHops,
+            note: 'Registrirani odseki na tej relaciji so nepopolni — najkrajša pot v registru gre skozi ' +
+              `${route.countrySequence.join('→')}, kar je ${route.countryHops} prehodov namesto ${route.minCountryHops}. ` +
+              'Razdalja zato ni prikazana.'
+          }
+        : {
             km: route.km,
             operationalPoints: route.points,
             borderCrossings: route.points.filter(p => p.isBorder).map(p => p.name),
             countries: [...new Set(route.points.flatMap(p => p.countries))],
-            source: rinfNetwork!.source,
+            countrySequence: route.countrySequence,
+            source: rinfRaw!.source,
             scheduleKm: slot.routeKm,
             kmDeltaVsSchedule: Number((route.km - slot.routeKm).toFixed(1))
-          }
-        : {
-            unresolved: true,
-            note: 'Ena ali obe končni točki nista v registru RINF (Hrvaška ni v registru, avstrijski odseki so nepopolni).'
           },
       operators: {
         registered: operators.registered,
@@ -8122,30 +8250,203 @@ app.post('/api/log', express.json(), (req, res) => {
     };
   }
 
+  /* ------------------------------------------------------------------ *
+   * Live ship movements at Luka Koper.
+   *
+   * This is the one genuinely live freight source on the corridor. No feed
+   * carries freight train positions, but the port publishes what is arriving,
+   * what the pilots are moving and what is working alongside — with cargo type,
+   * tonnage, berth and, for ships being worked, how much has actually been
+   * transhipped against the plan. Nearly everything on those ships leaves Koper
+   * by rail, so it is the closest thing to real freight telemetry available.
+   *
+   * The port has no API; its own page drives three WordPress admin-ajax
+   * actions that answer with a block of HTML, so that is what is read and
+   * parsed. It replaces the three named vessels this app used to claim were
+   * berthed, which were invented.
+   * ------------------------------------------------------------------ */
+  const KOPER_SHIPS_TTL_MS = 180000;
+  const KOPER_BOARDS = [
+    { action: 'PlanPrihodovLadij', key: 'arrivals' },
+    { action: 'PlanPilotaze', key: 'pilotage' },
+    { action: 'StanjeNaVezih', key: 'atBerth' }
+  ] as const;
+  let koperShipsCache: { data: any; ts: number } = { data: null, ts: 0 };
+  let koperShipsRefreshing = false;
+
+  const koperStrip = (s: string) => s
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#0?39;/g, "'")
+    .replace(/\s+/g, ' ').trim();
+
+  /** Slovenian decimal notation: thousands with dots, decimals with a comma. */
+  const koperNumber = (s: string | undefined): number | null => {
+    if (!s) return null;
+    const cleaned = String(s).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+    const v = Number(cleaned);
+    return Number.isFinite(v) ? v : null;
+  };
+
+  async function fetchKoperBoard(action: string): Promise<{ heading: string[][]; fields: Record<string, string> }[]> {
+    const r = await fetch(`https://www.luka-kp.si/wp-admin/admin-ajax.php?action=${action}`, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Referer': 'https://www.luka-kp.si/en/services-terminals/announcements-of-ships-pilot-planes-and-mooring/',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+      },
+      body: '',
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const html = String((await r.json())?.table ?? '');
+
+    const headings = [...html.matchAll(/<a class="panel-title[^"]*"[^>]*>([\s\S]*?)<\/a>/g)].map(m =>
+      [...m[1].matchAll(/<div class="col">([\s\S]*?)<\/div>/g)].map(col =>
+        [...col[1].matchAll(/<span>([\s\S]*?)<\/span>/g)].map(s => koperStrip(s[1]))
+      )
+    );
+    const bodies = [...html.matchAll(/<div class="panel-body">([\s\S]*?)<\/ul>/g)].map(m => {
+      const fields: Record<string, string> = {};
+      for (const li of m[1].matchAll(/<li><span>([\s\S]*?)<\/span><\/li>/g)) {
+        const text = koperStrip(li[1]);
+        const sep = text.indexOf(':');
+        if (sep <= 0) continue;
+        const k = text.slice(0, sep).trim();
+        const v = text.slice(sep + 1).trim();
+        fields[k] = fields[k] ? `${fields[k]}; ${v}` : v;
+      }
+      return fields;
+    });
+    return bodies.map((fields, i) => ({ heading: headings[i] ?? [], fields }));
+  }
+
+  function mapKoperRecord(key: string, rec: { heading: string[][]; fields: Record<string, string> }) {
+    const f = rec.fields;
+    const vesselName = rec.heading[key === 'atBerth' ? 2 : 1]?.[0]
+      ?? (f['Ladja'] ?? '').replace(/\(.*\)/, '').trim();
+    const base = {
+      callNumber: (f['Ticanje'] ?? '').replace(/\(.*\)/, '').trim() || null,
+      vessel: vesselName || null,
+      vesselCode: (/\(([^)]+)\)/.exec(f['Ladja'] ?? '') ?? [])[1] ?? null,
+      berth: f['Privez'] ?? null,
+      berthName: f['Naziv priveza'] ?? null,
+      cargo: f['Vrsta tovora'] ?? f['Tovor'] ?? null,
+      cargoTonnes: koperNumber(f['Teža tovora (t)']),
+      lengthM: koperNumber(f['Dolžina Ladje'] ?? f['Dolžina ladje']),
+      draughtM: koperNumber(f['Ugrez']),
+      grossTonnage: koperNumber(f['BT']),
+      agent: f['Agent'] ?? null,
+      scheduled: f['Datum'] ?? null
+    };
+    if (key === 'arrivals') {
+      return { ...base, status: (/\(([^)]+)\)/.exec(f['Ticanje'] ?? '') ?? [])[1] ?? null,
+        shippingLine: f['Šifra ladjarja'] ?? null };
+    }
+    if (key === 'pilotage') {
+      return { ...base, vesselType: f['Tip ladje'] ?? null, operation: f['Opravilo'] ?? null,
+        pilots: f['Piloti'] ?? null };
+    }
+    // At berth: the only place the port says how much has actually moved.
+    const planned = koperNumber(f['Planirano']);
+    const handled = koperNumber(f['Pretovorjeno']);
+    return { ...base,
+      operation: (f['Storitev'] ?? '').split(';').pop()?.trim() || null,
+      plannedTonnes: planned,
+      handledTonnes: handled,
+      remainingTonnes: koperNumber(f['Razlika']),
+      percentComplete: planned && handled != null ? Number(((handled / planned) * 100).toFixed(1)) : null
+    };
+  }
+
+  async function refreshKoperShips(): Promise<void> {
+    if (koperShipsRefreshing) return;
+    koperShipsRefreshing = true;
+    try {
+      const results = await Promise.all(KOPER_BOARDS.map(async b => {
+        try { return { key: b.key, rows: (await fetchKoperBoard(b.action)).map(r => mapKoperRecord(b.key, r)) }; }
+        catch (e: any) { console.warn(`[Koper] ${b.action} failed:`, e?.message); return { key: b.key, rows: null }; }
+      }));
+      const next: any = {
+        source: 'Luka Koper d.d. — najave ladij, plan pilotaže in stanje na vezih',
+        sourceUrl: 'https://www.luka-kp.si/en/services-terminals/announcements-of-ships-pilot-planes-and-mooring/',
+        updatedAt: new Date().toISOString()
+      };
+      let any = false;
+      for (const r of results) {
+        // A board that failed keeps whatever it had rather than emptying out.
+        if (r.rows) { next[r.key] = r.rows; any = true; }
+        else next[r.key] = koperShipsCache.data?.[r.key] ?? [];
+      }
+      if (!any) return;
+
+      // The berth board lists a ship once per work shift, so the same vessel
+      // appears two or three times. Summing it naively made 228,000 tonnes out
+      // of a port working about a tenth of that. One row per call, keeping the
+      // one that carries the transhipment progress.
+      const byCall = new Map<string, any>();
+      for (const row of next.atBerth as any[]) {
+        const key = `${row.callNumber ?? row.vessel}|${row.berth ?? ''}`;
+        const seen = byCall.get(key);
+        if (!seen || (row.handledTonnes != null && seen.handledTonnes == null)) byCall.set(key, row);
+      }
+      next.atBerth = [...byCall.values()];
+
+      const sumTonnes = (rows: any[]) => Math.round(rows.reduce((s, r) => s + (r.cargoTonnes ?? 0), 0));
+      next.totals = {
+        arriving: next.arrivals.length,
+        pilotMovements: next.pilotage.length,
+        working: next.atBerth.length,
+        cargoTonnesAtBerth: sumTonnes(next.atBerth),
+        cargoTonnesArriving: sumTonnes(next.arrivals),
+        containerShipsAtBerth: (next.atBerth as any[]).filter(r => /kontejner/i.test(r.cargo ?? '')).length
+      };
+      koperShipsCache = { data: next, ts: Date.now() };
+    } finally {
+      koperShipsRefreshing = false;
+    }
+  }
+  refreshKoperShips();
+  setInterval(() => { refreshKoperShips(); }, KOPER_SHIPS_TTL_MS);
+
+  app.get('/api/koper/ships', (req, res) => {
+    if (!koperShipsCache.data) return res.status(503).json({ error: 'Podatki Luke Koper še niso naloženi' });
+    res.json({ ...koperShipsCache.data, cachedAt: new Date(koperShipsCache.ts).toISOString() });
+  });
+
   app.get('/api/freight/network', (req, res) => {
-    if (!rinfNetwork && !szNetworkStatement) {
+    if (!rinfRaw && !szNetworkStatement) {
       return res.status(503).json({ error: 'Registri omrežja niso naloženi' });
     }
     const from = String(req.query.from || '').trim();
     const to = String(req.query.to || '').trim();
     if (from && to) {
       const route = routeOverRinf(from, to);
-      return route
-        ? res.json({ from, to, ...route, source: rinfNetwork!.source })
-        : res.status(404).json({ error: 'Točke ni v registru RINF ali povezava ne obstaja', from, to });
+      if (!route) return res.status(404).json({ error: 'Točke ni v registru RINF ali povezava ne obstaja', from, to });
+      return res.json({ from, to, ...route, source: rinfRaw!.source });
+    }
+    const countryCounts: Record<string, number> = {};
+    for (const op of rinfOps) {
+      const key = op.countries.join(',') || '(brez)';
+      countryCounts[key] = (countryCounts[key] ?? 0) + 1;
     }
     res.json({
-      rinf: rinfNetwork
+      rinf: rinfRaw
         ? {
-            source: rinfNetwork.source,
-            retrieved: rinfNetwork.retrieved,
-            countries: rinfNetwork.countries,
-            operationalPoints: rinfNetwork.operationalPoints.length,
-            sections: rinfNetwork.sections.length,
-            networkKm: Number(rinfNetwork.sections.reduce((a, s) => a + s.km, 0).toFixed(1)),
-            borderPoints: rinfNetwork.operationalPoints
+            source: rinfRaw.source,
+            retrieved: rinfRaw.retrieved,
+            operationalPoints: rinfOps.length,
+            sections: rinfSectionCount,
+            networkKm: rinfNetworkKm,
+            pointsByCountry: countryCounts,
+            countryAdjacency: Object.fromEntries(
+              [...countryAdjacency].map(([c, s]) => [c, [...s].sort()])
+            ),
+            borderPoints: rinfOps
               .filter(o => o.countries.length > 1)
-              .map(o => ({ id: o.id, name: o.name, countries: o.countries }))
+              .map(o => ({ id: o.id, name: o.name, countries: o.countries })),
+            coverageNote: 'Avstrijski odseki v registru so redki, zato so nekatere poti skozi Avstrijo označene kot nezanesljive. Srbija in druge države zunaj registra niso zajete.'
           }
         : null,
       networkStatement: szNetworkStatement
