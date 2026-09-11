@@ -29,41 +29,31 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl);
 export const CENTER: [number, number] = [16.1714, 46.6573];
 
 /**
- * Basemap style, declared inline rather than fetched from a remote style.json.
+ * The original CartoCDN dark-matter basemap.
  *
- * The previous setup pointed `style` at a hosted vector style (CartoCDN
- * dark-matter). MapLibre only fires its 'load' event once that style AND its
- * sprite/glyph sidecars have downloaded — and the entire app is gated on
- * 'load' (icon setup, layer creation, data polling, dismissing the loading
- * overlay). On a slow or flaky mobile connection any one of those requests
- * stalling left the app spinning forever with no map and no data.
- *
- * An inline style has nothing to download before 'load' fires, so the app
- * always starts. The basemap is a plain raster layer: tiles stream in
- * progressively and never block startup, and if they fail entirely the
- * background layer below keeps the map dark and readable with all the live
- * telemetry still drawn on top.
+ * This is a vector style, and MapLibre parses vector tiles in its web worker.
+ * While that worker was failing to start (see setWorkerUrl above) the style
+ * could never finish loading, so the map's 'load' event never fired — which is
+ * what originally left the app stuck on its loading overlay with no map at all.
+ * With the worker fixed this style loads normally again, so the original
+ * basemap is restored here in place of the raster stand-in that was used while
+ * the worker bug was still being tracked down.
  */
-const BASEMAP_STYLE: any = {
-  version: 8,
-  // Layers use MapLibre's default font stack (Open Sans Regular); this glyph
-  // host serves it. Without a glyphs URL every text layer would fail.
-  glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
-  sources: {
-    basemap: {
-      type: 'raster',
-      tiles: [
-        'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
-      ],
-      tileSize: 256,
-      maxzoom: 16,
-      attribution: '© Esri · © OpenStreetMap contributors'
-    }
-  },
-  layers: [
-    { id: 'basemap-background', type: 'background', paint: { 'background-color': '#0b1220' } },
-    { id: 'basemap', type: 'raster', source: 'basemap' }
-  ]
+const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
+
+/**
+ * Upper bound on a believable ground speed per feed, in km/h. Used to reject
+ * nonsense from upstream telemetry (a stale field, a unit mix-up, or a GPS
+ * jump) rather than drawing a city bus doing 900 km/h.
+ */
+const MAX_PLAUSIBLE_SPEED_KMH: Record<string, number> = {
+  buses: 120,
+  transit: 250,
+  hafas: 250,
+  freight_trains: 160,
+  eurorail: 350,
+  micromobility: 45,
+  aircraft: 1100
 };
 
 export const DYNAMIC_MOVING_SOURCES = new Set<string>([
@@ -1908,6 +1898,28 @@ export class MapController {
         // Angular shortest path to prevent full 360° spin flips
         const deltaHeading = ((dynamicHeading - motion.fromHeading + 540) % 360) - 180;
         motion.targetHeading = motion.fromHeading + deltaHeading;
+
+        // Ground-truth speed: how far the vehicle actually moved between two
+        // consecutive telemetry fixes, over the actual time between them.
+        // Upstream feeds are inconsistent — some omit speed entirely, some
+        // repeat a stale value while the vehicle is plainly moving, some report
+        // in the wrong unit. A measured displacement over measured time does
+        // not have those failure modes, so it is used whenever the feed's own
+        // figure is missing or cannot be reconciled with what was observed.
+        // The feed is still preferred when it agrees, since it comes straight
+        // from the vehicle and is not smeared by GPS scatter.
+        const speedCap = MAX_PLAUSIBLE_SPEED_KMH[sourceId] ?? 200;
+        const secondsSinceFix = motion.lastTelemetryTime ? (now - motion.lastTelemetryTime) / 1000 : 0;
+        if (secondsSinceFix >= 1 && secondsSinceFix <= 120) {
+          const observedSpeed = (deltaFromTarget.distanceMeters / secondsSinceFix) * 3.6;
+          if (observedSpeed <= speedCap) {
+            const feedSpeedUnusable =
+              !speedKmh || speedKmh <= 0 || speedKmh > speedCap || observedSpeed > speedKmh * 3;
+            if (feedSpeedUnusable) a.speed = Math.round(observedSpeed);
+          }
+        }
+        // Never let an impossible figure reach the map label.
+        if (Number(a.speed) > speedCap) a.speed = speedCap;
 
         // Dedicated duration for urban bus, rail transit, and micromobility matching polling rhythm
         const isTransit = (sourceId === 'buses' || sourceId === 'transit' || sourceId === 'hafas' || sourceId === 'freight_trains' || sourceId === 'micromobility');

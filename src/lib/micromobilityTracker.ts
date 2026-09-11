@@ -681,21 +681,16 @@ export class MicromobilityTracker {
           let trip = this.activeTrips.get(id);
 
           if (!trip) {
-            // New active trip started!
+            // A vehicle vanishing from the availability feed only means it is
+            // no longer rentable. Usually someone unlocked it, but it may just
+            // as well be a battery swap, a rebalancing pickup, or feed churn.
+            // Either way its position while it is away is genuinely unknown, so
+            // record only what was actually observed: the last real position
+            // and the moment it disappeared. No heading, speed or route is
+            // invented here — the real metrics are computed on reappearance
+            // (step 1), where there is an actual origin, destination and
+            // elapsed time to measure.
             const tripStartTime = prev.lastSeenTime || now;
-            const initialAngle = (prev.heading && prev.heading > 0) ? prev.heading : Math.floor(Math.random() * 360);
-            const rad1 = (initialAngle * Math.PI) / 180;
-            const turnAngle = (initialAngle + (Math.random() > 0.5 ? 45 : -45) + 360) % 360;
-            const rad2 = (turnAngle * Math.PI) / 180;
-            const p1: [number, number] = [prev.lat, prev.lon];
-            const p2: [number, number] = [
-              prev.lat + (Math.cos(rad1) * 0.45) / 111.139,
-              prev.lon + (Math.sin(rad1) * 0.45) / (111.139 * Math.cos((prev.lat * Math.PI) / 180))
-            ];
-            const p3: [number, number] = [
-              p2[0] + (Math.cos(rad2) * 0.55) / 111.139,
-              p2[1] + (Math.sin(rad2) * 0.55) / (111.139 * Math.cos((p2[0] * Math.PI) / 180))
-            ];
 
             trip = {
               id: `act_${id}_${tripStartTime}`,
@@ -707,14 +702,13 @@ export class MicromobilityTracker {
               originLon: prev.lon,
               currentLat: prev.lat,
               currentLon: prev.lon,
-              heading: initialAngle,
-              speedKmH: prev.form === 'CAR' ? 36 : (prev.form === 'BICYCLE' ? 16 : 15),
+              heading: prev.heading ?? 0,
+              speedKmH: 0,
               startTime: tripStartTime,
               lastActiveTime: now,
               durationSeconds: Math.round((now - tripStartTime) / 1000),
-              estimatedDistanceKm: 0.05,
-              status: 'in_trip',
-              waypoints: [p1, p2, p3]
+              estimatedDistanceKm: 0,
+              status: 'in_trip'
             };
             this.activeTrips.set(id, trip);
           }
@@ -726,73 +720,25 @@ export class MicromobilityTracker {
       }
     }
 
-    // 3. Update all active in-trip entities with realistic continuous street navigation
+    // 3. Keep the elapsed time of each active rental current. The vehicle's
+    // position is not advanced: while it is absent from the feed nothing is
+    // known about where it went, so it stays pinned to its last observed
+    // location rather than being walked along an assumed route at an assumed
+    // speed.
     for (const trip of this.activeTrips.values()) {
       trip.durationSeconds = Math.round((now - trip.startTime) / 1000);
       trip.lastActiveTime = now;
       const durM = Math.floor(trip.durationSeconds / 60);
       const durS = trip.durationSeconds % 60;
       trip.durationFormatted = `${durM}m ${durS.toString().padStart(2, '0')}s`;
-
-      const speedKmh = trip.speedKmH || (trip.form === 'CAR' ? 38 : (trip.form === 'BICYCLE' ? 16 : 15));
-      const distTraveledKm = (trip.durationSeconds / 3600) * speedKmh;
-      trip.estimatedDistanceKm = parseFloat(distTraveledKm.toFixed(2));
-
-      if (trip.waypoints && trip.waypoints.length > 1) {
-        const pathState = interpolateAlongWaypoints(trip.waypoints, distTraveledKm);
-        trip.currentLat = pathState.lat;
-        trip.currentLon = pathState.lon;
-        trip.heading = pathState.heading;
-      } else if (trip.heading != null && trip.estimatedDistanceKm > 0.02) {
-        const rad = (trip.heading * Math.PI) / 180;
-        const maxDist = trip.form === 'CAR' ? 12 : 3.5;
-        const d = Math.min(maxDist, trip.estimatedDistanceKm);
-        trip.currentLat = trip.originLat + (Math.cos(rad) * d) / 111.139;
-        trip.currentLon = trip.originLon + (Math.sin(rad) * d) / (111.139 * Math.cos((trip.originLat * Math.PI) / 180));
-      }
     }
 
-    // 4. Inject active in-trip entities into the renderedItems list so they appear DIRECTLY on the map!
-    for (const trip of this.activeTrips.values()) {
-      const durationStr = trip.durationFormatted || '< 1 min';
-      const formIcon = trip.form === 'CAR' ? '🚗' : (trip.form === 'BICYCLE' ? '🚲' : '🛴');
-      const netName = trip.network.split('_')[0].toUpperCase();
-
-      renderedItems.push({
-        id: `in_trip_${trip.vehicleId}`,
-        realVehicleId: trip.vehicleId,
-        type: 'FLOATING',
-        form: trip.form,
-        name: `${trip.name} (V uporabi)`,
-        lat: trip.currentLat,
-        lon: trip.currentLon,
-        network: trip.network,
-        vehicles: 1,
-        spaces: 0,
-        active: true,
-        icon: 'IN_TRIP',
-        status: 'in_trip',
-        isMoving: true,
-        speed: trip.speedKmH,
-        heading: trip.heading,
-        hasHeading: true,
-        tripInfo: {
-          tripId: trip.id,
-          origin: [trip.originLat, trip.originLon],
-          originLat: trip.originLat,
-          originLon: trip.originLon,
-          currentLat: trip.currentLat,
-          currentLon: trip.currentLon,
-          heading: trip.heading,
-          startTime: trip.startTime,
-          durationSeconds: trip.durationSeconds,
-          durationFormatted: durationStr,
-          estimatedDistanceKm: trip.estimatedDistanceKm,
-          averageSpeedKmH: trip.speedKmH
-        },
-        labelText: `${formIcon} ${netName} · ${trip.speedKmH} km/h (${durationStr})`
-      });
-    }
+    // 4. Active rentals are deliberately NOT drawn on the map. Their position
+    // is unknown while they are away from the feed, so plotting them would mean
+    // showing an invented location and an invented speed as if it were live
+    // telemetry. They remain available to the UI through `activeTrips` (for the
+    // in-use count and the trip list), and each one turns into a real, measured
+    // record in `completedTrips` when the vehicle reappears.
 
     return {
       renderedItems,
