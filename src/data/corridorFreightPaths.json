@@ -1,0 +1,397 @@
+{
+ "source": "Mediterranean Rail Freight Corridor (RFC6) — Pre-arranged Paths catalogue",
+ "sourceUrl": "https://www.medrfc.eu/wp-content/uploads/2025/01/mediterranean-rfc-2026-pap-offer.xlsx",
+ "timetableYear": 2026,
+ "validFrom": "2025-12-14",
+ "validTo": "2026-12-12",
+ "retrieved": "2026-09-11",
+ "note": "Pre-arranged paths are capacity OFFERED by the infrastructure managers and published in the corridor catalogue. The catalogue does not say whether a path was booked by a railway undertaking, nor whether a train runs on any given day.",
+ "trainNumberNote": "trainNumberSZ is the national path number published by SŽ-Infrastruktura in the catalogue column \"SZ-I\". It is the Core of the TAF TSI composite train identifier for this path.",
+ "paths": [
+  {
+   "papId": "C6NPKOFE02",
+   "trainNumberSZ": "42000",
+   "relation": "Koper to Ferencváros",
+   "direction": "toward Hungary",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "00:22"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "03:45",
+     "departure": "04:10"
+    },
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "08:51"
+    }
+   ]
+  },
+  {
+   "papId": "C6NPKOFE04",
+   "trainNumberSZ": "42004",
+   "relation": "Koper to Ferencváros",
+   "direction": "toward Hungary",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "08:12"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "11:33",
+     "departure": "11:49"
+    },
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "17:26"
+    }
+   ]
+  },
+  {
+   "papId": "C6NPKOFE06",
+   "trainNumberSZ": "42020",
+   "relation": "Koper to Ferencváros",
+   "direction": "toward Hungary",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "10:10"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "13:17",
+     "departure": "13:54"
+    },
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "20:51"
+    }
+   ]
+  },
+  {
+   "papId": "C6NPKOFE08",
+   "trainNumberSZ": "42006",
+   "relation": "Koper to Ferencváros",
+   "direction": "toward Hungary",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "10:20"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "14:07",
+     "departure": "15:07"
+    },
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "20:12"
+    }
+   ]
+  },
+  {
+   "papId": "C6NPKOFE10",
+   "trainNumberSZ": "42002",
+   "relation": "Koper to Ferencváros",
+   "direction": "toward Hungary",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "16:54"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "20:12",
+     "departure": "20:44"
+    },
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "01:10"
+    }
+   ]
+  },
+  {
+   "papId": "C611KOZI02",
+   "trainNumberSZ": "47910",
+   "relation": "Koper to Zilina",
+   "direction": "toward Hungary",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "19:17"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "23:11",
+     "departure": "23:42"
+    },
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": "05:49",
+     "departure": "07:20"
+    }
+   ]
+  },
+  {
+   "papId": "C6NPFEKO01",
+   "trainNumberSZ": "42003",
+   "relation": "Ferencvaros to Koper",
+   "direction": "toward Koper",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "18:40"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "23:16",
+     "departure": "00:36"
+    },
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "04:02"
+    }
+   ]
+  },
+  {
+   "papId": "C6NPFEKO03",
+   "trainNumberSZ": "42005",
+   "relation": "Ferencvaros to Koper",
+   "direction": "toward Koper",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "02:09"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "06:53",
+     "departure": "07:27"
+    },
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "10:13"
+    }
+   ]
+  },
+  {
+   "papId": "C6NPFEKO05",
+   "trainNumberSZ": "42001",
+   "relation": "Ferencvaros to Koper",
+   "direction": "toward Koper",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": null,
+     "departure": "10:41"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "15:19",
+     "departure": "17:00"
+    },
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "20:01"
+    }
+   ]
+  },
+  {
+   "papId": "C116NPDSKO01",
+   "trainNumberSZ": "41915",
+   "relation": "Dunajská to Koper",
+   "direction": "toward Koper",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": "03:39",
+     "departure": "04:43"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "09:15",
+     "departure": "11:02"
+    },
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "14:00"
+    }
+   ]
+  },
+  {
+   "papId": "C116NPZIKO01",
+   "trainNumberSZ": "47911",
+   "relation": "Zilina to Koper",
+   "direction": "toward Koper",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "uopid": "SI43777",
+     "arrival": "06:39",
+     "departure": "07:57"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "uopid": "SI42211",
+     "arrival": "13:28",
+     "departure": "14:44"
+    },
+    {
+     "location": "Koper tovorna",
+     "uopid": "SI44353",
+     "arrival": null,
+     "departure": "18:42"
+    }
+   ]
+  }
+ ]
+}

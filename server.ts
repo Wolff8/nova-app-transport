@@ -8,6 +8,7 @@ import dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 import express from 'express';
 import compression from 'compression';
+import zlib from 'zlib';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
@@ -7822,6 +7823,174 @@ app.post('/api/log', express.json(), (req, res) => {
     console.warn('[ERA] Could not load organisation register:', e?.message);
   }
 
+  /**
+   * Keeping the registers current without anyone uploading a file.
+   *
+   * Both registers are published by ERA as a plain XLSX at a stable URL —
+   * organisation codes through the Telematics TSI Reference Data Portal, which
+   * the Common Central Repository names as the dataset for Article 8(1)(c), and
+   * the Vehicle Keeper Marking list as a monthly issue. Both are EUPL 1.2 and
+   * Article 8(3) of Regulation (EU) 2026/253 says in terms that a stakeholder
+   * "may replicate the data available in the repository for its own operational
+   * use". So the app fetches them itself.
+   *
+   * Only the two bulk downloads are used. The portal also exposes an
+   * undocumented JSON search behind a client-side CAPTCHA; ERA's terms of use
+   * forbid scraping restricted data, and RINF already carries the same location
+   * codes openly in bulk, so that endpoint is deliberately not touched.
+   *
+   * An XLSX is a zip of XML. Rather than add a dependency for two files a month,
+   * this walks the zip's local file headers and inflates the two parts it needs.
+   */
+  function readXlsxRows(buf: Buffer, sheetNumber = 1): string[][] {
+    const entries: Record<string, Buffer> = {};
+    let i = 0;
+    while ((i = buf.indexOf('PK\x03\x04', i, 'latin1')) >= 0) {
+      if (buf.readUInt32LE(i) !== 0x04034b50) break;
+      const method = buf.readUInt16LE(i + 8);
+      const csize = buf.readUInt32LE(i + 18);
+      const nlen = buf.readUInt16LE(i + 26), elen = buf.readUInt16LE(i + 28);
+      const name = buf.slice(i + 30, i + 30 + nlen).toString('utf8');
+      const start = i + 30 + nlen + elen;
+      if (csize === 0) { i = start; continue; }          // streamed entry, skip
+      try {
+        entries[name] = method === 8
+          ? zlib.inflateRawSync(buf.slice(start, start + csize))
+          : buf.slice(start, start + csize);
+      } catch { /* a part we cannot read is a part we do not need */ }
+      i = start + csize;
+    }
+    const unescapeXml = (s: string) => s
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, d) => String.fromCharCode(+d))
+      .replace(/&amp;/g, '&');
+    // Shared strings: every <si> is one string, possibly split across runs.
+    const shared: string[] = [];
+    const ssXml = entries['xl/sharedStrings.xml']?.toString('utf8') ?? '';
+    for (const m of ssXml.matchAll(/<(?:\w+:)?si>([\s\S]*?)<\/(?:\w+:)?si>/g)) {
+      shared.push(unescapeXml([...m[1].matchAll(/<(?:\w+:)?t[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g)].map(t => t[1]).join('')));
+    }
+    const sheetXml = entries[`xl/worksheets/sheet${sheetNumber}.xml`]?.toString('utf8');
+    if (!sheetXml) return [];
+    const colIndex = (ref: string) => {
+      let n = 0;
+      for (const ch of ref.replace(/\d+/g, '')) n = n * 26 + (ch.charCodeAt(0) - 64);
+      return n - 1;
+    };
+    const rows: string[][] = [];
+    for (const rm of sheetXml.matchAll(/<(?:\w+:)?row[^>]*>([\s\S]*?)<\/(?:\w+:)?row>/g)) {
+      const cells: string[] = [];
+      for (const cm of rm[1].matchAll(/<(?:\w+:)?c([^>]*)>([\s\S]*?)<\/(?:\w+:)?c>/g)) {
+        const attrs = cm[1];
+        const ref = /r="([A-Z]+\d+)"/.exec(attrs)?.[1];
+        const type = /t="(\w+)"/.exec(attrs)?.[1];
+        const vm = /<(?:\w+:)?v>([\s\S]*?)<\/(?:\w+:)?v>/.exec(cm[2]);
+        let val = vm ? unescapeXml(vm[1]) : '';
+        if (type === 's' && /^\d+$/.test(val)) val = shared[+val] ?? '';
+        else if (type === 'inlineStr') {
+          val = unescapeXml([...cm[2].matchAll(/<(?:\w+:)?t[^>]*>([\s\S]*?)<\/(?:\w+:)?t>/g)].map(t => t[1]).join(''));
+        }
+        const at = ref ? colIndex(ref) : cells.length;
+        while (cells.length < at) cells.push('');
+        cells[at] = val.trim();
+      }
+      rows.push(cells);
+    }
+    return rows;
+  }
+
+  const REGISTER_SOURCES = {
+    organisations: 'https://teleref.era.europa.eu/DownloadOrganizationCodes.aspx',
+    // The VKM list is issued monthly; the register page links every issue.
+    vkmPage: 'https://www.era.europa.eu/registers/vkm_en'
+  };
+
+  async function fetchBuffer(url: string, timeoutMs = 120000): Promise<Buffer | null> {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      const r = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { 'User-Agent': 'NovaAppTransport/1.0 (rail dashboard; ERA open data)' }
+      });
+      clearTimeout(timer);
+      if (!r.ok) return null;
+      const b = Buffer.from(await r.arrayBuffer());
+      return b.slice(0, 2).toString() === 'PK' ? b : null;   // must be a real xlsx
+    } catch { return null; }
+  }
+
+  /** Column titles in the published sheet, matched case-insensitively. */
+  const pick = (header: string[], ...wanted: string[]) => {
+    const idx = header.map(h => h.toLowerCase().replace(/\s+/g, ' ').trim());
+    for (const w of wanted) {
+      const at = idx.indexOf(w.toLowerCase());
+      if (at >= 0) return at;
+    }
+    return -1;
+  };
+
+  async function refreshOrganisationRegister(): Promise<{ ok: boolean; count?: number; note: string }> {
+    const buf = await fetchBuffer(REGISTER_SOURCES.organisations, 180000);
+    if (!buf) return { ok: false, note: 'Prenos z ERA Reference Data Portal ni uspel' };
+    const rows = readXlsxRows(buf, 1);
+    if (rows.length < 100) return { ok: false, note: `Datoteka ima samo ${rows.length} vrstic — ne zamenjam registra` };
+    const header = rows[0];
+    const cName = pick(header, 'Organisation Name'), cCode = pick(header, 'Code');
+    const cRoles = pick(header, 'Domains of Activity'), cCountry = pick(header, 'Country');
+    const cAcr = pick(header, 'Organisation Acronym'), cCity = pick(header, 'City');
+    if (cName < 0 || cCode < 0 || cRoles < 0) {
+      return { ok: false, note: 'Objavljena shema se je spremenila (manjka ime, koda ali Domains of Activity)' };
+    }
+    const at = (row: string[], i: number) => (i >= 0 ? String(row[i] ?? '').trim() : '');
+    const organisations: OrgEntry[] = [];
+    for (const r of rows.slice(1)) {
+      const code = at(r, cCode), name = at(r, cName);
+      if (!code || !name) continue;
+      organisations.push({
+        code, name,
+        acronym: at(r, cAcr) || undefined,
+        country: at(r, cCountry),
+        city: at(r, cCity) || undefined,
+        roles: eraRolesFromDomains(at(r, cRoles))
+      });
+    }
+    // Never trade a good register for a worse one.
+    if (organisations.length < organisationRegister.length * 0.9) {
+      return { ok: false, note: `Prenos ima ${organisations.length} organizacij proti obstoječim ${organisationRegister.length} — obdržim staro` };
+    }
+    const out = {
+      source: 'ERA Telematics TSI Reference Data Portal (Common Central Repository, Art. 8(1)(c))',
+      sourceUrl: REGISTER_SOURCES.organisations,
+      licence: 'EUPL 1.2',
+      retrieved: new Date().toISOString(),
+      count: organisations.length,
+      organisations
+    };
+    fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'organisationCodes.json'), JSON.stringify(out));
+    const before = organisationRegister.length;
+    organisationRegister = organisations;
+    orgLookupCache.clear();
+    return { ok: true, count: organisations.length, note: `${before} → ${organisations.length} organizacij` };
+  }
+
+  /** "Domains of Activity" is free text; these are the roles the app reasons about. */
+  function eraRolesFromDomains(text: string): string[] {
+    const t = String(text || '').toLowerCase();
+    const roles: string[] = [];
+    if (/railway undertaking.*freight|freight.*railway undertaking|\bru-f\b/.test(t)) roles.push('RU-F');
+    if (/railway undertaking.*passenger|passenger.*railway undertaking|\bru-p\b/.test(t)) roles.push('RU-P');
+    if (/\bru\b|railway undertaking/.test(t) && !roles.some(r => r.startsWith('RU'))) roles.push('RU');
+    if (/infrastructure manager/.test(t)) roles.push('IM');
+    if (/keeper|owner/.test(t)) roles.push('KEEP');
+    if (/entity in charge of maintenance|\becm\b/.test(t)) roles.push('ECM');
+    if (/allocation body/.test(t)) roles.push('AB');
+    if (/national safety authority|\bnsa\b/.test(t)) roles.push('NSA');
+    if (/regulatory body/.test(t)) roles.push('RB');
+    if (/inactive/.test(t)) roles.push('INACTIVE');
+    return roles;
+  }
+
   const normaliseOrgName = (s: string) => String(s || '')
     .toLowerCase()
     .replace(/[.,]/g, ' ')
@@ -8933,6 +9102,133 @@ app.post('/api/log', express.json(), (req, res) => {
     console.warn('[VKM] Could not load keeper register:', e?.message);
   }
 
+  /**
+   * The VKM list is issued monthly. Rather than hard-code an issue number that
+   * goes stale, probe forward from the one currently loaded: the first issue
+   * that does not exist tells us where the series ends today.
+   */
+  async function refreshVkmRegister(): Promise<{ ok: boolean; issue?: number; note: string }> {
+    const current = parseInt(String(vkmRegister?.issue ?? '0').split('/')[0], 10) || 0;
+    // The register page lists every issue with its own link, so read it rather
+    // than guessing file names — one request, and it cannot drift out of date.
+    let page = '';
+    try {
+      const r = await fetch(REGISTER_SOURCES.vkmPage, {
+        headers: { 'User-Agent': 'NovaAppTransport/1.0 (rail dashboard; ERA open data)' }
+      });
+      if (r.ok) page = await r.text();
+    } catch { /* handled below */ }
+    if (!page) return { ok: false, note: 'Strani registra VKM ni bilo mogoče prebrati' };
+
+    const issues = [...page.matchAll(/https?:\/\/[^"']*iu-vkm-publiclist-(\d+)\.xlsx[^"']*/g)]
+      .map(m => ({ url: m[0].replace(/&amp;/g, '&'), issue: parseInt(m[1], 10) }))
+      .sort((a, b) => b.issue - a.issue);
+    if (!issues.length) return { ok: false, note: 'Na strani registra VKM ni povezav do izdaj' };
+    const newest = issues[0];
+    if (newest.issue <= current) return { ok: false, note: `Že na najnovejši izdaji (${current})` };
+
+    const buf = await fetchBuffer(newest.url, 180000);
+    if (!buf) return { ok: false, note: `Izdaje ${newest.issue} ni bilo mogoče prenesti` };
+    const found = { buf, issue: newest.issue };
+
+    const rows = readXlsxRows(found.buf, 1);
+    if (rows.length < 100) return { ok: false, note: `Izdaja ${found.issue} ima samo ${rows.length} vrstic` };
+    // The sheet opens with a multilingual title block, and the header itself
+    // carries the column name in several languages separated by newlines. So
+    // find the header row, and match columns by what they start with.
+    // Rows in the published sheet are ragged: a row can stop before the last
+    // column, so every cell read goes through this rather than indexing raw.
+    const cell = (row: string[], at: number) => (at >= 0 ? String(row[at] ?? '').trim() : '');
+    const startsWith = (header: string[], ...wanted: string[]) => {
+      const norm = header.map(h => String(h ?? '').toLowerCase().replace(/\s+/g, ' ').trim());
+      for (const w of wanted) {
+        const at = norm.findIndex(h => h.startsWith(w.toLowerCase()));
+        if (at >= 0) return at;
+      }
+      return -1;
+    };
+    const headerAt = rows.findIndex(r =>
+      startsWith(r, 'vkm latin', 'vkm national') >= 0 && startsWith(r, 'status') >= 0);
+    if (headerAt < 0) return { ok: false, note: 'V VKM listu ne najdem glave stolpcev' };
+    const header = rows[headerAt];
+    const cV = startsWith(header, 'vkm latin', 'vkm national', 'vkm');
+    const cN = startsWith(header, 'keeper name', 'keeper', 'name');
+    const cC = startsWith(header, 'country'), cS = startsWith(header, 'status');
+    if (cV < 0 || cN < 0) return { ok: false, note: 'Shema VKM lista se je spremenila' };
+    const keepers: VkmEntry[] = [];
+    for (const r of rows.slice(headerAt + 1)) {
+      const v = cell(r, cV), n = cell(r, cN);
+      if (!v || !n) continue;
+      const st = (cell(r, cS) || 'in use').toLowerCase();
+      keepers.push({
+        v, n, c: cell(r, cC),
+        s: st.includes('revok') ? 0 : st.includes('block') ? 2 : 1
+      });
+    }
+    if (keepers.length < (vkmRegister?.keepers.length ?? 0) * 0.9) {
+      return { ok: false, note: `Izdaja ${found.issue} ima ${keepers.length} oznak proti ${vkmRegister?.keepers.length} — obdržim staro` };
+    }
+    const before = vkmRegister?.keepers.length ?? 0;
+    const out = {
+      source: 'ERA/OTIF Vehicle Keeper Marking Register (VKM), public list',
+      sourceUrl: 'https://www.era.europa.eu/registers/vkm_en',
+      licence: 'EUPL 1.2',
+      issue: `${found.issue}/${new Date().getFullYear()}`,
+      issueDate: new Date().toISOString().slice(0, 10),
+      retrieved: new Date().toISOString(),
+      count: keepers.length,
+      keepers
+    };
+    fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'vkmRegister.json'), JSON.stringify(out));
+    vkmRegister = out as any;
+    vkmByCode.clear();
+    for (const k of keepers) {
+      const key = k.v.toUpperCase();
+      if (!vkmByCode.has(key) || k.s === 1) vkmByCode.set(key, k);
+    }
+    return { ok: true, issue: found.issue, note: `izdaja ${found.issue}, ${before} → ${keepers.length} oznak` };
+  }
+
+  let registerRefreshState: any = { lastRun: null, organisations: null, vkm: null };
+
+  async function refreshRegisters(trigger: string) {
+    // A refresh that fails must say why, in the state and in the log. A silent
+    // failure here would leave the app quietly serving a stale register.
+    const run = async (name: string, fn: () => Promise<any>) => {
+      try { return await fn(); }
+      catch (e: any) { return { ok: false, note: `${name} je vrgel napako: ${e?.message ?? e}` }; }
+    };
+    const organisations = await run('organisations', refreshOrganisationRegister);
+    const vkm = await run('vkm', refreshVkmRegister);
+    registerRefreshState = { lastRun: new Date().toISOString(), trigger, organisations, vkm };
+    console.log(`[ERA] Register refresh (${trigger}) — orgs: ${organisations.note}; vkm: ${vkm.note}`);
+    return registerRefreshState;
+  }
+
+  app.get('/api/registers/status', (_req, res) => res.json({
+    organisations: {
+      count: organisationRegister.length,
+      source: REGISTER_SOURCES.organisations,
+      licence: 'EUPL 1.2'
+    },
+    vkm: { count: vkmRegister?.keepers.length ?? 0, issue: vkmRegister?.issue ?? null },
+    lastRefresh: registerRefreshState,
+    note: 'Registra se osvežujeta sama iz ERA. Ročno nalaganje datotek ni potrebno.'
+  }));
+
+  // Two large downloads; answer straight away and let it finish in the background.
+  let registerRefreshInFlight = false;
+  app.post('/api/registers/refresh', (_req, res) => {
+    if (registerRefreshInFlight) return res.status(202).json({ running: true, note: 'Osvežitev že teče' });
+    registerRefreshInFlight = true;
+    refreshRegisters('manual').finally(() => { registerRefreshInFlight = false; });
+    res.status(202).json({ started: true, note: 'Osvežitev teče; stanje na /api/registers/status' });
+  });
+
+  // Once a day is far more often than ERA changes these, and costs two files.
+  setInterval(() => { refreshRegisters('daily').catch(() => {}); }, 24 * 60 * 60 * 1000).unref?.();
+  setTimeout(() => { refreshRegisters('startup').catch(() => {}); }, 20000).unref?.();
+
   const VKM_STATUS = ['revoked', 'in use', 'blocked'];
 
   /** Resolve a marking such as "SZTP" or "SI-SZTP" to its registered keeper. */
@@ -9506,6 +9802,162 @@ app.post('/api/log', express.json(), (req, res) => {
       features
     };
   }
+
+  /**
+   * Freight paths published in the Mediterranean corridor's catalogue.
+   *
+   * This is a different kind of thing from the corridor model above, and the
+   * difference is the whole point. A modelled train is a guess about how many
+   * trains the tonnage implies. These are named paths the infrastructure
+   * managers published, each with a national train number in the catalogue's
+   * "SZ-I" column and times at Koper, Ljubljana and Hodoš.
+   *
+   * What the catalogue does NOT say — and the payload repeats it on every
+   * train — is whether a railway undertaking booked the path, or whether
+   * anything runs on it today. It is offered capacity. The position between
+   * the published points is interpolated along the RINF track by distance,
+   * so it is exact at Koper, Ljubljana Zalog and Hodoš and an estimate in
+   * between.
+   */
+  type CorridorPathTiming = { location: string; uopid: string; arrival: string | null; departure: string };
+  type CorridorPath = {
+    papId: string; trainNumberSZ: string | null; relation: string;
+    direction: string; daysOfWeek: number[] | null; timingPoints: CorridorPathTiming[];
+  };
+  let corridorPathData: { paths: CorridorPath[]; [k: string]: any } | null = null;
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'corridorFreightPaths.json');
+    if (fs.existsSync(p)) {
+      corridorPathData = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log(`[RFC6] Corridor freight paths loaded: ${corridorPathData!.paths.length} (TT${corridorPathData!.timetableYear})`);
+    }
+  } catch (e) { console.error('[RFC6] path catalogue load failed', e); }
+
+  /** Koper → Hodoš as one polyline, with the km of each published timing point on it. */
+  function corridorPathTrack() {
+    const track = [
+      ...GEO_KOPER_ZALOG,
+      ...GEO_ZALOG_PRAGERSKO.slice(1),
+      ...GEO_PRAGERSKO_HODOS.slice(1)
+    ] as [number, number][];
+    const legKm = (seg: [number, number][]) => measurePolyline(seg).totalDist * 111.32;
+    const kmKoperZalog = legKm(GEO_KOPER_ZALOG);
+    const kmZalogPragersko = legKm(GEO_ZALOG_PRAGERSKO);
+    const totalKm = legKm(track);
+    return {
+      track, totalKm,
+      // Distance from Koper tovorna to each point the catalogue actually times.
+      kmAt: {
+        'Koper tovorna': 0,
+        'Ljubljana Zalog': kmKoperZalog,
+        'Pragersko': kmKoperZalog + kmZalogPragersko,
+        'Hodoš': totalKm
+      } as Record<string, number>
+    };
+  }
+
+  function corridorFreightPositions() {
+    if (!corridorPathData || !GEO_KOPER_ZALOG?.length) return null;
+    const geo = corridorPathTrack();
+    const now = new Date();
+    // Slovenian wall clock — the catalogue times are local.
+    const local = new Date(now.toLocaleString('en-US', { timeZone: 'Europe/Ljubljana' }));
+    const nowMin = local.getHours() * 60 + local.getMinutes();
+    const isoDow = ((local.getDay() + 6) % 7) + 1; // 1 = Monday, as the catalogue numbers days
+    const hm = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+
+    const features: any[] = [];
+    const board: any[] = [];
+
+    for (const p of corridorPathData.paths) {
+      const pts = p.timingPoints.filter(t => geo.kmAt[t.location] != null);
+      if (pts.length < 2) continue;
+      const towardHungary = p.direction !== 'toward Koper';
+
+      // Absolute minutes from the path's own start, unwrapping midnight.
+      const legs: { km: number; min: number; loc: string }[] = [];
+      let prev = -1, dayRoll = 0;
+      for (const t of pts) {
+        let m = hm(t.arrival ?? t.departure);
+        if (prev >= 0 && m < prev) dayRoll += 1440;
+        prev = m; m += dayRoll;
+        legs.push({ km: geo.kmAt[t.location], min: m, loc: t.location });
+      }
+      const startMin = legs[0].min;
+      const journeyMin = legs[legs.length - 1].min - startMin;
+      if (journeyMin <= 0) continue;
+
+      const runsToday = !p.daysOfWeek || p.daysOfWeek.includes(isoDow);
+      // How far into its journey would this path be right now?
+      let elapsed = nowMin - (startMin % 1440);
+      if (elapsed < 0) elapsed += 1440;
+      const active = runsToday && elapsed <= journeyMin;
+
+      // Interpolate km from the published timing points, then km -> position.
+      let km = legs[0].km;
+      for (let i = 0; i < legs.length - 1; i++) {
+        const a = legs[i], b = legs[i + 1];
+        const t0 = a.min - startMin, t1 = b.min - startMin;
+        if (elapsed >= t0 && elapsed <= t1 && t1 > t0) {
+          km = a.km + (b.km - a.km) * ((elapsed - t0) / (t1 - t0));
+          break;
+        }
+        if (elapsed > t1) km = b.km;
+      }
+      const alongKm = towardHungary ? km : geo.totalKm - km;
+      const pos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, alongKm / geo.totalKm)));
+
+      const entry = {
+        papId: p.papId,
+        trainNumber: p.trainNumberSZ,
+        relation: p.relation,
+        direction: towardHungary ? 'proti Madžarski' : 'proti Kopru',
+        daysOfWeek: p.daysOfWeek,
+        runsToday, active,
+        journeyMin: Math.round(journeyMin),
+        elapsedMin: active ? Math.round(elapsed) : null,
+        timingPoints: p.timingPoints,
+        // The honest line, carried on the train itself rather than a footnote.
+        status: 'Objavljena pot iz kataloga koridorja. Ni potrjeno, da danes vozi.',
+        source: corridorPathData.source,
+        timetableYear: corridorPathData.timetableYear
+      };
+      board.push(entry);
+      if (!active) continue;
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [pos.lon, pos.lat] },
+        properties: {
+          ...entry, id: `pap_${p.papId}`, type: 'corridor_freight_path',
+          heading: Math.round(pos.bearing), bearing: Math.round(pos.bearing),
+          kmAlong: Math.round(alongKm * 10) / 10, routeKm: Math.round(geo.totalKm * 10) / 10,
+          isPublishedPath: true
+        }
+      });
+    }
+    board.sort((a, b) => (a.timingPoints[0]?.departure || '').localeCompare(b.timingPoints[0]?.departure || ''));
+    return {
+      type: 'FeatureCollection',
+      generatedAt: new Date().toISOString(),
+      source: corridorPathData.source,
+      sourceUrl: corridorPathData.sourceUrl,
+      timetableYear: corridorPathData.timetableYear,
+      validFrom: corridorPathData.validFrom,
+      validTo: corridorPathData.validTo,
+      note: corridorPathData.note,
+      trainNumberNote: corridorPathData.trainNumberNote,
+      pathsTotal: board.length,
+      runningNow: features.length,
+      board,
+      features
+    };
+  }
+
+  app.get('/api/freight/corridor-paths', (req, res) => {
+    const body = corridorFreightPositions();
+    if (!body) return res.status(503).json({ error: 'Katalog koridorskih poti ni na voljo' });
+    res.json(body);
+  });
 
   app.get('/api/freight/modelled-positions', (req, res) => {
     if (modelledFreightCache.body && Date.now() - modelledFreightCache.ts < MODELLED_FREIGHT_TTL_MS) {
