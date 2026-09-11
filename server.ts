@@ -815,37 +815,68 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
 
   // 3. Luka Koper Port-to-Rail Pipeline & Modal Split
   app.get('/api/freight/pipeline', (req, res) => {
-    // Luka Koper official annual / real throughput estimates
+    /**
+     * Luka Koper's own published results for 2025.
+     *
+     * The figures here were previously invented and materially wrong: a rail
+     * modal share of 61.2% against the 51% the port reports, 1,025,000 TEU
+     * against 1,272,161, and 801,000 vehicles against 914,817. The tonnage was
+     * the only one close — 23.2 million against an actual 23,003,522.
+     *
+     * The port publishes no API, so these are transcribed from its annual
+     * results announcement and carry the year and source with them; anything
+     * shown from this block is a published figure for 2025, not a live one.
+     * Daily averages are divided from the annual counts rather than asserted.
+     */
+    const KOPER_YEAR = 2025;
+    const KOPER_SOURCE = 'Luka Koper d.d., objava letnih rezultatov 2025';
+    const KOPER_SOURCE_URL = 'https://www.luka-kp.si/en/news/2025-performance-highlights/';
+    const annualTrains = 20886;
     const pipelineData = {
       portName: 'Luka Koper d.d. (Port of Koper)',
-      annualTeu: 1025000,
-      dailyTeuAverage: 2810,
-      annualCars: 801000,
-      dailyCarsAverage: 2190,
-      annualMaritimeTonnage: 23200000,
-      railModalSplitPercent: 61.2,
-      roadModalSplitPercent: 38.8,
-      dailyBlockTrainsAverage: 72,
-      maxObservedDailyTrains: 88,
+      reportingYear: KOPER_YEAR,
+      source: KOPER_SOURCE,
+      sourceUrl: KOPER_SOURCE_URL,
+      annualTeu: 1272161,
+      dailyTeuAverage: Math.round(1272161 / 365),
+      annualCars: 914817,
+      dailyCarsAverage: Math.round(914817 / 365),
+      annualMaritimeTonnage: 23003522,
+      railModalSplitPercent: 51,
+      roadModalSplitPercent: 49,
+      annualTrains,
+      annualWagons: 270516,
+      annualTrucks: 490819,
+      dailyBlockTrainsAverage: Math.round(annualTrains / 365),
+      // The destinations and the routes they take are real corridors; the
+      // traffic shares that used to sit beside them (34/23/18/13/12, summing
+      // suspiciously to exactly 100) were invented, and the port does not break
+      // its hinterland traffic down this way publicly. The routes stay, the
+      // made-up percentages do not.
+      corridorsAreUnsourced: true,
       corridors: [
-        { destinationCountry: 'Avstrija (Graz / Dunaj / Linz)', sharePercent: 34, avgTrainsPerDay: 24, primaryRoute: 'Koper -> Zidani Most -> Maribor -> Špilje' },
-        { destinationCountry: 'Madžarska (Budimpešta BILK / Győr)', sharePercent: 23, avgTrainsPerDay: 17, primaryRoute: 'Koper -> Pragersko -> Ormož -> Hodoš' },
-        { destinationCountry: 'Slovaška & Češka (Bratislava / Ostrava)', sharePercent: 18, avgTrainsPerDay: 13, primaryRoute: 'Koper -> Maribor -> Špilje / Hodoš' },
-        { destinationCountry: 'Slovenija zaledje (Ljubljana Zalog / Moste)', sharePercent: 13, avgTrainsPerDay: 10, primaryRoute: 'Koper -> Divača -> Zalog' },
-        { destinationCountry: 'Poljska & Nemčija (Katowice / München)', sharePercent: 12, avgTrainsPerDay: 8, primaryRoute: 'Koper -> Jesenice / Špilje' }
+        { destinationCountry: 'Avstrija (Graz / Dunaj / Linz)', primaryRoute: 'Koper -> Zidani Most -> Maribor -> Šentilj' },
+        { destinationCountry: 'Madžarska (Budimpešta BILK / Győr)', primaryRoute: 'Koper -> Pragersko -> Ormož -> Hodoš' },
+        { destinationCountry: 'Slovaška & Češka (Bratislava / Ostrava)', primaryRoute: 'Koper -> Maribor -> Šentilj / Hodoš' },
+        { destinationCountry: 'Slovenija zaledje (Ljubljana Zalog / Moste)', primaryRoute: 'Koper -> Divača -> Zalog' },
+        { destinationCountry: 'Poljska & Nemčija (Katowice / München)', primaryRoute: 'Koper -> Jesenice / Šentilj' }
       ],
+      // Kept because the port does publish a cargo structure, but these shares
+      // were not taken from it, so they are flagged rather than shown as fact.
+      cargoTypesDistributionIsUnsourced: true,
       cargoTypesDistribution: [
         { name: 'Kontejnerski bloki (Intermodal)', percent: 46 },
         { name: 'Avtomobili (Ro-Ro vagoni)', percent: 22 },
         { name: 'Sipki tovor (Žito, premog, ruda)', percent: 18 },
         { name: 'Tekoči tovori (Goriva, kemikalije)', percent: 14 }
       ],
-      surgingStatus: {
-        currentActivityIndex: 87, // out of 100
-        statusText: 'Visoka obremenjenost koridorja (Polna zasedenost Divača-Koper)',
-        bottleneckNote: 'Enobirna proga Koper-Divača (26 ‰ klanec). Gradnja II. tira bo povečala prepustnost na več kot 220 vlakov/dan.',
-        activeContainerVesselsInPort: 3,
-        vesselNames: ['MSC Bettina (13.800 TEU)', 'Maersk Camden (8.500 TEU)', 'CMA CGM Palais Royal (23.000 TEU)']
+      // An "activity index" and three named ships said to be berthed right now
+      // were pure invention — the sharpest kind, because they assert something
+      // live and checkable. The standing infrastructure constraint is real and
+      // is all that remains.
+      infrastructureNote: {
+        bottleneckNote: 'Enobirna proga Koper–Divača z vzponom 26 ‰; drugi tir povečuje prepustnost odseka.',
+        rinfSectionKmNote: 'Dolžine odsekov tega koridorja so v /api/freight/network po registru RINF.'
       }
     };
     res.json(pipelineData);
@@ -942,8 +973,13 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
 
     const share = (a: number, b: number) => Number(((a / (a + b)) * 100).toFixed(1));
 
-    // Reference emission factors, not measurements. Stated here rather than
-    // buried so the derived figure can be checked against its assumptions.
+    // Reference emission factors, not measurements, and — unlike the
+    // tonne-kilometres above — not traceable to a publication. The EEA does
+    // compare freight modes per tonne-kilometre, but its figures live in chart
+    // images rather than in any retrievable dataset, so nothing here is cited
+    // to it. They are stated in the open, and returned to the client, so the
+    // derived figure can be judged against its assumptions instead of being
+    // dressed up as a statistic.
     const RAIL_G_CO2_PER_TKM = 24;
     const ROAD_G_CO2_PER_TKM = 137;
     // railTkm is in millions of tonne-km, and grams convert to tonnes by 1e6,
@@ -970,7 +1006,9 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
       },
       co2: {
         isEstimate: true,
-        note: 'Izpeljano iz uradnih tonskih kilometrov in navedenih referenčnih faktorjev — ni meritev.',
+        note: 'Izpeljano iz uradnih tonskih kilometrov in spodnjih referenčnih faktorjev — ni meritev.',
+        factorsAreUnsourced: true,
+        factorNote: 'Faktorja sta privzeti vrednosti brez navedenega vira; tonski kilometri so uradni (Eurostat).',
         railGramsPerTonneKm: RAIL_G_CO2_PER_TKM,
         roadGramsPerTonneKm: ROAD_G_CO2_PER_TKM,
         avoidedTonnesCo2PerYear: avoidedTonnesCo2
@@ -3876,6 +3914,10 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           // Resolve the free-text operator against the ERA/UIC register so the
           // train carries a licensed entity with an official code, not a label.
           operatorRegistration: lookupOrganisation(slot.operator),
+          // Route, operator and charging class as the public registers give
+          // them, kept apart from the scheduled figures above so the client can
+          // show which half of a train's description is actually sourced.
+          registerData: verifyFreightSlot(slot),
           // Null for trains standing at a terminal, where the position is known.
           positionEstimate,
           locomotive: slot.locomotive,
@@ -4124,6 +4166,10 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           // Resolve the free-text operator against the ERA/UIC register so the
           // train carries a licensed entity with an official code, not a label.
           operatorRegistration: lookupOrganisation(slot.operator),
+          // Route, operator and charging class as the public registers give
+          // them, kept apart from the scheduled figures above so the client can
+          // show which half of a train's description is actually sourced.
+          registerData: verifyFreightSlot(slot),
           locomotive: slot.locomotive,
           wagonType: slot.wagonType,
           cargo: slot.cargo,
@@ -7780,6 +7826,345 @@ app.post('/api/log', express.json(), (req, res) => {
     orgLookupCache.set(key, result);
     return result;
   }
+
+  /* ------------------------------------------------------------------ *
+   * The real rail network, from the EU Register of Infrastructure.
+   *
+   * Freight paths in this app were written by hand: invented distances,
+   * invented intermediate stations, invented line references. Two public
+   * registers replace that with something checkable.
+   *
+   * ERA RINF publishes operational points with their official UOPID codes and
+   * sections of line with surveyed lengths. Slovenia's 319 sections sum to
+   * 1,191.6 km against a real network of about 1,209, so this is the network
+   * rather than a sample of it. Austria, Hungary and Italy are loaded too,
+   * because the corridors this app follows do not stop at Sežana.
+   *
+   * Crossings need no stitching: both managers describe a border point under
+   * the same UOPID — Hodoš d.m. and Őriszentpéter-Hodoš are both EU00185 — so
+   * merging records by id makes the graph continuous by itself. That is what
+   * carries Koper to Budapest as one 619.6 km path through Hodoš.
+   *
+   * What is absent is absent. RINF has no coordinates for Slovenian points and
+   * no Slovenian track speeds or gradients, so map geometry still comes from
+   * the corridor files; Austria's sections are sparse and Croatia is not in
+   * the register at all, so routes into them resolve to nothing rather than to
+   * a guess.
+   *
+   * SŽ-Infrastruktura's Network Statement supplies the rest: the official line
+   * register with numbers and line classes, and the classification tables the
+   * infrastructure manager itself uses for charging — mass M1–M6, length
+   * D1–D3, speed H1–H4. H1 is where the 100 km/h freight ceiling in this file
+   * comes from; it is the published figure, not a guess.
+   * ------------------------------------------------------------------ */
+  type RinfOp = { id: string; name: string; countries: string[]; type: string; isBorder: boolean; altNames: string[] };
+  type RinfSection = { from: string; to: string; km: number };
+  let rinfNetwork: { source: string; countries: string[]; retrieved: string; operationalPoints: RinfOp[]; sections: RinfSection[] } | null = null;
+  let szNetworkStatement: any = null;
+
+  try {
+    const rinfPath = path.join(process.cwd(), 'src', 'data', 'rinfNetwork.json');
+    if (fs.existsSync(rinfPath)) {
+      rinfNetwork = JSON.parse(fs.readFileSync(rinfPath, 'utf-8'));
+      console.log('[RINF] Network loaded:',
+        rinfNetwork!.operationalPoints.length, 'operational points,',
+        rinfNetwork!.sections.length, 'sections,',
+        rinfNetwork!.countries.join('/'));
+    }
+  } catch (e: any) {
+    console.warn('[RINF] Could not load network:', e?.message);
+  }
+  try {
+    const szPath = path.join(process.cwd(), 'src', 'data', 'szNetworkStatement.json');
+    if (fs.existsSync(szPath)) {
+      szNetworkStatement = JSON.parse(fs.readFileSync(szPath, 'utf-8'));
+      console.log('[SŽ] Network Statement tables loaded:', szNetworkStatement.lines.length, 'lines');
+    }
+  } catch (e: any) {
+    console.warn('[SŽ] Could not load Network Statement tables:', e?.message);
+  }
+
+  const rinfAdjacency = new Map<string, { to: string; km: number }[]>();
+  const rinfById = new Map<string, RinfOp>();
+  const rinfByName = new Map<string, RinfOp>();
+
+  const normalisePlace = (s: string) => String(s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+  if (rinfNetwork) {
+    for (const op of rinfNetwork.operationalPoints) {
+      rinfById.set(op.id, op);
+      const key = normalisePlace(op.name);
+      if (key && !rinfByName.has(key)) rinfByName.set(key, op);
+      for (const alt of op.altNames ?? []) {
+        const ak = normalisePlace(alt);
+        if (ak && !rinfByName.has(ak)) rinfByName.set(ak, op);
+      }
+    }
+    for (const s of rinfNetwork.sections) {
+      if (!rinfAdjacency.has(s.from)) rinfAdjacency.set(s.from, []);
+      if (!rinfAdjacency.has(s.to)) rinfAdjacency.set(s.to, []);
+      rinfAdjacency.get(s.from)!.push({ to: s.to, km: s.km });
+      rinfAdjacency.get(s.to)!.push({ to: s.from, km: s.km });
+    }
+  }
+
+  /**
+   * Resolve the app's free-text endpoints ("Luka Koper Tovorna (SI)",
+   * "Villa Opicina (meja IT)") onto register entries.
+   *
+   * Matching is by whole words in both directions, never by substring: a
+   * substring match sent "Tarvisio" to a point called "Tar" and produced a
+   * 701 km route through the wrong country. A single short word is refused for
+   * the same reason. Failing to resolve is a fine outcome — it yields no route
+   * rather than a wrong one.
+   */
+  const placeLookupCache = new Map<string, RinfOp | null>();
+
+  function findOperationalPoint(text: string): RinfOp | null {
+    const cleaned = normalisePlace(
+      String(text || '')
+        .replace(/\(.*?\)/g, ' ')       // "(SI)", "(meja IT)"
+        .split('➔')[0]                   // "... ➔ Dunaj"
+        .replace(/\b(luka|terminal|kombiterminal|ranzirni|ranžirni|kolodvor|umschlagbahnhof|hafen|intermodal|cff)\b/gi, ' ')
+    );
+    if (!cleaned) return null;
+    if (placeLookupCache.has(cleaned)) return placeLookupCache.get(cleaned)!;
+
+    let result: RinfOp | null = rinfByName.get(cleaned) ?? null;
+    if (!result) {
+      const queryWords = cleaned.split(' ').filter(Boolean);
+      let bestScore = 0;
+      for (const [name, op] of rinfByName) {
+        const nameWords = name.split(' ').filter(Boolean);
+        const nameInQuery = nameWords.every(w => queryWords.includes(w));
+        const queryInName = queryWords.every(w => nameWords.includes(w));
+        if (!nameInQuery && !queryInName) continue;
+        const matched = nameInQuery ? nameWords.length : queryWords.length;
+        if (matched === 0) continue;
+        if (matched === 1 && (nameInQuery ? nameWords[0] : queryWords[0]).length < 4) continue;
+        const score = matched * 100 - Math.abs(nameWords.length - queryWords.length);
+        if (score > bestScore) { bestScore = score; result = op; }
+      }
+    }
+    placeLookupCache.set(cleaned, result);
+    return result;
+  }
+
+  const rinfRouteCache = new Map<string, any>();
+
+  /**
+   * Shortest path over the register's own section lengths.
+   *
+   * Nearly seven thousand nodes is too many to scan for the minimum on every
+   * step — that is quadratic, and these routes are resolved for every freight
+   * path on a machine with a fraction of a CPU — so the frontier is a binary
+   * heap. Results are memoised by endpoint pair, misses included, since a pair
+   * that does not resolve will not resolve on the next poll either.
+   */
+  function routeOverRinf(fromText: string, toText: string): {
+    km: number;
+    points: { id: string; name: string; type: string; km: number; isBorder: boolean; countries: string[] }[];
+  } | null {
+    if (!rinfNetwork) return null;
+    const a = findOperationalPoint(fromText);
+    const b = findOperationalPoint(toText);
+    if (!a || !b || a.id === b.id) return null;
+
+    const cacheKey = `${a.id}>${b.id}`;
+    if (rinfRouteCache.has(cacheKey)) return rinfRouteCache.get(cacheKey);
+
+    const dist = new Map<string, number>([[a.id, 0]]);
+    const prev = new Map<string, string>();
+    const settled = new Set<string>();
+
+    // Binary min-heap of [distance, nodeId].
+    const heap: [number, string][] = [[0, a.id]];
+    const push = (item: [number, string]) => {
+      heap.push(item);
+      let i = heap.length - 1;
+      while (i > 0) {
+        const parent = (i - 1) >> 1;
+        if (heap[parent][0] <= heap[i][0]) break;
+        [heap[parent], heap[i]] = [heap[i], heap[parent]];
+        i = parent;
+      }
+    };
+    const pop = (): [number, string] | undefined => {
+      if (heap.length === 0) return undefined;
+      const top = heap[0];
+      const last = heap.pop()!;
+      if (heap.length > 0) {
+        heap[0] = last;
+        let i = 0;
+        for (;;) {
+          const l = 2 * i + 1, r = l + 1;
+          let small = i;
+          if (l < heap.length && heap[l][0] < heap[small][0]) small = l;
+          if (r < heap.length && heap[r][0] < heap[small][0]) small = r;
+          if (small === i) break;
+          [heap[small], heap[i]] = [heap[i], heap[small]];
+          i = small;
+        }
+      }
+      return top;
+    };
+
+    for (;;) {
+      const next = pop();
+      if (!next) break;
+      const [d, u] = next;
+      if (settled.has(u)) continue;
+      settled.add(u);
+      if (u === b.id) break;
+      for (const edge of rinfAdjacency.get(u) ?? []) {
+        const nd = d + edge.km;
+        if (nd < (dist.get(edge.to) ?? Infinity)) {
+          dist.set(edge.to, nd);
+          prev.set(edge.to, u);
+          push([nd, edge.to]);
+        }
+      }
+    }
+    if (!settled.has(b.id)) { rinfRouteCache.set(cacheKey, null); return null; }
+
+    const chain: string[] = [];
+    for (let cur: string | undefined = b.id; cur !== undefined; cur = prev.get(cur)) chain.unshift(cur);
+    const points = chain.map(id => {
+      const op = rinfById.get(id)!;
+      return {
+        id: op.id,
+        name: op.name,
+        type: op.type,
+        km: Number((dist.get(id) ?? 0).toFixed(1)),
+        // A point both neighbours describe under one id is the crossing itself.
+        isBorder: op.isBorder || op.countries.length > 1,
+        countries: op.countries
+      };
+    });
+    const result = { km: Number(dist.get(b.id)!.toFixed(1)), points };
+    rinfRouteCache.set(cacheKey, result);
+    return result;
+  }
+
+  /** Charging classes as the infrastructure manager defines them. */
+  function classifyFreightTrain(grossWeightTons?: number, lengthM?: number): any | null {
+    if (!szNetworkStatement) return null;
+    const pick = (list: any[], value: number | undefined, minKey: string, maxKey: string) => {
+      if (!Number.isFinite(value as number)) return null;
+      return list.find(c =>
+        (value as number) >= c[minKey] && (c[maxKey] === null || (value as number) <= c[maxKey])
+      ) ?? null;
+    };
+    const mass = pick(szNetworkStatement.massClasses, grossWeightTons, 'minT', 'maxT');
+    const length = pick(szNetworkStatement.lengthClasses, lengthM, 'minM', 'maxM');
+    const speed = szNetworkStatement.speedClasses.find((c: any) => c.code === 'H1') ?? null;
+    return {
+      massClass: mass ? { code: mass.code, range: mass.range } : null,
+      lengthClass: length ? { code: length.code, range: length.range } : null,
+      speedClass: speed ? { code: speed.code, maxSpeedKmh: speed.maxSpeedKmh, trainKind: speed.trainKind } : null,
+      source: szNetworkStatement.source
+    };
+  }
+
+  /**
+   * Everything known about a freight path that came out of a register rather
+   * than out of this file, gathered in one place so the client can show what
+   * is sourced and what is merely scheduled.
+   */
+  /**
+   * A slot's operator field often names more than one undertaking — "Metrans
+   * Adria / Foxrail", "PKP Cargo / SŽ Tovorni" — because a corridor train
+   * changes hands at the border. Each part is resolved separately; looking up
+   * the whole string found nothing and reported perfectly real operators as
+   * unregistered.
+   */
+  function lookupOperators(operatorText: string): { registered: any[]; unregistered: string[] } {
+    const parts = String(operatorText || '').split('/').map(s => s.trim()).filter(Boolean);
+    const registered: any[] = [];
+    const unregistered: string[] = [];
+    for (const part of parts) {
+      const hit = lookupOrganisation(part);
+      if (hit && !registered.some(r => r.code === hit.code)) registered.push(hit);
+      else if (!hit) unregistered.push(part);
+    }
+    return { registered, unregistered };
+  }
+
+  function verifyFreightSlot(slot: any): any {
+    const route = routeOverRinf(slot.fromName, slot.toName);
+    const operators = lookupOperators(slot.operator);
+    const classes = classifyFreightTrain(slot.grossWeightTons, slot.lengthM);
+    return {
+      route: route
+        ? {
+            km: route.km,
+            operationalPoints: route.points,
+            borderCrossings: route.points.filter(p => p.isBorder).map(p => p.name),
+            countries: [...new Set(route.points.flatMap(p => p.countries))],
+            source: rinfNetwork!.source,
+            scheduleKm: slot.routeKm,
+            kmDeltaVsSchedule: Number((route.km - slot.routeKm).toFixed(1))
+          }
+        : {
+            unresolved: true,
+            note: 'Ena ali obe končni točki nista v registru RINF (Hrvaška ni v registru, avstrijski odseki so nepopolni).'
+          },
+      operators: {
+        registered: operators.registered,
+        unregistered: operators.unregistered,
+        allRegistered: operators.unregistered.length === 0 && operators.registered.length > 0
+      },
+      classification: classes
+    };
+  }
+
+  app.get('/api/freight/network', (req, res) => {
+    if (!rinfNetwork && !szNetworkStatement) {
+      return res.status(503).json({ error: 'Registri omrežja niso naloženi' });
+    }
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+    if (from && to) {
+      const route = routeOverRinf(from, to);
+      return route
+        ? res.json({ from, to, ...route, source: rinfNetwork!.source })
+        : res.status(404).json({ error: 'Točke ni v registru RINF ali povezava ne obstaja', from, to });
+    }
+    res.json({
+      rinf: rinfNetwork
+        ? {
+            source: rinfNetwork.source,
+            retrieved: rinfNetwork.retrieved,
+            countries: rinfNetwork.countries,
+            operationalPoints: rinfNetwork.operationalPoints.length,
+            sections: rinfNetwork.sections.length,
+            networkKm: Number(rinfNetwork.sections.reduce((a, s) => a + s.km, 0).toFixed(1)),
+            borderPoints: rinfNetwork.operationalPoints
+              .filter(o => o.countries.length > 1)
+              .map(o => ({ id: o.id, name: o.name, countries: o.countries }))
+          }
+        : null,
+      networkStatement: szNetworkStatement
+        ? {
+            source: szNetworkStatement.source,
+            sourceUrl: szNetworkStatement.sourceUrl,
+            lines: szNetworkStatement.lines,
+            lineClasses: szNetworkStatement.lineClasses,
+            massClasses: szNetworkStatement.massClasses,
+            lengthClasses: szNetworkStatement.lengthClasses,
+            speedClasses: szNetworkStatement.speedClasses,
+            tractionSeries: szNetworkStatement.tractionSeries
+          }
+        : null,
+      operators: organisationRegister
+        .filter(o => o.country === 'Slovenia')
+        .map(o => ({ code: o.code, name: o.name, isRailwayUndertaking: o.ru, isInfrastructureManager: o.im }))
+    });
+  });
 
   app.get('/api/era/organisations', (req, res) => {
     const q = String(req.query.q || '').toLowerCase().trim();

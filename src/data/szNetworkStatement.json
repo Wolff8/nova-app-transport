@@ -1,0 +1,450 @@
+{
+ "source": "SŽ-Infrastruktura, Program omrežja 2026 (Network Statement 2026), verzija 1.2",
+ "sourceUrl": "https://infrastruktura.sz.si/wp-content/uploads/2025/11/PO_2026_3-.pdf",
+ "retrieved": "2026-09-11T06:17:37.665Z",
+ "note": "Uradne klasifikacijske tabele upravljavca infrastrukture, uporabljene za izračun uporabnine.",
+ "lines": [
+  {
+   "number": "13",
+   "name": "Ljubljana Zalog – Ljubljana",
+   "lineClass": "R1"
+  },
+  {
+   "number": "14",
+   "name": "lok Zidani Most",
+   "lineClass": "R1"
+  },
+  {
+   "number": "43",
+   "name": "d.m. – Lendava",
+   "lineClass": "R1"
+  },
+  {
+   "number": "61",
+   "name": "cepišče Prešnica – Podgorje – d.m.",
+   "lineClass": "R1"
+  },
+  {
+   "number": "82",
+   "name": "Grosuplje – Kočevje",
+   "lineClass": "R1"
+  },
+  {
+   "number": "12",
+   "name": "Ljubljana Zalog – Ljubljana",
+   "lineClass": "R2"
+  },
+  {
+   "number": "21",
+   "name": "Ljubljana Šiška – Kamnik Graben",
+   "lineClass": "R2"
+  },
+  {
+   "number": "31",
+   "name": "Celje – Velenje",
+   "lineClass": "R2"
+  },
+  {
+   "number": "32",
+   "name": "d.m. – Rogatec – Grobelno",
+   "lineClass": "R2"
+  },
+  {
+   "number": "34",
+   "name": "Maribor – Prevalje – d.m.",
+   "lineClass": "R2"
+  },
+  {
+   "number": "42",
+   "name": "Ljutomer – Gornja Radgona",
+   "lineClass": "R2"
+  },
+  {
+   "number": "70",
+   "name": "Jesenice – Sežana",
+   "lineClass": "R2"
+  },
+  {
+   "number": "71",
+   "name": "cepišče Šempeter – Vrtojba – d.m.",
+   "lineClass": "R2"
+  },
+  {
+   "number": "72",
+   "name": "Prvačina – Ajdovščina",
+   "lineClass": "R2"
+  },
+  {
+   "number": "73",
+   "name": "cepišče Kreplje – Repentabor – d.m.",
+   "lineClass": "R2"
+  },
+  {
+   "number": "11",
+   "name": "Ljubljana Zalog – cepišče Kajuhova",
+   "lineClass": "R3"
+  },
+  {
+   "number": "33",
+   "name": "d.m. – Imeno – Stranje",
+   "lineClass": "R3"
+  },
+  {
+   "number": "35",
+   "name": "lok Maribor Tezno – Maribor Studenci",
+   "lineClass": "R3"
+  },
+  {
+   "number": "44",
+   "name": "Ormož – Središče – d.m.",
+   "lineClass": "R3"
+  },
+  {
+   "number": "45",
+   "name": "lok Pragersko",
+   "lineClass": "R3"
+  },
+  {
+   "number": "64",
+   "name": "Pivka – Ilirska Bistrica – d.m.",
+   "lineClass": "R3"
+  },
+  {
+   "number": "80",
+   "name": "d.m. – Metlika – Ljubljana",
+   "lineClass": "R3"
+  },
+  {
+   "number": "81",
+   "name": "Sevnica – Trebnje",
+   "lineClass": "R3"
+  },
+  {
+   "number": "10",
+   "name": "d.m. – Dobova – Ljubljana",
+   "lineClass": "R4"
+  },
+  {
+   "number": "20",
+   "name": "Ljubljana – Jesenice – d.m.",
+   "lineClass": "R4"
+  },
+  {
+   "number": "30",
+   "name": "Zidani Most – Šentilj – d.m.",
+   "lineClass": "R4"
+  },
+  {
+   "number": "40",
+   "name": "Pragersko – Ormož",
+   "lineClass": "R4"
+  },
+  {
+   "number": "41",
+   "name": "Ormož – Hodoš – d.m.",
+   "lineClass": "R4"
+  },
+  {
+   "number": "50",
+   "name": "Ljubljana – Sežana – d.m.",
+   "lineClass": "R4"
+  },
+  {
+   "number": "51",
+   "name": "lok Divača",
+   "lineClass": "R4"
+  },
+  {
+   "number": "60",
+   "name": "Divača – cepišče Prešnica",
+   "lineClass": "R4"
+  },
+  {
+   "number": "62",
+   "name": "cepišče Prešnica – Koper",
+   "lineClass": "R4"
+  }
+ ],
+ "lineClasses": {
+  "R1": 0.47,
+  "R2": 0.76,
+  "R3": 0.98,
+  "R4": 1.44
+ },
+ "lengthClasses": [
+  {
+   "code": "D1",
+   "range": "0–100 m",
+   "minM": 0,
+   "maxM": 100
+  },
+  {
+   "code": "D2",
+   "range": "101–300 m",
+   "minM": 101,
+   "maxM": 300
+  },
+  {
+   "code": "D3",
+   "range": "nad 300 m",
+   "minM": 301,
+   "maxM": null
+  }
+ ],
+ "massClasses": [
+  {
+   "code": "M1",
+   "range": "do 250 t",
+   "minT": 0,
+   "maxT": 250
+  },
+  {
+   "code": "M2",
+   "range": "251–1.000 t",
+   "minT": 251,
+   "maxT": 1000
+  },
+  {
+   "code": "M3",
+   "range": "1.001–1.500 t",
+   "minT": 1001,
+   "maxT": 1500
+  },
+  {
+   "code": "M4",
+   "range": "1.501–1.750 t",
+   "minT": 1501,
+   "maxT": 1750
+  },
+  {
+   "code": "M5",
+   "range": "1.751–2.000 t",
+   "minT": 1751,
+   "maxT": 2000
+  },
+  {
+   "code": "M6",
+   "range": "nad 2.001 t",
+   "minT": 2001,
+   "maxT": null
+  }
+ ],
+ "speedClasses": [
+  {
+   "code": "H1",
+   "trainKind": "tovorni vlaki in lokomotivski vlaki",
+   "maxSpeedKmh": 100
+  },
+  {
+   "code": "H2",
+   "trainKind": "ostali potniški vlaki, prazne garniture",
+   "maxSpeedKmh": 120
+  },
+  {
+   "code": "H3",
+   "trainKind": "lahki potniški vlaki",
+   "maxSpeedKmh": 140
+  },
+  {
+   "code": "H4",
+   "trainKind": "vlaki z nagibno tehniko",
+   "maxSpeedKmh": 160
+  }
+ ],
+ "axleLoadClasses": [
+  {
+   "code": "OM1",
+   "range": "0–12 t/os"
+  },
+  {
+   "code": "OM2",
+   "range": "12–18 t/os"
+  },
+  {
+   "code": "OM3",
+   "range": "nad 18 t/os"
+  }
+ ],
+ "tractionSeries": [
+  {
+   "series": "312",
+   "description": "SŽ elektro potniška garnitura Siemens",
+   "chargingWeight": 1.02
+  },
+  {
+   "series": "642",
+   "description": "SŽ Diesel",
+   "chargingWeight": 1
+  },
+  {
+   "series": "643",
+   "description": "SŽ Diesel",
+   "chargingWeight": 1
+  },
+  {
+   "series": "711",
+   "description": "SŽ Diesel potniška garnitura",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "713",
+   "description": "SŽ Diesel potniška garnitura",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "714",
+   "description": "SŽ Diesel potniška garnitura",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "732",
+   "description": "SŽ Diesel",
+   "chargingWeight": 1
+  },
+  {
+   "series": "813",
+   "description": "SŽ Diesel potniška garnitura",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "300",
+   "description": "SŽ parna",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "601",
+   "description": "SŽ parna",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "170",
+   "description": "SŽ parna",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "250",
+   "description": "SŽ parna",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "330",
+   "description": "SŽ parna",
+   "chargingWeight": 0.94
+  },
+  {
+   "series": "121",
+   "description": "ÖBB električna",
+   "chargingWeight": 1.09
+  },
+  {
+   "series": "201",
+   "description": "ÖBB Diesel",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "310",
+   "description": "SŽ električna potniška garnitura ICS",
+   "chargingWeight": 1.02
+  },
+  {
+   "series": "342",
+   "description": "SŽ električna",
+   "chargingWeight": 1.09
+  },
+  {
+   "series": "541",
+   "description": "SŽ električna",
+   "chargingWeight": 1.09
+  },
+  {
+   "series": "644",
+   "description": "SŽ Diesel",
+   "chargingWeight": 1
+  },
+  {
+   "series": "0",
+   "description": "neznana",
+   "chargingWeight": 1
+  },
+  {
+   "series": "311",
+   "description": "SŽ električna potniška garnitura",
+   "chargingWeight": 1.02
+  },
+  {
+   "series": "363",
+   "description": "SŽ električna",
+   "chargingWeight": 1.09
+  },
+  {
+   "series": "661",
+   "description": "SŽ Diesel",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "664",
+   "description": "SŽ Diesel",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "1930",
+   "description": "Siemens Vectron, ELOK 4 osi",
+   "chargingWeight": 1.09
+  },
+  {
+   "series": "1820",
+   "description": "Siemens Taurus, ELOK 4 osi",
+   "chargingWeight": 1.09
+  },
+  {
+   "series": "1890",
+   "description": "Siemens ES 64, ELOK 4 osi",
+   "chargingWeight": 1.09
+  },
+  {
+   "series": "2230/6450",
+   "description": "Siemens EuroRunner, DLOK 4 osi",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "646",
+   "description": "CZ loko dizel premikalna lokomotiva",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "610",
+   "description": "DMG Stadler Flirt",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "510",
+   "description": "EMG Stadler Flirt",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "313",
+   "description": "EMG dvopodna Stadler Kiss",
+   "chargingWeight": 1.06
+  },
+  {
+   "series": "655",
+   "description": "ELOK Italijanski (3 kV)",
+   "chargingWeight": 1.07
+  },
+  {
+   "series": "1822",
+   "description": "ELOK (OBB, 3 in 15 kV)",
+   "chargingWeight": 1.07
+  },
+  {
+   "series": "025",
+   "description": "SŽ parna lok 025-026",
+   "chargingWeight": 0.96
+  },
+  {
+   "series": "033",
+   "description": "SŽ parna lok 033-037",
+   "chargingWeight": 0.96
+  }
+ ]
+}

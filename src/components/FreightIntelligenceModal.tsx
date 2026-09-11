@@ -366,15 +366,29 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </div>
               </div>
 
-              {/* Methodology & Realism Explanation Banner */}
-              <div className="p-3.5 rounded-xl bg-sky-950/40 border border-sky-500/30 flex items-start gap-3">
-                <Info size={18} className="text-sky-400 shrink-0 mt-0.5" />
+              {/* This banner used to call these paths "uradne dodeljene trase"
+                  — officially allocated train paths. They are not: the numbers,
+                  times, locomotives and loads below were written into this
+                  app's source, not taken from a timetable. No public feed
+                  carries freight positions anywhere on this corridor (checked:
+                  MÁV vonatinfo is passenger-only, ViaggiaTreno resolves no
+                  freight number, and neither SŽ nor HŽ publish one), so nothing
+                  here is live. What the registers do confirm is shown per train
+                  and labelled as such. */}
+              <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/30 flex items-start gap-3">
+                <Info size={18} className="text-amber-400 shrink-0 mt-0.5" />
                 <div className="text-xs space-y-1">
-                  <p className="font-semibold text-sky-200">
-                    Realna podatkovna osnova tovornega prometa: Uradne voznoredne trase SŽ-Infrastruktura (Program omrežja RS)
+                  <p className="font-semibold text-amber-200">
+                    Tovorni vlaki tu niso v živo — pozicij ne objavlja nihče
                   </p>
                   <p className="text-slate-300 leading-relaxed text-[11px]">
-                    Ker tovorni železniški operaterji (SŽ Tovorni promet, Metrans, RCA, Adria Transport, InRail) zaradi poslovnih skrivnosti, RID nevarnih snovi in carinskih varnostnih predpisov EU ne oddajajo javnega GPS oddajnika svojih lokomotiv, digitalni dvojček operira na osnovi <strong className="text-sky-300">uradnih dodeljenih tras voznorednih vlakov</strong>. Prikaz je sinhroniziran s točnim lokalnim časom v Sloveniji, progovnimi profili (klanec 26‰ Divača–Koper), ranžirnimi postanki ter predvidenimi odhodi in prihodi.
+                    Za tovorni promet na tem koridorju ni javnega vira pozicij: MÁV vonatinfo vrača samo potniške vlake,
+                    ViaggiaTreno ne pozna tovornih številk, SŽ in HŽ pa jih ne objavljata. Številke vlakov, časi, lokomotive
+                    in tovor spodaj so <strong className="text-amber-300">predloga te aplikacije, ne vozni red</strong>, in jih ne gre brati kot
+                    dejanski promet. Preverljivo je omrežje pod njimi: pri vsakem vlaku je z oznako
+                    <strong className="text-emerald-300"> „Iz uradnih registrov“</strong> prikazano, kar potrjujejo ERA RINF (službena mesta in
+                    dolžine odsekov), register organizacij ERA/UIC (licencirani prevozniki) in Program omrežja SŽ-Infrastruktura
+                    (razredi mase, dolžine in hitrosti).
                   </p>
                 </div>
               </div>
@@ -546,6 +560,83 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                           </div>
                         </div>
 
+                        {/* What the public registers say about this path, kept
+                            visibly apart from the scheduled figures above. The
+                            fields in the grid are this app's own schedule; the
+                            ones below come from ERA RINF, the ERA/UIC
+                            organisation register and the SŽ Network Statement,
+                            and say so. */}
+                        {train.registerData && (
+                          <div className="px-2.5 py-2 rounded-lg bg-slate-950/60 border border-slate-800/70 space-y-1.5 text-[10px]">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-slate-300 uppercase tracking-wider text-[9.5px]">Iz uradnih registrov</span>
+                              {train.registerData.classification?.speedClass && (
+                                <span className="font-mono text-slate-400 shrink-0">
+                                  {train.registerData.classification.speedClass.code} · maks. {train.registerData.classification.speedClass.maxSpeedKmh} km/h
+                                </span>
+                              )}
+                            </div>
+
+                            {train.registerData.route?.unresolved ? (
+                              <div className="text-slate-500 leading-relaxed">
+                                Trasa ni preverljiva v RINF — ena od končnih točk ni v registru.
+                              </div>
+                            ) : train.registerData.route ? (
+                              <>
+                                <div className="flex items-center justify-between gap-2 font-mono">
+                                  <span className="text-slate-400">Dolžina po RINF</span>
+                                  <span className="text-emerald-300 font-bold">
+                                    {train.registerData.route.km} km
+                                    {train.registerData.route.kmDeltaVsSchedule !== 0 && (
+                                      <span className="text-slate-500 font-normal">
+                                        {' '}(vozni red navaja {train.registerData.route.scheduleKm})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 font-mono">
+                                  <span className="text-slate-400">Službena mesta</span>
+                                  <span className="text-slate-300">{train.registerData.route.operationalPoints.length}</span>
+                                </div>
+                                {train.registerData.route.borderCrossings?.length > 0 && (
+                                  <div className="flex items-center justify-between gap-2 font-mono">
+                                    <span className="text-slate-400 shrink-0">Mejni prehod</span>
+                                    <span className="text-sky-300 truncate">{train.registerData.route.borderCrossings.join(', ')}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : null}
+
+                            {train.registerData.operators && (
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-slate-400 shrink-0">Prevoznik v registru</span>
+                                <span className="text-right min-w-0">
+                                  {train.registerData.operators.registered.map((o: any) => (
+                                    <span key={o.code} className="block font-mono text-emerald-300 truncate">
+                                      {o.name} <span className="text-slate-500">[{o.code}]</span>
+                                    </span>
+                                  ))}
+                                  {train.registerData.operators.unregistered.map((name: string) => (
+                                    <span key={name} className="block font-mono text-amber-400/90 truncate">
+                                      {name} <span className="text-slate-500">— ni v registru</span>
+                                    </span>
+                                  ))}
+                                </span>
+                              </div>
+                            )}
+
+                            {(train.registerData.classification?.massClass || train.registerData.classification?.lengthClass) && (
+                              <div className="flex items-center justify-between gap-2 font-mono">
+                                <span className="text-slate-400">Razred SŽ</span>
+                                <span className="text-slate-300">
+                                  {[train.registerData.classification.massClass?.code, train.registerData.classification.lengthClass?.code]
+                                    .filter(Boolean).join(' · ')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Environmental & Road Offload Metrics */}
                         <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-950/20 border border-emerald-500/20 text-[10px]">
                           <div className="flex items-center gap-1.5 text-emerald-300 font-mono">
@@ -616,60 +707,88 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
             <div className="space-y-6 animate-in fade-in duration-150">
               {/* Top Key Metrics Bento */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Every number in this row is the port's own published result
+                    for the reporting year. The fallbacks that used to stand
+                    here — 1.025.000 TEU, 801.000 vehicles, 61,2 % rail, "65–80
+                    trains a day, max 88 observed" — were invented and wrong
+                    against what Luka Koper actually reports. There are no
+                    fallbacks now: without the endpoint the cards stay empty
+                    rather than assert a figure. */}
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-sky-500/20 flex flex-col justify-between">
                   <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Letni TEU Zabojniki</span>
                   <div className="my-1 text-2xl font-bold font-mono text-sky-400">
-                    {pipelineData?.annualTeu ? Number(pipelineData.annualTeu).toLocaleString('sl-SI') : '1.025.000'}
+                    {pipelineData?.annualTeu ? Number(pipelineData.annualTeu).toLocaleString('sl-SI') : '—'}
                   </div>
-                  <span className="text-[10px] text-slate-400">~2.810 TEU / dan</span>
+                  <span className="text-[10px] text-slate-400">
+                    {pipelineData?.dailyTeuAverage ? `~${Number(pipelineData.dailyTeuAverage).toLocaleString('sl-SI')} TEU / dan` : 'Nalagam …'}
+                  </span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-amber-500/20 flex flex-col justify-between">
                   <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Železniški Delež (Modal)</span>
                   <div className="my-1 text-2xl font-bold font-mono text-amber-400">
-                    {pipelineData?.railModalSplitPercent ?? 61.2} %
+                    {pipelineData?.railModalSplitPercent != null ? `${pipelineData.railModalSplitPercent} %` : '—'}
                   </div>
-                  <span className="text-[10px] text-emerald-400 font-semibold">1. v Sredozemlju po deležu tira</span>
+                  <span className="text-[10px] text-slate-400">
+                    {pipelineData?.reportingYear ? `Objava Luke Koper za ${pipelineData.reportingYear}` : 'Nalagam …'}
+                  </span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-emerald-500/20 flex flex-col justify-between">
-                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Dnevnih Tovornih Vlakov</span>
+                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Vlakov na Dan (Povprečje)</span>
                   <div className="my-1 text-2xl font-bold font-mono text-emerald-400">
-                    65 - 80
+                    {pipelineData?.dailyBlockTrainsAverage ?? '—'}
                   </div>
-                  <span className="text-[10px] text-slate-400">Max opazovano: 88 vlakov/dan</span>
+                  <span className="text-[10px] text-slate-400">
+                    {pipelineData?.annualTrains
+                      ? `${Number(pipelineData.annualTrains).toLocaleString('sl-SI')} vlakov na leto ÷ 365`
+                      : 'Nalagam …'}
+                  </span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-purple-500/20 flex flex-col justify-between">
                   <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Letni Avtomobili (Ro-Ro)</span>
                   <div className="my-1 text-2xl font-bold font-mono text-purple-300">
-                    {pipelineData?.annualCars ? Number(pipelineData.annualCars).toLocaleString('sl-SI') : '801.000'}
+                    {pipelineData?.annualCars ? Number(pipelineData.annualCars).toLocaleString('sl-SI') : '—'}
                   </div>
-                  <span className="text-[10px] text-slate-400">Vagoni Laaers / BLG / RCA</span>
+                  <span className="text-[10px] text-slate-400">
+                    {pipelineData?.annualWagons ? `${Number(pipelineData.annualWagons).toLocaleString('sl-SI')} vagonov na leto` : 'Nalagam …'}
+                  </span>
                 </div>
               </div>
 
               {/* Modal Split Comparison Bar */}
               <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
+                {/* Both the split and the tonnage were hardcoded into this
+                    markup at 61,2 / 38,8 and 23,2 mio t. The port reports 51 /
+                    49 on 23.003.522 t, so the bar now follows the endpoint and
+                    the claim of being first in the Mediterranean — which the
+                    port does not make in these results — is gone. */}
+                <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-white">Razdelitev transportnih poti Luke Koper:</span>
-                    <span className="text-slate-400 font-mono text-[11px]">(Skupaj 23,2 mio ton/leto)</span>
+                    <span className="text-slate-400 font-mono text-[11px]">
+                      {pipelineData?.annualMaritimeTonnage
+                        ? `(Skupaj ${Number(pipelineData.annualMaritimeTonnage).toLocaleString('sl-SI')} ton, ${pipelineData.reportingYear})`
+                        : ''}
+                    </span>
                   </div>
                   <div className="flex items-center gap-4 text-[11px] font-mono">
-                    <span className="text-amber-400 font-bold">🚂 Železnica: 61,2 %</span>
-                    <span className="text-sky-400 font-bold">🚛 Cesta: 38,8 %</span>
+                    <span className="text-amber-400 font-bold">🚂 Železnica: {pipelineData?.railModalSplitPercent ?? '—'} %</span>
+                    <span className="text-sky-400 font-bold">🚛 Cesta: {pipelineData?.roadModalSplitPercent ?? '—'} %</span>
                   </div>
                 </div>
 
                 {/* Progress bar */}
                 <div className="w-full h-3 rounded-full bg-slate-950 overflow-hidden flex border border-slate-700/60 p-0.5">
-                  <div className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-l-full" style={{ width: '61.2%' }}></div>
-                  <div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 rounded-r-full" style={{ width: '38.8%' }}></div>
+                  <div className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-l-full" style={{ width: `${pipelineData?.railModalSplitPercent ?? 0}%` }}></div>
+                  <div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 rounded-r-full" style={{ width: `${pipelineData?.roadModalSplitPercent ?? 0}%` }}></div>
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Luka Koper ima najvišji delež odpreme tovora po železnici med vsemi pristanišči v Sredozemlju in na Jadranu. 
-                  Zaradi tega je slovenska železniška hrbtenica (Koper – Divača – Ljubljana – Maribor/Hodoš) strateškega pomena za celotno Srednjo Evropo.
+                  Železnica odpelje večino tovora iz Luke Koper, zato je proga Koper – Divača – Ljubljana – Maribor/Hodoš ozko grlo celotnega koridorja.
+                  {pipelineData?.source && (
+                    <span className="block mt-1 text-[10px] text-emerald-400/80 font-mono break-words">Vir: {pipelineData.source}</span>
+                  )}
                 </p>
               </div>
 
@@ -685,15 +804,10 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                     <div key={idx} className="p-3 rounded-lg bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 transition-colors">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-bold text-xs text-white">{cor.destinationCountry}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                          {cor.sharePercent} % tovora
-                        </span>
                       </div>
-                      <div className="text-[11px] text-slate-400 font-mono flex items-center gap-1.5 my-1">
-                        <Train size={11} className="text-slate-400 shrink-0" />
-                        <span>~{cor.avgTrainsPerDay} blok vlakov/dan</span>
-                      </div>
-                      <div className="text-[10px] text-slate-500 truncate">
+                      {/* The per-corridor share and trains-per-day shown here
+                          were invented and are gone; the route is real. */}
+                      <div className="text-[10px] text-slate-500 break-words">
                         Trasa: {cor.primaryRoute}
                       </div>
                     </div>
@@ -999,7 +1113,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
                   <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800 leading-relaxed">
                     Razmerje <strong className="text-white">{(modalSplitData.co2.roadGramsPerTonneKm / modalSplitData.co2.railGramsPerTonneKm).toFixed(1)}×</strong> v korist železnice.
-                    Tonski kilometri zgoraj so uradna statistika; ta faktorja sta privzeti referenčni vrednosti, zato je izračunani prihranek CO2 ocena.
+                    Tonski kilometri zgoraj so uradna statistika Eurostata.
+                    {' '}<span className="text-amber-400/90">Ta dva faktorja pa nimata navedenega vira</span> — sta privzeti vrednosti,
+                    zato je izračunani prihranek CO2 ocena in ne podatek.
                   </p>
                 </div>
               )}
