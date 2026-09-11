@@ -1355,9 +1355,25 @@ export class MapController {
         paint: {
           'line-color': '#e879f9',
           'line-width': 8,
-          // A wide window is a weak claim and is drawn as one.
-          'line-opacity': ['*', 0.45, ['coalesce', ['get', 'confidence'], 0.5]],
-          'line-blur': 2
+          // A wide window is a weak claim and is drawn as one — but never so
+          // faint it disappears. Scaling straight off confidence put an 0.18
+          // band at eight percent opacity, which is invisible on a dark map.
+          'line-opacity': ['max', 0.3, ['*', 0.7, ['coalesce', ['get', 'confidence'], 0.5]]],
+          'line-blur': 1
+        }
+      });
+      // A plain circle under the symbol, so a modelled train is still visible
+      // if the sprite fails to register for any reason.
+      this.map.addLayer({
+        id: 'freight_modelled_glow', type: 'circle', source: 'freight_modelled',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-radius': 13,
+          'circle-color': '#e879f9',
+          'circle-opacity': 0.5,
+          'circle-stroke-width': 2.5,
+          'circle-stroke-color': '#fdf4ff',
+          'circle-stroke-opacity': 0.95
         }
       });
       this.map.addLayer({
@@ -1365,7 +1381,7 @@ export class MapController {
         filter: ['==', ['geometry-type'], 'Point'],
         layout: {
           'icon-image': 'freight-modelled-icon',
-          'icon-size': 1.0,
+          'icon-size': 1.15,
           'icon-rotate': ['coalesce', ['get', 'bearing'], 0],
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true
@@ -1847,6 +1863,7 @@ export class MapController {
     }
     if (layerKey === 'freight_modelled') {
       toggle('freight_modelled');
+      toggle('freight_modelled_glow');
       toggle('freight_modelled_band');
       toggle('freight_modelled_label');
       return;
