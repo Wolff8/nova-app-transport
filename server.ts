@@ -9141,6 +9141,32 @@ app.post('/api/log', express.json(), (req, res) => {
    * timetable is public — so an individual marker is "a train is about here",
    * never "this train is here".
    * ------------------------------------------------------------------ */
+  /**
+   * TAF TSI code lists. The specification defines exactly the messages that
+   * would answer "when does this train pass" — PathRequestMessage,
+   * PathDetailsMessage, TrainRunningInformation, with a ScheduledTimeAtLocation
+   * for every point — but those are exchanged between the undertaking and the
+   * infrastructure manager and are not public. What is public is the
+   * vocabulary, so the modelled timing points use its RunningStatus codes
+   * rather than words invented here, and its 48 delay causes are served as
+   * reference.
+   */
+  let tafCodes: any = null;
+  try {
+    const tp = path.join(process.cwd(), 'src', 'data', 'tafCodes.json');
+    if (fs.existsSync(tp)) {
+      tafCodes = JSON.parse(fs.readFileSync(tp, 'utf-8'));
+      console.log('[TAF TSI] Code lists loaded:', tafCodes.delayCodes.length, 'delay causes,', tafCodes.runningStatus.length, 'running statuses');
+    }
+  } catch (e: any) {
+    console.warn('[TAF TSI] Could not load code lists:', e?.message);
+  }
+
+  app.get('/api/era/taf-codes', (req, res) => {
+    if (!tafCodes) return res.status(503).json({ error: 'Šifranti TAF TSI niso naloženi' });
+    res.json(tafCodes);
+  });
+
   const MODELLED_FREIGHT_TTL_MS = 15000;
   let modelledFreightCache: { body: any; ts: number } = { body: null, ts: 0 };
 
@@ -9282,11 +9308,41 @@ app.post('/api/log', express.json(), (req, res) => {
             if (!cargo) { cargo = mix[mix.length - 1].cargo; series = mix[mix.length - 1].series; }
           }
 
+          // When it started, when it is due, and when it passes each real
+          // operational point on the way — the "slot" the old invented layer
+          // pretended to have, rebuilt from the register and the motion model
+          // and labelled for what it is. Status codes are TAF TSI's own.
+          const startedAt = new Date(nowMs - departedMinAgo * 60000).toISOString();
+          const arrivesAt = new Date(nowMs + (journeyMin - departedMinAgo) * 60000).toISOString();
+          const timingPoints = (rinf && !rinf.detourSuspected ? rinf.points : []).map((op, i, arr) => {
+            const kmFromStart = direction === 'up' ? op.km : routeKm - op.km;
+            // Invert the same speed curve: time to reach this distance.
+            const frac = Math.max(0, Math.min(1, kmFromStart / routeKm));
+            const dueMin = frac * journeyMin;
+            const status = i === 0 ? '02' : i === arr.length - 1 ? '01' : (op.type === 'station' ? '04' : '05');
+            return {
+              name: op.name,
+              uopid: op.id,
+              km: Number(kmFromStart.toFixed(1)),
+              dueAt: new Date(nowMs + (dueMin - departedMinAgo) * 60000).toISOString(),
+              minutesFromNow: Math.round(dueMin - departedMinAgo),
+              passed: dueMin <= departedMinAgo,
+              runningStatus: status,
+              runningStatusLabel: tafCodes?.runningStatus?.find((r: any) => r.code === status)?.label ?? null
+            };
+          });
+          if (direction === 'down') timingPoints.reverse();
+
           features.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [pos.lon, pos.lat] },
             properties: {
               id: `modelled_${corridor.id}_${direction}_${n}`,
+              startedAt,
+              arrivesAt,
+              journeyMin: Math.round(journeyMin),
+              timingPoints,
+              timingSource: 'Modelirano. TAF TSI definira ScheduledTimeAtLocation, a ta sporočila niso javna.',
               type: 'freight_modelled',
               isModelled: true,
               name: 'Tovorni vlak (model)',
