@@ -46,6 +46,22 @@ const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/sty
  * nonsense from upstream telemetry (a stale field, a unit mix-up, or a GPS
  * jump) rather than drawing a city bus doing 900 km/h.
  */
+/**
+ * Weight given to each new speed measurement. Individual fixes are noisy —
+ * GPS scatter, uneven feed timing — so the displayed figure is an exponential
+ * moving average rather than the raw per-fix value, which would jump around.
+ */
+const SPEED_SMOOTHING = 0.5;
+/**
+ * These feeds refresh a vehicle's position roughly every 20-45s, while the map
+ * polls every 2s. "Has not moved since the last poll" is therefore the normal
+ * case even for a bus at full speed, and must not be read as having stopped.
+ * The displayed speed is held until the vehicle has been still for longer than
+ * a plausible refresh gap, then faded out and finally zeroed.
+ */
+const IDLE_FADE_START_MS = 35000;
+const IDLE_STOP_MS = 70000;
+
 const MAX_PLAUSIBLE_SPEED_KMH: Record<string, number> = {
   buses: 120,
   transit: 250,
@@ -88,6 +104,28 @@ export interface VehicleMotionEntity {
   prevTargetLon?: number;
   prevTargetLat?: number;
   prevTargetTime?: number;
+  /** Smoothed ground speed (km/h) measured from real displacement. */
+  smoothedSpeedKmh?: number;
+  /** Last time this vehicle cleared the jitter dead-band. */
+  lastMovementTime?: number;
+  /** Feed-reported time of the last position fix (ms since epoch), when given. */
+  lastFixTimeMs?: number | null;
+}
+
+/**
+ * The moment a position fix was taken, according to the feed itself.
+ *
+ * Timing speed from our own polling clock is wrong: the map polls every 2s but
+ * a vehicle's position is only refreshed every 20-45s, so the interval we
+ * observe between two changed positions is not the interval the vehicle
+ * actually took to cover that ground. Where the feed stamps each fix (BrezAvta
+ * sends unix seconds) that stamp is the correct clock to divide by.
+ */
+function readFixTimeMs(row: any): number | null {
+  const raw = Number(row?.timestamp);
+  if (!Number.isFinite(raw) || raw <= 0) return null;
+  // Accept either seconds or milliseconds.
+  return raw < 1e12 ? raw * 1000 : raw;
 }
 export type BusMotionEntity = VehicleMotionEntity;
 
@@ -1799,6 +1837,34 @@ export class MapController {
     return undefined;
   }
 
+  /**
+   * Displayed speed for a vehicle that has not cleared the jitter dead-band.
+   *
+   * Upstream feeds routinely report a stale speed for a vehicle that is sitting
+   * still — measured against the live BrezAvta feed, buses flagged "moving" at
+   * 65-91 km/h had not moved a single metre in 45 seconds. Whatever the feed
+   * says, something that is not changing position is not travelling, so the
+   * figure is eased down rather than left standing, and zeroed outright once
+   * the vehicle has been still long enough for it to be unambiguous.
+   */
+  private decayIdleSpeed(motion: VehicleMotionEntity, now: number): number {
+    const measured = motion.smoothedSpeedKmh ?? 0;
+    const stillForMs = now - (motion.lastMovementTime ?? motion.lastTelemetryTime ?? now);
+
+    if (stillForMs >= IDLE_STOP_MS) {
+      motion.smoothedSpeedKmh = 0;
+      return 0;
+    }
+    if (stillForMs > IDLE_FADE_START_MS && measured > 0) {
+      // Fade the reading out rather than dropping it abruptly. The stored value
+      // is left intact so that a vehicle which simply had a late fix resumes
+      // from its real speed instead of from a decayed one.
+      const remaining = 1 - (stillForMs - IDLE_FADE_START_MS) / (IDLE_STOP_MS - IDLE_FADE_START_MS);
+      return Math.max(0, Math.round(measured * remaining));
+    }
+    return Math.round(measured);
+  }
+
   private processVehicleDifferentialUpdates(sourceId: string, data: any[]): void {
     const now = performance.now();
     const activeKeys = new Set<string>();
@@ -1820,7 +1886,10 @@ export class MapController {
         : (typeof a.true_track === 'number' && !isNaN(a.true_track)
           ? a.true_track
           : (typeof a.bearing === 'number' && !isNaN(a.bearing) ? a.bearing : 0));
-      const speedKmh = Number(a.speed ?? a.speedKmh ?? a.velocity) || 0;
+      // NB: the feed's own speed field is deliberately not read here. It is
+      // measured from displacement below; see the speed calculation in the
+      // genuine-motion branch for why the reported value is not trusted.
+      const fixTimeMs = readFixTimeMs(a);
       let motion = this.vehicleMotionMap.get(key);
 
       // Adaptive dead-band jitter and teleportation boundaries per source
@@ -1879,9 +1948,15 @@ export class MapController {
           hasDynamicHeading: initHeading > 0,
           prevTargetLon: newLon,
           prevTargetLat: newLat,
-          prevTargetTime: now
+          prevTargetTime: now,
+          lastMovementTime: now,
+          lastFixTimeMs: fixTimeMs
         };
         this.vehicleMotionMap.set(key, motion);
+        // Speed is measured from movement between fixes, so a vehicle seen for
+        // the first time has no measurement yet. Report nothing rather than
+        // repeating the feed's unverified figure; the next fix establishes it.
+        a.speed = 0;
       } else {
         // 1. Calculate displacement delta between consecutive location updates
         const prevTargetLat = motion.targetLat;
@@ -1899,6 +1974,9 @@ export class MapController {
           const h = Math.round((motion.renderHeading % 360 + 360) % 360);
           a.heading = h;
           a.hasHeading = true;
+          // The vehicle has not moved, so do not keep displaying whatever speed
+          // the feed last claimed for it.
+          a.speed = this.decayIdleSpeed(motion, now);
           if (sourceId === 'aircraft') a.true_track = h;
           if (sourceId === 'freight_trains') a.bearing = h;
           continue;
@@ -1925,7 +2003,9 @@ export class MapController {
 
         // 4. REVERSE JITTER SUPPRESSION:
         // If vehicle is in motion and incoming packet jumps backwards against current heading over a short distance, ignore
-        if (motion.isInterpolating && distMeters < 35 && speedKmh > 8) {
+        // Gated on the measured speed rather than the feed's, which reports
+        // motion for vehicles that are demonstrably parked.
+        if (motion.isInterpolating && distMeters < 35 && (motion.smoothedSpeedKmh ?? 0) > 8) {
           const moveAngle = deltaFromRender.heading;
           const headingDiff = Math.abs(((moveAngle - motion.renderHeading + 540) % 360) - 180);
           if (headingDiff > 130) {
@@ -1935,6 +2015,7 @@ export class MapController {
             const h = Math.round((motion.renderHeading % 360 + 360) % 360);
             a.heading = h;
             a.hasHeading = true;
+            a.speed = Math.round(motion.smoothedSpeedKmh ?? 0);
             if (sourceId === 'freight_trains') a.bearing = h;
             continue;
           }
@@ -1981,33 +2062,51 @@ export class MapController {
         const deltaHeading = ((dynamicHeading - motion.fromHeading + 540) % 360) - 180;
         motion.targetHeading = motion.fromHeading + deltaHeading;
 
-        // Ground-truth speed: how far the vehicle actually moved between two
-        // consecutive telemetry fixes, over the actual time between them.
-        // Upstream feeds are inconsistent — some omit speed entirely, some
-        // repeat a stale value while the vehicle is plainly moving, some report
-        // in the wrong unit. A measured displacement over measured time does
-        // not have those failure modes, so it is used whenever the feed's own
-        // figure is missing or cannot be reconciled with what was observed.
-        // The feed is still preferred when it agrees, since it comes straight
-        // from the vehicle and is not smeared by GPS scatter.
+        // Ground-truth speed: how far the vehicle actually moved, over the time
+        // it actually took. The feeds' own speed fields do not survive scrutiny
+        // — measured against the live BrezAvta feed, buses flagged "moving" at
+        // 65-91 km/h had not moved a metre in 45 seconds, and for genuinely
+        // moving buses the reported figure ran about double the distance they
+        // actually covered. Displacement over elapsed time has neither failure
+        // mode, so once a vehicle has been seen twice its speed is measured
+        // here and the feed's claim is not used for display at all.
+        //
+        // Individual fixes are noisy, so the value shown is an exponential
+        // moving average: it settles quickly but stops the number flickering
+        // between updates.
         const speedCap = MAX_PLAUSIBLE_SPEED_KMH[sourceId] ?? 200;
-        const secondsSinceFix = motion.lastTelemetryTime ? (now - motion.lastTelemetryTime) / 1000 : 0;
-        if (secondsSinceFix >= 1 && secondsSinceFix <= 120) {
-          const observedSpeed = (deltaFromTarget.distanceMeters / secondsSinceFix) * 3.6;
-          if (observedSpeed <= speedCap) {
-            const feedSpeedUnusable =
-              !speedKmh || speedKmh <= 0 || speedKmh > speedCap || observedSpeed > speedKmh * 3;
-            if (feedSpeedUnusable) a.speed = Math.round(observedSpeed);
-          }
+        // Prefer the feed's own fix timestamps: they describe the interval the
+        // vehicle actually took to cover this ground. Polling timing only
+        // bounds that interval and overstates speed whenever a fix is picked up
+        // sooner than the one before it. Fall back to it only for feeds that
+        // do not stamp their fixes.
+        let secondsSinceFix = 0;
+        if (fixTimeMs != null && motion.lastFixTimeMs != null && fixTimeMs > motion.lastFixTimeMs) {
+          secondsSinceFix = (fixTimeMs - motion.lastFixTimeMs) / 1000;
+        } else if (fixTimeMs == null && motion.lastTelemetryTime) {
+          secondsSinceFix = (now - motion.lastTelemetryTime) / 1000;
         }
-        // Never let an impossible figure reach the map label.
-        if (Number(a.speed) > speedCap) a.speed = speedCap;
+        if (secondsSinceFix >= 0.5 && secondsSinceFix <= 180) {
+          const observedSpeed = Math.min(speedCap, (distMeters / secondsSinceFix) * 3.6);
+          motion.smoothedSpeedKmh = motion.smoothedSpeedKmh == null
+            ? observedSpeed
+            : motion.smoothedSpeedKmh + SPEED_SMOOTHING * (observedSpeed - motion.smoothedSpeedKmh);
+        }
+        if (fixTimeMs != null) motion.lastFixTimeMs = fixTimeMs;
+        motion.lastMovementTime = now;
+        a.speed = Math.round(motion.smoothedSpeedKmh ?? 0);
 
-        // Dedicated duration for urban bus, rail transit, and micromobility matching polling rhythm
+        // Interpolate across the real gap between fixes. This was previously
+        // capped at 5.5s, but positions in these feeds refresh every 20-45s, so
+        // a vehicle would cover the whole leg in a few seconds and then sit
+        // frozen until the next fix — the lurching "drive and stop" motion.
+        // Spanning the actual interval instead keeps vehicles gliding at the
+        // speed they are really travelling.
         const isTransit = (sourceId === 'buses' || sourceId === 'transit' || sourceId === 'hafas' || sourceId === 'freight_trains' || sourceId === 'micromobility');
         const minDuration = isTransit ? 1800 : 2500;
         const defaultDuration = isTransit ? 2200 : 4800;
-        const timeSinceLast = motion.lastTelemetryTime ? Math.min(5500, Math.max(minDuration, now - motion.lastTelemetryTime)) : defaultDuration;
+        const maxDuration = 45000;
+        const timeSinceLast = motion.lastTelemetryTime ? Math.min(maxDuration, Math.max(minDuration, now - motion.lastTelemetryTime)) : defaultDuration;
         motion.startTime = now;
         motion.duration = timeSinceLast;
         motion.lastTelemetryTime = now;
