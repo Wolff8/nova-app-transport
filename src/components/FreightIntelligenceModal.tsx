@@ -1538,10 +1538,26 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
                   <div className="space-y-1">
                     {msDepartures.departures.map((d: any, i: number) => (
-                      <div key={`${d.tripId}-${i}`} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/70 text-[11px]">
+                      <div key={`${d.tripId}-${i}`} className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] ${
+                        d.minutesFromNow != null && d.minutesFromNow <= 30
+                          ? 'bg-emerald-950/25 border-emerald-500/30'
+                          : 'bg-slate-950/60 border-slate-800/70'
+                      }`}>
                         <div className="flex items-center gap-2 min-w-0">
+                          {/* Minutes away, because that is the question someone
+                              on the platform is actually asking. */}
+                          <span className={`font-mono font-bold shrink-0 tabular-nums w-14 ${
+                            d.minutesFromNow != null && d.minutesFromNow <= 30 ? 'text-emerald-300' : 'text-slate-400'
+                          }`}>
+                            {d.minutesFromNow == null ? '—'
+                              : d.minutesFromNow <= 0 ? 'zdaj'
+                              : d.minutesFromNow < 60 ? `${d.minutesFromNow} min`
+                              : `${Math.floor(d.minutesFromNow / 60)} h ${d.minutesFromNow % 60}`}
+                          </span>
                           <span className="font-mono font-bold text-white shrink-0">{d.train}</span>
-                          <span className="text-slate-400 truncate">{d.headsign}</span>
+                          <span className="text-slate-400 truncate">
+                            {d.towards ? <>→ {d.towards}</> : d.headsign}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 font-mono">
                           {d.cancelled ? (
@@ -1565,6 +1581,12 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       </div>
                     ))}
                   </div>
+
+                  {msDepartures.coverage && (
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      {msDepartures.coverage}
+                    </p>
+                  )}
 
                   {/* Feed quality, stated rather than implied by a "live" dot. */}
                   {feedHealth?.agencies?.length > 0 && (

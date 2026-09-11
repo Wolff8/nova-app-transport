@@ -8758,27 +8758,44 @@ app.post('/api/log', express.json(), (req, res) => {
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const raw: any = await r.json();
+      const nowMs = Date.now();
       const departures = (raw.stopTimes ?? []).map((s: any) => {
         const place = s.place ?? {};
         const actual = place.departure ?? place.arrival ?? null;
         const scheduled = place.scheduledDeparture ?? place.scheduledArrival ?? null;
         const hasRealtime = Boolean(s.realTime) && actual && scheduled;
+        const effective = hasRealtime ? actual : scheduled;
+        // The headsign here is the whole run, "Ljubljana - Hodoš", so the half
+        // after the dash is the way the train is heading from this platform —
+        // which is what someone standing on it actually wants to know.
+        const headsign = String(s.headsign ?? '');
+        const towards = headsign.includes(' - ')
+          ? headsign.split(' - ').pop()!.trim()
+          : (headsign.trim() || null);
         return {
           train: s.routeShortName ?? null,
-          headsign: s.headsign ?? null,
+          headsign: headsign || null,
+          towards,
           tripId: s.tripId ?? null,
           scheduled,
           actual: hasRealtime ? actual : null,
           delayMin: hasRealtime ? Math.round((new Date(actual).getTime() - new Date(scheduled).getTime()) / 60000) : null,
+          minutesFromNow: effective ? Math.round((new Date(effective).getTime() - nowMs) / 60000) : null,
           isRealtime: Boolean(s.realTime),
           cancelled: Boolean(s.cancelled || s.tripCancelled)
         };
-      });
+      })
+      // Anything already gone is noise on a "what passes me next" board.
+      .filter((d: any) => d.minutesFromNow == null || d.minutesFromNow >= -1)
+      .sort((a: any, b: any) => (a.minutesFromNow ?? 0) - (b.minutesFromNow ?? 0));
       const body = {
         stopId,
         source: 'MOTIS /api/v1/stoptimes (GTFS-RT: SŽ, HŽ)',
         fetchedAt: new Date().toISOString(),
         realtimeCount: departures.filter((d: any) => d.isRealtime).length,
+        // Said plainly, because the board is otherwise easy to mistake for
+        // everything that moves past the platform.
+        coverage: 'Samo potniški vlaki, ki tu ustavijo. Tovorni vlaki in tranzit brez postanka niso zajeti — zanje ni javnega vira.',
         departures
       };
       motisStopTimesCache.set(key, { body, ts: Date.now() });
