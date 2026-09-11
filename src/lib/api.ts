@@ -785,15 +785,16 @@ export async function loadTentRailways(errors?: string[]): Promise<any> {
  * SŽ's published line limits, cargo from what is alongside in Koper now, and
  * an uncertainty window that widens with time and with live corridor delay.
  */
-export async function loadModelledFreight(errors?: string[]): Promise<any> {
+/** Freight paths published in the Mediterranean corridor catalogue. */
+export async function loadCorridorFreightPaths(errors?: string[]): Promise<any> {
     try {
-        const res = await fetch('/api/freight/modelled-positions');
+        const res = await fetch('/api/freight/corridor-paths');
         if (res.ok) {
             const data = await res.json();
             if (data && Array.isArray(data.features)) return data;
         }
     } catch (e) {
-        if (errors) errors.push('Modelled freight error');
+        if (errors) errors.push('Corridor freight paths error');
     }
     return { type: 'FeatureCollection', features: [] };
 }

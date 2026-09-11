@@ -124,8 +124,8 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
    * of those is a claim nobody made, so this gets its own panel instead.
    */
   const isModelledFreight = Boolean(
-    node?.type === 'freight_modelled' ||
-    node?.rawPayload?.type === 'freight_modelled' ||
+    node?.type === 'freight_paths' ||
+    node?.rawPayload?.type === 'corridor_freight_path' ||
     node?.rawPayload?.isModelled === true
   );
 
@@ -595,10 +595,12 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     // The badge carries the position error so the uncertainty is visible from
     // the header, before anything else in the panel is read.
     if (isModelledFreight) {
-      const km = node.rawPayload?.uncertaintyKm;
+      // A published path is not a sighting. The badge says which of the two
+      // this is, in the header, before any number below it is read.
+      const spd = node.rawPayload?.speedKmh;
       return (
-        <span className="bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-          📦 MODELIRANA LEGA{km != null ? ` ±${km} km` : ''}
+        <span className="bg-orange-500/20 text-orange-300 border border-orange-500/40 text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+          🚆 KATALOŠKA POT{spd != null ? ` · ${spd} km/h` : ''}
         </span>
       );
     }
@@ -752,7 +754,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                 }`}
               >
                 <TrainFront size={12} className={activeTab === 'journey' ? 'text-fuchsia-400' : 'text-text-dim'} />
-                <span>Ocena lege</span>
+                <span>Potek poti</span>
               </button>
             )}
             {isTrain && (
@@ -891,6 +893,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
             
             {/* TRAIN JOURNEY / POTEK VOŽNJE TAB */}
             {/* MODELLED FREIGHT — its own panel, with nothing borrowed from a timetable */}
+            {/* FREIGHT PATH — the published catalogue path, said plainly */}
             {activeTab === 'journey' && isModelledFreight && (() => {
               const raw: any = node.rawPayload || {};
               const unpack = (v: any) => {
@@ -899,145 +902,149 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                 try { return JSON.parse(v); } catch { return null; }
               };
               const oc = unpack(raw.operatorCandidates);
-              const taf = unpack(raw.tafIdentity);
-              const hhmm = (iso: any) => {
-                if (!iso) return null;
-                const d = new Date(iso);
-                return isNaN(d.getTime()) ? null : d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-              };
-              const dep = hhmm(raw.startedAt);
-              const arr = hhmm(raw.arrivesAt);
-              const conf = raw.confidence != null ? Math.round(Number(raw.confidence) * 100) : null;
-              const likely = oc?.candidates?.filter((c: any) => c.likelyForThisCargo) ?? [];
-              const shown = (likely.length ? likely : (oc?.candidates ?? [])).slice(0, 4);
-              const [fromLabel, toLabel] = String(raw.direction || raw.corridor || '')
-                .split(/\s*(?:→|➔|–|-)\s*/).length >= 2
-                  ? String(raw.direction || raw.corridor).split(/\s*(?:→|➔|–|-)\s*/)
-                  : [null, null];
+              const prev = unpack(raw.prevPoint);
+              const next = unpack(raw.nextPoint);
+              const tps: any[] = unpack(raw.timingPoints) || [];
+              const days: number[] | null = unpack(raw.daysOfWeek);
+              const DAYS = ['pon', 'tor', 'sre', 'čet', 'pet', 'sob', 'ned'];
+              const pct = raw.progressPercent != null ? Math.max(0, Math.min(100, Number(raw.progressPercent))) : null;
 
               return (
                 <div className="space-y-3">
-                  {/* What this is. Said first, before any number. */}
-                  <div className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 p-3">
-                    <div className="flex items-center gap-2 font-mono font-bold text-[12px] text-fuchsia-200">
-                      <Info size={14} className="text-fuchsia-400 shrink-0" />
-                      <span>MODELIRANA LEGA — NI OPAŽEN VLAK</span>
+                  {/* Identity: number, relation, speed — what you would read off a board */}
+                  <div className="rounded-2xl border border-orange-500/30 bg-gradient-to-br from-orange-950/40 via-panel/80 to-slate-950/70 p-4">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[13px] font-mono font-bold bg-orange-500/20 text-orange-200 border border-orange-500/40">
+                          {raw.trainNumber || raw.papId || 'Tovorna pot'}
+                        </span>
+                        {raw.speedKmh != null && (
+                          <span className="px-2 py-0.5 rounded-md text-[12px] font-mono bg-white/10 text-white/90">
+                            {raw.speedKmh} km/h
+                          </span>
+                        )}
+                      </div>
+                      {raw.direction && (
+                        <span className="text-[10.5px] font-mono uppercase text-orange-300/80">{raw.direction}</span>
+                      )}
                     </div>
-                    <p className="mt-1 text-[10.5px] leading-snug text-fuchsia-100/80">
-                      Noben javni vir ne objavlja leg tovornih vlakov v Sloveniji. Ta oznaka je izračun
-                      iz objavljenega števila vlakov na koridorju, ne posnetek resničnega vlaka.
-                      {conf != null && ` Zaupanje modela ${conf} %.`}
-                    </p>
-                  </div>
-
-                  {/* Corridor, times — all labelled as modelled */}
-                  <div className="rounded-xl border border-white/10 bg-black/40 p-3">
-                    <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim mb-2">
-                      Koridor (modelirano)
-                    </div>
-                    <div className="text-[14px] font-bold text-white">{raw.corridor || '—'}</div>
-                    {(fromLabel && toLabel) && (
-                      <div className="mt-1 flex items-center gap-1.5 text-[11.5px] font-mono text-white/80">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                        <span className="truncate">{fromLabel}</span>
-                        <ArrowRight size={11} className="text-text-dim shrink-0" />
-                        <span className="truncate">{toLabel}</span>
+                    {raw.relation && (
+                      <div className="mt-2 text-[15px] font-bold text-white leading-tight">{raw.relation}</div>
+                    )}
+                    {pct != null && (
+                      <div className="mt-3">
+                        <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                          <div className="h-full rounded-full bg-orange-400" style={{ width: `${pct}%` }} />
+                        </div>
+                        <div className="mt-1 flex justify-between text-[10px] font-mono text-text-dim">
+                          <span>{pct} % poti</span>
+                          {raw.kmAlong != null && raw.routeKm != null && <span>{raw.kmAlong} / {raw.routeKm} km</span>}
+                        </div>
                       </div>
                     )}
-                    <div className="mt-2.5 grid grid-cols-2 gap-2">
+                    <div className="mt-3 grid grid-cols-2 gap-2">
                       <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5">
-                        <div className="text-[9.5px] uppercase font-mono text-emerald-400">Odhod (model)</div>
-                        <div className="text-[15px] font-bold text-white font-mono">{dep || '--:--'}</div>
+                        <div className="text-[9.5px] uppercase font-mono text-emerald-400">Nazadnje mimo</div>
+                        <div className="text-[13px] font-bold text-white truncate">{prev?.location || '—'}</div>
+                        <div className="text-[11px] font-mono text-text-dim">{prev?.time || ''}</div>
                       </div>
                       <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5">
-                        <div className="text-[9.5px] uppercase font-mono text-sky-400">Prihod (model)</div>
-                        <div className="text-[15px] font-bold text-white font-mono">{arr || '--:--'}</div>
+                        <div className="text-[9.5px] uppercase font-mono text-sky-400">Naslednja točka</div>
+                        <div className="text-[13px] font-bold text-white truncate">{next?.location || '—'}</div>
+                        <div className="text-[11px] font-mono text-text-dim">
+                          {next?.time || ''}{next?.inMin != null ? ` · čez ${next.inMin} min` : ''}
+                        </div>
                       </div>
                     </div>
-                    {raw.journeyMin != null && (
-                      <div className="mt-1.5 text-[10.5px] font-mono text-text-dim">
-                        Vozni čas {raw.journeyMin} min
-                        {raw.uncertaintyKm != null && ` · lega ±${raw.uncertaintyKm} km`}
-                      </div>
-                    )}
-                    {raw.timingSource && (
+                    {raw.speedBasis && (
                       <p className="mt-2 text-[10px] leading-snug text-text-dim border-t border-white/10 pt-2">
-                        {raw.timingSource}
+                        {raw.speedBasis}. {raw.speedClass}
                       </p>
                     )}
                   </div>
 
-                  {/* The operator: the part that IS checkable */}
-                  {shown.length > 0 && (
-                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
-                      <div className="text-[10px] uppercase font-mono tracking-wider text-emerald-300 mb-2 flex items-center gap-1.5">
-                        <ShieldCheck size={12} /> Možni prevoznik — iz registra
+                  {/* Every point the catalogue times, with its TAF location code */}
+                  {tps.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim mb-2">
+                        Objavljene časovne točke
                       </div>
                       <div className="space-y-1.5">
-                        {shown.map((c: any) => (
+                        {tps.map((t: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2 text-[11.5px]">
+                            <span className="w-2 h-2 rounded-full bg-orange-400/70 shrink-0" />
+                            <span className="text-white font-medium flex-1 truncate">{t.location}</span>
+                            {t.uopid && <span className="text-[9.5px] font-mono text-text-dim">{t.uopid}</span>}
+                            <span className="font-mono text-white/90">
+                              {t.arrival && t.departure && t.arrival !== t.departure ? `${t.arrival}→${t.departure}` : (t.departure || t.arrival)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {days?.length ? (
+                        <div className="mt-2 pt-2 border-t border-white/10 text-[10px] font-mono text-text-dim">
+                          Vozi ob: {days.length === 7 ? 'vsak dan' : days.map(d => DAYS[d - 1]).join(', ')}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Operator: the catalogue names none, so the register speaks */}
+                  {oc?.candidates?.length ? (
+                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-emerald-300 mb-1 flex items-center gap-1.5">
+                        <ShieldCheck size={12} /> Prevoznik
+                      </div>
+                      <p className="text-[10.5px] text-emerald-100/80 mb-2 leading-snug">
+                        Katalog prevoznika ne navaja — pot je ponujena zmogljivost. Ti jo smejo voziti:
+                      </p>
+                      <div className="space-y-1.5">
+                        {oc.candidates.slice(0, 5).map((c: any) => (
                           <div key={c.code} className="flex items-start gap-2 text-[11.5px]">
                             <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 font-mono font-bold text-[10px] shrink-0">
                               {c.code}
                             </span>
                             <div className="min-w-0">
-                              <div className="text-white font-medium leading-tight">{c.name}</div>
-                              <div className="text-[9.5px] font-mono text-text-dim">
-                                {(c.roles || []).join(' · ')}
-                                {c.keeperMarkings?.length ? ` · VKM ${c.keeperMarkings.join(', ')}` : ''}
-                              </div>
+                              <div className="text-white font-medium leading-tight truncate">{c.name}</div>
+                              {c.keeperMarkings?.length ? (
+                                <div className="text-[9.5px] font-mono text-text-dim">VKM {c.keeperMarkings.join(', ')}</div>
+                              ) : null}
                             </div>
                           </div>
                         ))}
                       </div>
-                      {oc?.licensedCount != null && (
+                      {oc.licensedCount != null && (
                         <div className="mt-2 pt-2 border-t border-emerald-500/20 text-[10px] font-mono text-emerald-200/70">
-                          {oc.licensedCount} licenciranih tovornih prevoznikov v SI
+                          {oc.licensedCount} licenciranih tovornih prevoznikov v Sloveniji
                         </div>
                       )}
-                      {oc?.inferenceNote && (
-                        <p className="mt-1 text-[10px] leading-snug text-amber-200/80">⚠ {oc.inferenceNote}</p>
-                      )}
                     </div>
-                  )}
+                  ) : null}
 
-                  {/* The number: honestly empty */}
-                  <div className="rounded-xl border border-white/10 bg-black/40 p-3">
-                    <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim mb-1">
-                      Številka vlaka
-                    </div>
-                    <div className="text-[14px] font-bold font-mono text-amber-300">
-                      {taf?.core ?? 'Ni javno objavljena'}
-                    </div>
-                    {taf?.note && (
-                      <p className="mt-1.5 text-[10px] leading-snug text-text-dim">{taf.note}</p>
-                    )}
-                    {taf?.structure && (
-                      <p className="mt-1 text-[9.5px] font-mono text-text-dim/70">TAF TSI: {taf.structure}</p>
-                    )}
-                  </div>
-
-                  {/* Modelled composition */}
-                  <div className="rounded-xl border border-white/10 bg-black/40 p-3 grid grid-cols-2 gap-2 text-[11px]">
-                    {[
-                      ['Tovor (model)', raw.cargo],
-                      ['Serija vagonov', raw.wagonSeries],
-                      ['Vagonov', raw.wagons],
-                      ['Bruto masa', raw.grossWeightTons != null ? `${raw.grossWeightTons} t` : null],
-                      ['Hitrost (model)', raw.speedKmh != null ? `${raw.speedKmh} km/h` : null],
-                      ['Zamuda koridorja', raw.corridorDelayMin != null ? `+${raw.corridorDelayMin} min` : null]
-                    ].filter(([, v]) => v != null && v !== '').map(([k, v]) => (
-                      <div key={String(k)}>
-                        <div className="text-[9.5px] uppercase font-mono text-text-dim">{k}</div>
-                        <div className="text-white font-semibold">{String(v)}</div>
+                  {/* Provenance and the limit of the claim */}
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                    <div className="flex items-start gap-2">
+                      <Info size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <div className="font-mono font-bold text-[11px] text-amber-200">ZANESLJIVOST</div>
+                        <p className="mt-1 text-[10.5px] leading-snug text-amber-100/85">
+                          {raw.status || 'Objavljena pot iz kataloga koridorja.'}
+                        </p>
+                        {raw.trainNumber && (
+                          <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
+                            Številka {raw.trainNumber} je nacionalna številka poti iz stolpca „SZ-I" —
+                            Core identifikatorja TAF TSI. Časi so objavljeni v Kopru, Ljubljani in na
+                            Hodošu; lega med njimi je interpolirana po kilometraži.
+                          </p>
+                        )}
+                        {raw.source && (
+                          <p className="mt-1.5 text-[9.5px] font-mono text-amber-200/60 leading-snug">
+                            {raw.source}{raw.timetableYear ? ` · TT${raw.timetableYear}` : ''}
+                          </p>
+                        )}
                       </div>
-                    ))}
+                    </div>
                   </div>
-
-                  {raw.corridorBasisNote && (
-                    <p className="text-[10px] leading-snug text-text-dim px-1">
-                      Vir števila vlakov: {raw.corridorBasisNote}
-                    </p>
-                  )}
                 </div>
               );
             })()}

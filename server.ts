@@ -9894,18 +9894,33 @@ app.post('/api/log', express.json(), (req, res) => {
       const active = runsToday && elapsed <= journeyMin;
 
       // Interpolate km from the published timing points, then km -> position.
+      // The leg the train is on also gives its speed: both ends are published,
+      // so this is a real average over that leg, not a guessed cruising speed.
       let km = legs[0].km;
+      let legSpeed: number | null = null;
+      let prevPoint: any = null, nextPoint: any = null;
       for (let i = 0; i < legs.length - 1; i++) {
         const a = legs[i], b = legs[i + 1];
         const t0 = a.min - startMin, t1 = b.min - startMin;
         if (elapsed >= t0 && elapsed <= t1 && t1 > t0) {
           km = a.km + (b.km - a.km) * ((elapsed - t0) / (t1 - t0));
+          legSpeed = Math.abs(b.km - a.km) / ((t1 - t0) / 60);
+          prevPoint = { location: a.loc, time: p.timingPoints[i]?.departure ?? null };
+          nextPoint = {
+            location: b.loc,
+            time: p.timingPoints[i + 1]?.arrival ?? p.timingPoints[i + 1]?.departure ?? null,
+            inMin: Math.max(0, Math.round(t1 - elapsed))
+          };
           break;
         }
         if (elapsed > t1) km = b.km;
       }
       const alongKm = towardHungary ? km : geo.totalKm - km;
       const pos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, alongKm / geo.totalKm)));
+      // A freight path is capped at 100 km/h by the H1 speed class in SŽ's
+      // network statement; a leg average above that means the published times
+      // include a stop, so it is reported as an average and labelled as one.
+      const speedKmh = legSpeed != null ? Math.round(legSpeed) : null;
 
       const entry = {
         papId: p.papId,
@@ -9914,8 +9929,16 @@ app.post('/api/log', express.json(), (req, res) => {
         direction: towardHungary ? 'proti Madžarski' : 'proti Kopru',
         daysOfWeek: p.daysOfWeek,
         runsToday, active,
+        speedKmh,
+        speedBasis: 'Povprečje med objavljenima točkama, ne trenutna hitrost',
+        speedClass: 'H1 — tovorni vlaki, največ 100 km/h (Program omrežja SŽ)',
+        prevPoint, nextPoint,
+        progressPercent: active ? Math.round((elapsed / journeyMin) * 100) : null,
         journeyMin: Math.round(journeyMin),
         elapsedMin: active ? Math.round(elapsed) : null,
+        // The catalogue names no operator: a path is offered, and whoever books
+        // it runs it. These are the companies the register says may.
+        operatorCandidates: freightOperatorCandidates(null, 'pragersko_hodos'),
         timingPoints: p.timingPoints,
         // The honest line, carried on the train itself rather than a footnote.
         status: 'Objavljena pot iz kataloga koridorja. Ni potrjeno, da danes vozi.',
@@ -10711,8 +10734,96 @@ app.post('/api/log', express.json(), (req, res) => {
   buildTransitSnapshot();
   setInterval(() => { buildTransitSnapshot(); }, 6000);
 
+  /**
+   * Live vehicles, with the operator resolved against the registers.
+   *
+   * The feed gives a short operator string such as "SŽ". The registers turn
+   * that into a checkable entity: its ERA organisation code, the roles it
+   * declares, and its keeper markings. Nothing is invented — a name that does
+   * not resolve simply carries no registry block, which is the honest result.
+   */
+  const transitOperatorCache = new Map<string, any>();
+
+  /**
+   * Short feed codes resolved by hand, not by guesswork.
+   *
+   * A feed says "SŽ", which is two letters and identifies nobody on its own —
+   * Slovenske železnice is a holding with separate registered undertakings for
+   * passengers, freight and infrastructure. Each code below was read off the
+   * ERA organisation register and checked against the matching ERADIS safety
+   * certificate, so the mapping is auditable rather than inferred. A feed code
+   * that is not in this table and does not match the register strictly gets no
+   * registry block at all.
+   */
+  const OPERATOR_ALIASES: Record<string, { code: string; why: string }> = {
+    'sž': { code: '1179', why: 'Potniški promet — nosilec potniškega varnostnega spričevala SI1020230215' },
+    'sz': { code: '1179', why: 'Potniški promet — nosilec potniškega varnostnega spričevala SI1020230215' },
+    // The holding company (1079) is flagged INACTIVE in the register; the
+    // undertaking that actually runs passenger trains is 1179.
+    'slovenske železnice': { code: '1179', why: 'Potniški promet — krovna družba 1079 je v registru neaktivna' },
+    'slovenske zeleznice': { code: '1179', why: 'Potniški promet — krovna družba 1079 je v registru neaktivna' },
+    'sž tovorni promet': { code: '2179', why: 'SŽ – Tovorni promet, spričevalo EU1020220086' },
+    'sž-tovorni promet': { code: '2179', why: 'SŽ – Tovorni promet, spričevalo EU1020220086' }
+  };
+
+  function operatorRegistryBlock(operatorText: string) {
+    const key = String(operatorText || '').trim();
+    if (!key) return null;
+    if (transitOperatorCache.has(key)) return transitOperatorCache.get(key);
+    const alias = OPERATOR_ALIASES[key.toLowerCase()];
+    if (alias) {
+      const byCode = organisationRegister.find(o => o.code === alias.code);
+      // Backstop: even a hand-written alias must not surface a dead entry.
+      const aliased = byCode && !byCode.roles.includes('INACTIVE') ? {
+        eraCode: byCode.code,
+        registeredName: byCode.name,
+        country: byCode.country,
+        roles: byCode.roles,
+        isRailwayUndertaking: byCode.roles.some(r => r.startsWith('RU')),
+        keeperMarkings: vkmKeepersNamed(byCode.name).map((k: any) => k.vkm),
+        basis: `Register organizacij ERA — ${alias.why}`
+      } : null;
+      transitOperatorCache.set(key, aliased);
+      return aliased;
+    }
+    const org = lookupOrganisation(key);
+    // The feed sends two or three letters ("SŽ", "HŽ"), and the fuzzy lookup
+    // will happily resolve those to the first register entry that starts the
+    // same way — which matched a passenger train to "HŽ Cargo", a freight
+    // company, marked inactive. A wrong operator is worse than none, so an
+    // enrichment is only attached when the match is actually defensible.
+    const norm = (v: string) => String(v || '').toLowerCase().replace(/[^a-z0-9žšč]/gi, '');
+    const acceptable = (() => {
+      if (!org) return false;
+      if (org.roles?.includes('INACTIVE')) return false;          // never surface a dead entry
+      const k = norm(key);
+      if (k.length < 3) return false;                             // "sž" alone identifies nobody
+      const candidates = [org.name, org.acronym].filter(Boolean).map(norm);
+      // Either the register name starts with what the feed said, or the feed
+      // said the acronym outright. A shared prefix of two letters is not enough.
+      return candidates.some(c => c === k || (c.startsWith(k) && k.length >= 4) || k.startsWith(c) && c.length >= 4);
+    })();
+    if (!acceptable) { transitOperatorCache.set(key, null); return null; }
+    const block = org ? {
+      eraCode: org.code,
+      registeredName: org.name,
+      country: org.country,
+      roles: org.roles,
+      isRailwayUndertaking: org.isRailwayUndertaking,
+      keeperMarkings: vkmKeepersNamed(org.name).map((k: any) => k.vkm),
+      basis: 'Register organizacij ERA (Common Central Repository, Art. 8(1)(c))'
+    } : null;
+    transitOperatorCache.set(key, block);
+    return block;
+  }
+
   app.get('/api/transit', (req, res) => {
-    res.json(transitCache.data);
+    const rows = transitCache.data;
+    if (!Array.isArray(rows) || !organisationRegister.length) return res.json(rows);
+    res.json(rows.map((v: any) => {
+      const reg = v?.operator ? operatorRegistryBlock(v.operator) : null;
+      return reg ? { ...v, operatorRegistry: reg } : v;
+    }));
   });
 
   let brezavtaCache: { data: any[]; ts: number } = { data: [], ts: 0 };

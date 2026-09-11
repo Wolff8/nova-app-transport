@@ -59,21 +59,15 @@ const DATASETS: DatasetDef[] = [
     nodeType: 'transit'
   },
   {
-    // No feed publishes freight positions on this corridor, so these rows are
-    // modelled and labelled as such. The one real name in them is the operator:
-    // the first candidate the licence register offers for this cargo. The train
-    // number stays out — TAF TSI's Core is not published, so there is nothing
-    // truthful to put in its place.
-    sourceId: 'freight_modelled', layerKey: 'freight_modelled', label: 'Tovorni (model)', icon: Anchor, accent: '#f59e0b',
-    primary: r => {
-      const oc = parseProp(r.operatorCandidates);
-      const first = oc?.candidates?.find((c: any) => c.likelyForThisCargo) ?? oc?.candidates?.[0];
-      return first ? `${first.name.split(',')[0]} (model)` : 'Tovorni vlak (model)';
-    },
-    secondary: r => [r.direction, r.cargo].filter(Boolean).join(' · ') || '—',
-    metric: r => r.speedKmh != null ? `~${r.speedKmh} km/h ±${r.uncertaintyKm} km` : '—',
-    sortValue: r => num(r.kmAlong),
-    nodeType: 'freight_modelled'
+    // Paths published in the Mediterranean corridor catalogue. The number is
+    // real — SŽ-Infrastruktura assigns it and the catalogue prints it — so it
+    // leads the row, the way a passenger train's number does.
+    sourceId: 'freight_paths', layerKey: 'freight_paths', label: 'Tovorni (katalog)', icon: Anchor, accent: '#f97316',
+    primary: r => r.trainNumber ? `${r.trainNumber}` : (r.papId || 'Tovorna pot'),
+    secondary: r => r.relation || r.direction || '—',
+    metric: r => (r.speedKmh != null ? `${r.speedKmh} km/h` : '—'),
+    sortValue: r => num(r.progressPercent),
+    nodeType: 'freight_paths'
   },
   {
     sourceId: 'tent_railways', layerKey: 'tent_railways', label: 'TEN-T proge', icon: Anchor, accent: '#f59e0b',

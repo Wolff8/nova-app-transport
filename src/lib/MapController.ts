@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadModelledFreight } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
@@ -270,50 +270,6 @@ export class MapController {
       // a different kind of claim and should not be mistaken for either. A
       // wagon body with a direction chevron, drawn large enough to read at
       // corridor zoom.
-      const addModelledFreightIcon = (id: string) => {
-        const size = 52;
-        const canvas = document.createElement('canvas');
-        canvas.width = size; canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        const cx = size / 2;
-
-        // Soft halo so it separates from dark track lines underneath.
-        ctx.beginPath();
-        ctx.arc(cx, cx, 20, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(217, 70, 239, 0.22)';
-        ctx.fill();
-
-        // Wagon body, pointing up; the layer rotates it to the bearing.
-        ctx.beginPath();
-        ctx.roundRect(cx - 11, cx - 6, 22, 16, 3);
-        ctx.fillStyle = '#e879f9';
-        ctx.fill();
-        ctx.strokeStyle = '#1e1b4b';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Direction chevron on the nose.
-        ctx.beginPath();
-        ctx.moveTo(cx, cx - 19);
-        ctx.lineTo(cx + 11, cx - 6);
-        ctx.lineTo(cx - 11, cx - 6);
-        ctx.closePath();
-        ctx.fillStyle = '#f5d0fe';
-        ctx.fill();
-        ctx.strokeStyle = '#1e1b4b';
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-
-        // Two axles, so it reads as rolling stock rather than a generic pin.
-        ctx.fillStyle = '#1e1b4b';
-        ctx.beginPath(); ctx.arc(cx - 6, cx + 11, 2.6, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx + 6, cx + 11, 2.6, 0, Math.PI * 2); ctx.fill();
-
-        const imgData = ctx.getImageData(0, 0, size, size);
-        if (!this.map!.hasImage(id)) this.map!.addImage(id, imgData);
-      };
-      addModelledFreightIcon('freight-modelled-icon');
 
       // High-DPI Directional Navigation Arrows with 3D Spine, Crisp White Outline & Beacon
       const addNavigationArrow = (
@@ -1347,57 +1303,40 @@ export class MapController {
       // Modelled freight. Drawn as an uncertainty band along the track with
       // the most likely point on it, rather than a confident dot, because that
       // is the honest shape of the estimate.
-      this.map.addSource('freight_modelled', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      // Freight paths published in the corridor catalogue. These are drawn the
+      // way every other train is drawn — one marker, pointing where it is
+      // going, with its number and speed under it. The earlier treatment put a
+      // wide fuchsia band along the rails to show a position window; it read as
+      // a second, pink railway line rather than as uncertainty, so it is gone.
+      // What the estimate is worth is said in words in the panel instead.
+      this.map.addSource('freight_paths', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addLayer({
-        id: 'freight_modelled_band', type: 'line', source: 'freight_modelled',
-        filter: ['==', ['geometry-type'], 'LineString'],
-        layout: { 'line-cap': 'round' },
-        paint: {
-          'line-color': '#e879f9',
-          'line-width': 8,
-          // A wide window is a weak claim and is drawn as one — but never so
-          // faint it disappears. Scaling straight off confidence put an 0.18
-          // band at eight percent opacity, which is invisible on a dark map.
-          'line-opacity': ['max', 0.3, ['*', 0.7, ['coalesce', ['get', 'confidence'], 0.5]]],
-          'line-blur': 1
-        }
-      });
-      // A plain circle under the symbol, so a modelled train is still visible
-      // if the sprite fails to register for any reason.
-      this.map.addLayer({
-        id: 'freight_modelled_glow', type: 'circle', source: 'freight_modelled',
-        filter: ['==', ['geometry-type'], 'Point'],
-        paint: {
-          'circle-radius': 13,
-          'circle-color': '#e879f9',
-          'circle-opacity': 0.5,
-          'circle-stroke-width': 2.5,
-          'circle-stroke-color': '#fdf4ff',
-          'circle-stroke-opacity': 0.95
-        }
-      });
-      this.map.addLayer({
-        id: 'freight_modelled', type: 'symbol', source: 'freight_modelled',
-        filter: ['==', ['geometry-type'], 'Point'],
+        id: 'freight_paths', type: 'symbol', source: 'freight_paths',
         layout: {
-          'icon-image': 'freight-modelled-icon',
-          'icon-size': 1.15,
-          'icon-rotate': ['coalesce', ['get', 'bearing'], 0],
+          'icon-image': 'icon-train-freight',
+          'icon-size': 0.95,
+          'icon-rotate': ['coalesce', ['get', 'bearing'], ['get', 'heading'], 0],
           'icon-rotation-alignment': 'map',
-          'icon-allow-overlap': true
-        },
-        paint: { 'icon-opacity': 0.9 }
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true
+        }
       });
       this.map.addLayer({
-        id: 'freight_modelled_label', type: 'symbol', source: 'freight_modelled',
-        filter: ['==', ['geometry-type'], 'Point'],
+        id: 'freight_paths_label', type: 'symbol', source: 'freight_paths',
         layout: {
-          'text-field': ['concat', '📦 ~', ['get', 'speedKmh'], ' km/h  ±', ['get', 'uncertaintyKm'], ' km'],
+          'text-field': [
+            'concat',
+            ['coalesce', ['get', 'trainNumber'], ['get', 'papId']],
+            ['case', ['has', 'speedKmh'], ['concat', ' · ', ['get', 'speedKmh'], ' km/h'], ''],
+            '\n', ['get', 'direction']
+          ],
           'text-size': 10.5,
-          'text-offset': [0, 1.5],
-          'text-anchor': 'top'
+          'text-offset': [0, 1.4],
+          'text-anchor': 'top',
+          'text-allow-overlap': false,
+          'text-optional': true
         },
-        paint: { 'text-color': '#f5d0fe', 'text-halo-color': '#0f172a', 'text-halo-width': 1.6 }
+        paint: { 'text-color': '#fdba74', 'text-halo-color': '#0f172a', 'text-halo-width': 2 }
       });
 
       // The six places where the Slovenian network actually meets a
@@ -1441,14 +1380,16 @@ export class MapController {
 
       // Modelled positions move, so they refresh on their own timer.
       if (!this.modelledFreightTimer) {
-        const pushModelled = () => {
-          loadModelledFreight().then(gj => {
-            const src = this.map?.getSource('freight_modelled') as maplibregl.GeoJSONSource | undefined;
+        const pushPaths = () => {
+          loadCorridorFreightPaths().then(gj => {
+            const src = this.map?.getSource('freight_paths') as maplibregl.GeoJSONSource | undefined;
             if (src && gj?.features) src.setData(gj);
           }).catch(() => {});
         };
-        pushModelled();
-        this.modelledFreightTimer = window.setInterval(pushModelled, 15000);
+        pushPaths();
+        // The published times move a train a few hundred metres a minute, so a
+        // thirty-second tick is smooth enough and costs one small request.
+        this.modelledFreightTimer = window.setInterval(pushPaths, 30000);
       }
 
       // Freight Trains Layer (Corridor Approximation)
@@ -1511,13 +1452,13 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'micromobility', 'micromobility_arrow', 'micromobility_glow', 'micromobility_trips_path', 'micromobility_trips_endpoints_circle', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'micromobility_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_modelled', 'freight_modelled_glow', 'freight_modelled_label', 'border_crossings']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'micromobility', 'micromobility_arrow', 'micromobility_glow', 'micromobility_trips_path', 'micromobility_trips_endpoints_circle', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'micromobility_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
         });
         
         if (features.length) {
           // If a vehicle was clicked along with station/background, prioritize the vehicle!
           const vehicleFeature = features.find(feat => 
-            feat.source === 'buses' || feat.source === 'hafas' || feat.source === 'transit' || feat.source === 'eurorail' || feat.source === 'freight_trains' || feat.source === 'freight_modelled' || feat.source === 'micromobility' ||
+            feat.source === 'buses' || feat.source === 'hafas' || feat.source === 'transit' || feat.source === 'eurorail' || feat.source === 'freight_trains' || feat.source === 'freight_paths' || feat.source === 'micromobility' ||
             feat.layer.id === 'buses' || feat.layer.id === 'buses_label' || feat.layer.id === 'hafas' || feat.layer.id === 'transit' || feat.layer.id === 'eurorail' || feat.layer.id === 'freight_trains' ||
             feat.layer.id === 'hafas_label' || feat.layer.id === 'transit_label' || feat.layer.id === 'freight_trains_label' || feat.layer.id === 'micromobility' || feat.layer.id === 'micromobility_arrow' || feat.layer.id === 'micromobility_glow'
           );
@@ -1861,11 +1802,9 @@ export class MapController {
       toggle('border_crossings_label');
       return;
     }
-    if (layerKey === 'freight_modelled') {
-      toggle('freight_modelled');
-      toggle('freight_modelled_glow');
-      toggle('freight_modelled_band');
-      toggle('freight_modelled_label');
+    if (layerKey === 'freight_paths') {
+      toggle('freight_paths');
+      toggle('freight_paths_label');
       return;
     }
     if (layerKey === 'freight_trains') {
@@ -3796,6 +3735,20 @@ export class MapController {
       metrics.push({ label: 'Vir podatkov', value: 'ARSO - Agencija RS za okolje (Vode)', highlight: false });
     }
     if (type === 'hafas' || type === 'transit' || type === 'eurorail') {
+      // The operator resolved against the ERA register: a code you can look up,
+      // rather than the two letters the feed happens to send.
+      const reg = (() => {
+        const v = data.operatorRegistry;
+        if (!v) return null;
+        if (typeof v !== 'string') return v;
+        try { return JSON.parse(v); } catch { return null; }
+      })();
+      if (reg?.eraCode) {
+        metrics.push({ label: 'Prevoznik (register ERA)', value: `${reg.registeredName} · ${reg.eraCode}`, highlight: true });
+        if (reg.roles?.length) metrics.push({ label: '  ↳ vloge', value: reg.roles.join(' · '), highlight: false });
+        if (reg.keeperMarkings?.length) metrics.push({ label: '  ↳ oznaka imetnika (VKM)', value: reg.keeperMarkings.join(', '), highlight: false });
+        if (reg.basis) metrics.push({ label: '  ↳ podlaga', value: reg.basis, highlight: false });
+      }
       let capacity = '~50 potnikov';
       const vname = (data.name || '').toUpperCase();
       const op = data.operator || '';
@@ -4328,7 +4281,7 @@ export class MapController {
      * publishes it here — so the panel says so in that field rather than
      * putting a number there.
      */
-    if (type === 'freight_modelled') {
+    if (type === 'freight_paths') {
       // MapLibre flattens feature properties, so nested objects arrive as JSON text.
       const unpack = (v: any) => {
         if (v == null) return null;
@@ -4336,34 +4289,77 @@ export class MapController {
         try { return JSON.parse(v); } catch { return null; }
       };
       const oc = unpack(data.operatorCandidates);
-      const taf = unpack(data.tafIdentity);
-      const hhmm = (iso: string | null) => {
-        if (!iso) return null;
-        const d = new Date(iso);
-        return isNaN(d.getTime()) ? null : d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' });
-      };
+      const prev = unpack(data.prevPoint);
+      const next = unpack(data.nextPoint);
+      const tps: any[] = unpack(data.timingPoints) || [];
+      const DAYS = ['pon', 'tor', 'sre', 'čet', 'pet', 'sob', 'ned'];
+      const days: number[] | null = unpack(data.daysOfWeek);
 
-      nodeTitle = '📦 Tovorni vlak — modelirana lega';
+      nodeTitle = data.trainNumber ? `🚆 Tovorni vlak ${data.trainNumber}` : '🚆 Tovorna pot';
 
-      metrics.push({ label: 'Kaj je to', value: 'Model, ne opažen vlak', highlight: true });
-      if (data.corridor) metrics.push({ label: 'Koridor', value: data.corridor, highlight: true });
-      if (data.direction) metrics.push({ label: 'Smer vožnje', value: data.direction, highlight: false });
-
-      const dep = hhmm(data.startedAt), arr = hhmm(data.arrivesAt);
-      if (dep && arr) metrics.push({ label: 'Odhod → prihod (model)', value: `${dep} → ${arr}`, highlight: true });
-      if (data.journeyMin != null) metrics.push({ label: 'Vozni čas (model)', value: `${data.journeyMin} min`, highlight: false });
-      if (data.corridorDelayMin != null) metrics.push({ label: 'Zamuda na koridorju', value: `+${data.corridorDelayMin} min`, highlight: Number(data.corridorDelayMin) > 15 });
-
-      // The operator block: the part that is checkable against a register.
-      if (oc?.candidates?.length) {
-        const likely = oc.candidates.filter((c: any) => c.likelyForThisCargo);
-        const shown = (likely.length ? likely : oc.candidates).slice(0, 4);
+      // What it is and where it is going — the published facts, first.
+      if (data.relation) metrics.push({ label: 'Relacija', value: data.relation, highlight: true });
+      if (data.direction) metrics.push({ label: 'Smer', value: data.direction, highlight: false });
+      if (data.speedKmh != null) {
+        metrics.push({ label: 'Hitrost', value: data.speedKmh, unit: 'km/h', highlight: true });
+        if (data.speedBasis) metrics.push({ label: '  ↳ kako je izračunana', value: data.speedBasis, highlight: false });
+        if (data.speedClass) metrics.push({ label: '  ↳ hitrostni razred', value: data.speedClass, highlight: false });
+      }
+      if (prev?.location) {
+        metrics.push({ label: 'Nazadnje mimo', value: `${prev.location}${prev.time ? ` ob ${prev.time}` : ''}`, highlight: false });
+      }
+      if (next?.location) {
         metrics.push({
-          label: 'Možni prevoznik',
-          value: shown.map((c: any) => `${c.name.split(',')[0]} (${c.code})`).join(' · '),
+          label: 'Naslednja točka',
+          value: `${next.location}${next.time ? ` ob ${next.time}` : ''}${next.inMin != null ? ` (čez ${next.inMin} min)` : ''}`,
           highlight: true
         });
-        for (const c of shown) {
+      }
+      if (data.progressPercent != null) {
+        metrics.push({ label: 'Opravljeno', value: `${data.progressPercent} % poti`, highlight: false });
+      }
+      if (data.kmAlong != null && data.routeKm != null) {
+        metrics.push({ label: 'Prevoženo', value: `${data.kmAlong} od ${data.routeKm} km`, highlight: false });
+      }
+      if (data.journeyMin != null) {
+        const h = Math.floor(Number(data.journeyMin) / 60), m = Number(data.journeyMin) % 60;
+        metrics.push({ label: 'Vozni čas', value: h ? `${h} h ${m} min` : `${m} min`, highlight: false });
+      }
+      if (days?.length) {
+        metrics.push({
+          label: 'Vozi ob',
+          value: days.length === 7 ? 'vsak dan' : days.map(d => DAYS[d - 1]).join(', '),
+          highlight: false
+        });
+      }
+
+      // Identity. The number is published, which is the whole point of this
+      // layer — say where it comes from rather than leaving it to be assumed.
+      if (data.trainNumber) {
+        metrics.push({ label: 'Številka vlaka (SŽ-I)', value: data.trainNumber, highlight: true });
+        metrics.push({
+          label: '  ↳ vir številke',
+          value: 'Stolpec "SZ-I" v katalogu koridorja — nacionalna številka poti, Core identifikatorja TAF TSI',
+          highlight: false
+        });
+      }
+      if (data.papId) metrics.push({ label: 'Oznaka poti (PaP)', value: data.papId, highlight: false });
+
+      // Every timing point the catalogue publishes, with its TAF location code.
+      for (const t of tps) {
+        const when = t.arrival && t.departure && t.arrival !== t.departure
+          ? `${t.arrival} → ${t.departure}` : (t.departure || t.arrival || '');
+        metrics.push({ label: `  ⏱ ${t.location}`, value: `${when}${t.uopid ? `  ·  ${t.uopid}` : ''}`, highlight: false });
+      }
+
+      // Who may run it. The catalogue names nobody, so this is the register.
+      if (oc?.candidates?.length) {
+        metrics.push({
+          label: 'Prevoznik',
+          value: 'Katalog ne navaja prevoznika — pot je ponujena zmogljivost',
+          highlight: true
+        });
+        for (const c of oc.candidates.slice(0, 5)) {
           const marks = (c.keeperMarkings || []).join(', ');
           metrics.push({
             label: `  ↳ ${c.code}`,
@@ -4371,35 +4367,26 @@ export class MapController {
             highlight: false
           });
         }
-        metrics.push({ label: 'Licenciranih tovornih prevoznikov v SI', value: oc.licensedCount, highlight: false });
-        if (oc.basis) metrics.push({ label: 'Podlaga', value: oc.basis, highlight: false });
-        if (oc.inferenceNote) metrics.push({ label: 'Opozorilo', value: oc.inferenceNote, highlight: false });
+        if (oc.licensedCount != null) {
+          metrics.push({ label: '  ↳ licenciranih v SI', value: `${oc.licensedCount} tovornih prevoznikov`, highlight: false });
+        }
+        if (oc.basis) metrics.push({ label: '  ↳ podlaga', value: oc.basis, highlight: false });
       }
 
-      // The identifier block: the part that is honestly empty.
-      metrics.push({
-        label: 'Številka vlaka',
-        value: taf?.core ?? 'Ni javno objavljena',
-        highlight: false
-      });
-      if (taf?.structure) metrics.push({ label: 'TAF TSI identifikator', value: taf.structure, highlight: false });
-      if (taf?.note) metrics.push({ label: 'Zakaj je prazna', value: taf.note, highlight: false });
-
-      if (data.cargo) metrics.push({ label: 'Tovor (model)', value: data.cargo, highlight: false });
-      if (data.wagonSeries) metrics.push({ label: 'Serija vagonov', value: data.wagonSeries, highlight: false });
-      if (data.wagons != null) metrics.push({ label: 'Vagonov', value: data.wagons, highlight: false });
-      if (data.grossWeightTons != null) metrics.push({ label: 'Bruto masa', value: data.grossWeightTons, unit: 't', highlight: false });
-      if (data.speedKmh != null) metrics.push({ label: 'Hitrost (model)', value: data.speedKmh, unit: 'km/h', highlight: false });
-      if (data.uncertaintyKm != null) metrics.push({ label: 'Negotovost lege', value: `±${data.uncertaintyKm} km`, highlight: true });
-      if (data.confidence != null) metrics.push({ label: 'Zaupanje modela', value: `${Math.round(Number(data.confidence) * 100)} %`, highlight: false });
-      if (data.corridorBasisNote) metrics.push({ label: 'Vir števila vlakov', value: data.corridorBasisNote, highlight: false });
-      if (data.timingSource) metrics.push({ label: 'Vir voznega reda', value: data.timingSource, highlight: false });
+      // The caveat, stated as a field rather than buried in a footnote.
+      if (data.status) metrics.push({ label: 'Zanesljivost', value: data.status, highlight: true });
+      if (data.runsToday != null) {
+        metrics.push({ label: 'Po koledarju danes', value: data.runsToday ? 'da' : 'ne', highlight: false });
+      }
+      if (data.timetableYear) metrics.push({ label: 'Vozni red', value: `TT${data.timetableYear}`, highlight: false });
+      if (data.source) metrics.push({ label: 'Vir', value: data.source, highlight: false });
 
       return {
-        id: data.id || 'freight_modelled',
+        id: data.id || 'freight_path',
         title: nodeTitle,
-        category: 'TOVORNI VLAK — MODELIRANA LEGA',
-        type: 'freight_modelled',
+        category: 'TOVORNI VLAK — OBJAVLJENA POT KORIDORJA',
+        type: 'freight_paths',
+        trainNum: data.trainNumber || undefined,
         coordinates: coords,
         timestamp: new Date(),
         metrics,
@@ -4611,7 +4598,7 @@ export const LAYER_META: Record<string, { label: string; color: string; category
   sparql:         { label: 'European Data Portal', color: '#a855f7', category: 'iot' },
   warehouse:      { label: 'Skladišča & Logistični Depoji', color: '#64748b', category: 'logistics' },
   yard:           { label: 'Tovorni Terminali & Ranžirna Vozlišča (Luka Koper / Zalog)', color: '#f59e0b', category: 'sz' },
-  freight_modelled: { label: 'Tovorni vlaki (modelirana lega)', color: '#e879f9', category: 'sz' },
+  freight_paths: { label: 'Tovorni vlaki (katalog poti)', color: '#f97316', category: 'sz' },
   tent_railways:  { label: 'TEN-T proge (tovor / potniki)', color: '#a78bfa', category: 'sz' },
   border_crossings: { label: 'Mejni prehodi (RINF)', color: '#f472b6', category: 'sz' },
   sensorcommunity:{ label: 'Sensor.Community (Nokia/Siemens/Air)', color: '#14b8a6', category: 'iot' },
