@@ -229,6 +229,7 @@ export class MapController {
   private lastSelectedNodeSignature: string = '';
   
   private pollingInterval: any;
+  private animationErrorLogged = false;
 
   constructor(
     private container: HTMLElement,
@@ -2468,7 +2469,8 @@ export class MapController {
       if (this.pendingUpdates.size > 0 && (!this.map || !this.map.isMoving())) {
         let budget = 3;
         for (const [sourceId, data] of this.pendingUpdates.entries()) {
-           this.applyGeoJSONSource(sourceId, data);
+           try { this.applyGeoJSONSource(sourceId, data); }
+           catch (err) { console.error(`[map] applying ${sourceId} failed`, err); }
            this.pendingUpdates.delete(sourceId);
            budget--;
            if (budget <= 0) break;
@@ -2476,7 +2478,14 @@ export class MapController {
       }
 
       // 3) Differential Vehicle Position Interpolation: Smooth animation tick for all moving vehicles
-      this.animateVehiclePositions(timestamp);
+      // Everything live runs through this one callback, so an exception here
+      // used to end all polling for the rest of the session. Log it and keep
+      // the loop alive instead.
+      try {
+        this.animateVehiclePositions(timestamp);
+      } catch (err) {
+        if (!this.animationErrorLogged) { this.animationErrorLogged = true; console.error('[map] animation tick failed', err); }
+      }
 
       this.animationFrameId = requestAnimationFrame(loop);
     };

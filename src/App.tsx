@@ -3,6 +3,7 @@ import { MapController } from './lib/MapController';
 import { Sidebar } from './components/Sidebar';
 import { SearchBar } from './components/SearchBar';
 import { AlertSystem } from './components/AlertSystem';
+import { LazyBoundary } from './components/LazyBoundary';
 
 // Nothing below is needed to paint the map. The inspector alone is 230 KB of
 // source and the freight modal 120 KB; loading them after first render takes
@@ -141,7 +142,18 @@ export default function App() {
       // The overlay used to wait for the first telemetry broadcast, which on
       // the production instance could be fifteen seconds behind the map being
       // perfectly usable. The map is what the user is waiting for.
-      () => setLoading(false)
+      () => {
+        setLoading(false);
+        const warm = () => {
+          import('./components/TelemetryInspector').catch(() => {});
+          import('./components/FreightIntelligenceModal').catch(() => {});
+          import('./components/AnalyticsPanel').catch(() => {});
+          import('./components/AiInsights').catch(() => {});
+          import('./components/LiveTelemetryStream').catch(() => {});
+        };
+        if ('requestIdleCallback' in window) (window as any).requestIdleCallback(warm, { timeout: 8000 });
+        else setTimeout(warm, 4000);
+      }
     );
 
     setMapController(controller);
@@ -262,6 +274,7 @@ export default function App() {
       </div>
 
       {everOpened.analytics && (
+      <LazyBoundary name="AnalyticsPanel">
       <Suspense fallback={null}>
       <AnalyticsPanel
         isOpen={analyticsOpen}
@@ -270,6 +283,7 @@ export default function App() {
         onSelectNode={setSelectedNode}
       />
       </Suspense>
+      </LazyBoundary>
       )}
 
       {/* Main Sidebar */}
@@ -287,6 +301,7 @@ export default function App() {
 
       {/* AI Insights Flyout */}
       {everOpened.insights && (
+      <LazyBoundary name="AiInsights">
       <Suspense fallback={null}>
       <AiInsights 
         isOpen={insightsOpen} 
@@ -294,10 +309,12 @@ export default function App() {
         appState={appState} 
       />
       </Suspense>
+      </LazyBoundary>
       )}
 
       {/* Interactive Telemetry Node Inspector */}
       {everOpened.inspector && (
+      <LazyBoundary name="TelemetryInspector">
       <Suspense fallback={null}>
       <TelemetryInspector 
         node={selectedNode}
@@ -313,10 +330,12 @@ export default function App() {
         onHighlightRoute={handleHighlightRoute}
       />
       </Suspense>
+      </LazyBoundary>
       )}
 
       {/* Live Telemetry Log Stream / Terminal */}
       {everOpened.stream && (
+      <LazyBoundary name="LiveTelemetryStream">
       <Suspense fallback={null}>
       <LiveTelemetryStream
         isOpen={isStreamOpen}
@@ -325,10 +344,12 @@ export default function App() {
         onSelectLog={handleSelectLog}
       />
       </Suspense>
+      </LazyBoundary>
       )}
 
       {/* Multimodal Freight Intelligence Modal */}
       {everOpened.freight && (
+      <LazyBoundary name="FreightIntelligenceModal">
       <Suspense fallback={null}>
       <FreightIntelligenceModal
         isOpen={freightModalOpen}
@@ -343,6 +364,7 @@ export default function App() {
         }}
       />
       </Suspense>
+      </LazyBoundary>
       )}
 
       {/* Bottom Footer Source Banner */}
