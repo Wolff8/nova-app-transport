@@ -11148,13 +11148,53 @@ app.post('/api/log', express.json(), (req, res) => {
     return block;
   }
 
-  app.get('/api/transit', (req, res) => {
+  /**
+   * The transit response, built once per snapshot rather than once per request.
+   *
+   * Every request used to resolve the register for each of ~3,200 vehicles,
+   * allocate a new object for each, serialise about a megabyte and gzip it.
+   * The snapshot only changes every six seconds, and clients poll every five,
+   * so on a 0.1-CPU instance that work was being repeated continuously for a
+   * result that had not changed — which is most of why responses took seven
+   * seconds and sometimes never arrived at all. It is now done once, when
+   * there is something new to say, and the bytes are reused until then.
+   */
+  let transitPayload: { ts: number; raw: Buffer; gzip: Buffer | null } | null = null;
+
+  function buildTransitPayload() {
     const rows = transitCache.data;
-    if (!Array.isArray(rows) || !organisationRegister.length) return res.json(rows);
-    res.json(rows.map((v: any) => {
-      const reg = v?.operator ? operatorRegistryBlock(v.operator) : null;
-      return reg ? { ...v, operatorRegistry: reg } : v;
-    }));
+    const enriched = (Array.isArray(rows) && organisationRegister.length)
+      ? rows.map((v: any) => {
+          const reg = v?.operator ? operatorRegistryBlock(v.operator) : null;
+          return reg ? { ...v, operatorRegistry: reg } : v;
+        })
+      : rows;
+    const raw = Buffer.from(JSON.stringify(enriched ?? []), 'utf-8');
+    let gz: Buffer | null = null;
+    try {
+      // Level 6 is the default; the point is that it runs once per snapshot,
+      // not that it runs cheaply.
+      gz = zlib.gzipSync(raw);
+    } catch { gz = null; }
+    transitPayload = { ts: transitCache.ts, raw, gzip: gz };
+    return transitPayload;
+  }
+
+  app.get('/api/transit', (req, res) => {
+    const p = (transitPayload && transitPayload.ts === transitCache.ts)
+      ? transitPayload
+      : buildTransitPayload();
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Vary', 'Accept-Encoding');
+    const accepts = String(req.headers['accept-encoding'] || '').includes('gzip');
+    if (p.gzip && accepts) {
+      // Setting Content-Encoding here also tells the compression middleware to
+      // leave the body alone, so it is not gzipped twice.
+      res.setHeader('Content-Encoding', 'gzip');
+      return res.end(p.gzip);
+    }
+    return res.end(p.raw);
   });
 
   let brezavtaCache: { data: any[]; ts: number } = { data: [], ts: 0 };
