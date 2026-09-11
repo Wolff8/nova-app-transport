@@ -1176,6 +1176,37 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   }
 
   /**
+   * Maximum line speed for freight on the Slovenian corridors this app models,
+   * in km/h, taken from SŽ-Infrastruktura's published line characteristics.
+   *
+   * ERA's RINF graph would be the machine-readable source for this, but it
+   * carries no Slovenian track records at all — only Norway populates
+   * maximumPermittedSpeed — so these are transcribed from the published network
+   * data for the specific lines involved rather than fetched. They are applied
+   * as a ceiling on the modelled speed, never as the speed itself.
+   *
+   *   Koper–Divača (line 80)      75  single track over the 26‰ Kraški rob ramp
+   *   Divača–Ljubljana (line 50) 100  double track, Mediterranean corridor
+   *   Ljubljana–Pragersko (10/30)100  double track
+   *   Pragersko–Hodoš (line 41)  100  upgraded and electrified in 2016
+   *
+   * Loaded freight is additionally held to 100 km/h by its UIC brake regime,
+   * which is the binding limit on every one of these lines except Koper–Divača.
+   */
+  const FREIGHT_BRAKE_REGIME_MAX_KMH = 100;
+  const KOPER_DIVACA_MAX_KMH = 75;
+  const KOPER_RAMP_KM = 35;
+
+  function sloFreightLineSpeedCap(slot: any, km: number): number {
+    const routeKm = Math.max(1, slot.routeKm);
+    const fromKoper = String(slot.fromName || '').includes('Koper');
+    const toKoper = String(slot.toName || '').includes('Koper');
+    if (fromKoper && km < KOPER_RAMP_KM) return KOPER_DIVACA_MAX_KMH;
+    if (toKoper && km > routeKm - KOPER_RAMP_KM) return KOPER_DIVACA_MAX_KMH;
+    return FREIGHT_BRAKE_REGIME_MAX_KMH;
+  }
+
+  /**
    * Where a timetabled freight slot has actually got to, and how fast it is
    * going, from one consistent model.
    *
@@ -3445,9 +3476,11 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           bearing = inter.bearing || 90;
           segmentIndex = inter.segmentIndex;
 
-          // Line speed still caps the result; the profile only shapes it.
+          // Published line speed and the train's brake regime both cap the
+          // result; the profile only shapes it within those limits.
           const [minSpd, maxSpd] = slot.speedRange;
-          speedKmh = Math.round(Math.max(5, Math.min(maxSpd, motion.speedKmh)));
+          const lineCapKmh = sloFreightLineSpeedCap(slot, currentKm);
+          speedKmh = Math.round(Math.max(5, Math.min(maxSpd, lineCapKmh, motion.speedKmh)));
           void minSpd;
 
           if (slot.fromName.includes('Koper') && currentKm < 35) {
@@ -3560,6 +3593,9 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           departureTime: slot.depTime,
           arrivalTime: slot.arrTime,
           operator: slot.operator,
+          // Resolve the free-text operator against the ERA/UIC register so the
+          // train carries a licensed entity with an official code, not a label.
+          operatorRegistration: lookupOrganisation(slot.operator),
           locomotive: slot.locomotive,
           wagonType: slot.wagonType,
           cargo: slot.cargo,
@@ -3801,6 +3837,9 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           trainNumber: slot.trainNumber,
           name: slot.name,
           operator: slot.operator,
+          // Resolve the free-text operator against the ERA/UIC register so the
+          // train carries a licensed entity with an official code, not a label.
+          operatorRegistration: lookupOrganisation(slot.operator),
           locomotive: slot.locomotive,
           wagonType: slot.wagonType,
           cargo: slot.cargo,
@@ -7389,6 +7428,164 @@ app.post('/api/log', express.json(), (req, res) => {
 
   // Warm the cache so the first client poll already has Hungarian trains.
   setTimeout(() => { getMavTrains(); }, 1500);
+
+  /**
+   * ERA / UIC Organisation Codes register.
+   *
+   * The authoritative list of licensed railway undertakings and infrastructure
+   * managers, with their official organisation codes. Freight records carry an
+   * operator name as free text; matching it against the register turns that into
+   * a registered entity with a verifiable code and country, so an operator shown
+   * on a train is one that actually holds a licence rather than a label.
+   */
+  let organisationRegister: { code: string; name: string; acronym: string; country: string; city: string; ru: boolean; im: boolean }[] = [];
+  try {
+    const orgPath = path.join(process.cwd(), 'src', 'data', 'organisationCodes.json');
+    if (fs.existsSync(orgPath)) {
+      organisationRegister = JSON.parse(fs.readFileSync(orgPath, 'utf-8')).organisations || [];
+      console.log('[ERA] Organisation register loaded:', organisationRegister.length);
+    }
+  } catch (e: any) {
+    console.warn('[ERA] Could not load organisation register:', e?.message);
+  }
+
+  const normaliseOrgName = (s: string) => String(s || '')
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(d\s?o\s?o|d\s?d|a\s?g|gmbh|s\s?p\s?a|s\s?r\s?l|zrt|kft|plc|ltd)\b/g, ' ')
+    .replace(/[^a-z0-9žšččćđ ]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const orgLookupCache = new Map<string, any>();
+
+  function lookupOrganisation(operatorText: string): any | null {
+    const key = normaliseOrgName(operatorText);
+    if (!key) return null;
+    if (orgLookupCache.has(key)) return orgLookupCache.get(key);
+
+    let best: any = null;
+    for (const org of organisationRegister) {
+      const acr = normaliseOrgName(org.acronym);
+      const nm = normaliseOrgName(org.name);
+      if (acr && (key === acr || key.startsWith(acr + ' ') || key.endsWith(' ' + acr))) { best = org; break; }
+      if (nm && (key === nm || nm.startsWith(key) || key.startsWith(nm))) { best = org; break; }
+    }
+    const result = best
+      ? { code: best.code, name: best.name, acronym: best.acronym, country: best.country, isRailwayUndertaking: best.ru }
+      : null;
+    orgLookupCache.set(key, result);
+    return result;
+  }
+
+  app.get('/api/era/organisations', (req, res) => {
+    const q = String(req.query.q || '').toLowerCase().trim();
+    const country = String(req.query.country || '').trim();
+    let list = organisationRegister;
+    if (country) list = list.filter(o => o.country.toLowerCase() === country.toLowerCase());
+    if (q) list = list.filter(o => o.name.toLowerCase().includes(q) || o.acronym.toLowerCase().includes(q) || o.code.toLowerCase() === q);
+    res.json({
+      source: 'ERA / UIC Organisation Codes register (OrganisationCodes_20260910)',
+      total: organisationRegister.length,
+      matched: list.length,
+      organisations: list.slice(0, 200)
+    });
+  });
+
+  /**
+   * Italian cross-border rail, from RFI's ViaggiaTreno service.
+   *
+   * Neither TRAVIC nor MOTIS carries any Italian vehicles — the TRAVIC bounding
+   * box already spans northern Italy and returns nothing — and ViaggiaTreno
+   * publishes arrivals and departures per station rather than live coordinates.
+   * It is therefore surfaced as a station board rather than as map markers: the
+   * data supports "this train is leaving Villa Opicina at 06:21, 4 minutes
+   * late", and does not support putting a dot on a map at an invented position.
+   *
+   * Villa Opicina is the crossing onto the Slovenian network and Trieste
+   * Centrale the terminus behind it, which is the Italian end of the Koper
+   * corridor this app already models.
+   */
+  const ITALY_STATIONS: { id: string; name: string; note: string }[] = [
+    { id: 'S03466', name: 'Villa Opicina', note: 'Mejni prehod Italija ↔ Slovenija' },
+    { id: 'S03317', name: 'Trieste Centrale', note: 'Konec koridorja (Trst)' }
+  ];
+  let italyBoardCache: { data: any; ts: number } = { data: null, ts: 0 };
+  let italyRefreshing = false;
+  const ITALY_TTL_MS = 60000;
+
+  function viaggiaTrenoDate(): string {
+    // ViaggiaTreno expects a JS Date.toString() style stamp in Italian local time.
+    const now = new Date();
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const local = new Date(now.getTime() + 2 * 3600 * 1000); // CEST
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${days[local.getUTCDay()]} ${months[local.getUTCMonth()]} ${p(local.getUTCDate())} ${local.getUTCFullYear()} ${p(local.getUTCHours())}:${p(local.getUTCMinutes())}:${p(local.getUTCSeconds())} GMT+0200`;
+  }
+
+  async function fetchItalyBoard(kind: 'partenze' | 'arrivi', stationId: string): Promise<any[]> {
+    const url = `http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/${kind}/${stationId}/${encodeURIComponent(viaggiaTrenoDate())}`;
+    const r = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
+      signal: AbortSignal.timeout(9000)
+    });
+    if (!r.ok) return [];
+    const rows: any[] = await r.json();
+    return (Array.isArray(rows) ? rows : []).map(t => ({
+      trainNumber: String(t.numeroTreno ?? ''),
+      category: String(t.categoriaDescrizione ?? '').trim() || 'REG',
+      counterpart: String(t.destinazione ?? t.origine ?? '').trim(),
+      scheduled: String(t.compOrarioPartenza ?? t.compOrarioArrivo ?? '').trim(),
+      delayMin: Math.round(Number(t.ritardo) || 0),
+      platform: String(t.binarioEffettivoPartenzaDescrizione ?? t.binarioProgrammatoPartenzaDescrizione ?? t.binarioEffettivoArrivoDescrizione ?? '').trim(),
+      running: Boolean(t.circolante)
+    }));
+  }
+
+  async function refreshItalyBoard(): Promise<void> {
+    try {
+      const stations = [] as any[];
+      for (const st of ITALY_STATIONS) {
+        const [departures, arrivals] = await Promise.all([
+          fetchItalyBoard('partenze', st.id).catch(() => []),
+          fetchItalyBoard('arrivi', st.id).catch(() => [])
+        ]);
+        stations.push({ ...st, departures, arrivals });
+      }
+      const all = stations.flatMap(s => [...s.departures, ...s.arrivals]);
+      italyBoardCache = {
+        data: {
+          source: 'RFI / ViaggiaTreno (viaggiatreno.it)',
+          note: 'Postajna tabla — ViaggiaTreno ne objavlja živih koordinat, zato vlaki niso izrisani na zemljevidu.',
+          updatedAt: new Date().toISOString(),
+          totalServices: all.length,
+          delayedCount: all.filter(t => t.delayMin > 0).length,
+          worstDelayMin: all.reduce((m, t) => Math.max(m, t.delayMin), 0),
+          stations
+        },
+        ts: Date.now()
+      };
+    } catch (e: any) {
+      console.warn('[ViaggiaTreno] refresh failed:', e?.message);
+    }
+  }
+
+  function getItalyBoard(): any {
+    if (!italyRefreshing && Date.now() - italyBoardCache.ts > ITALY_TTL_MS) {
+      italyRefreshing = true;
+      refreshItalyBoard().finally(() => { italyRefreshing = false; });
+    }
+    return italyBoardCache.data;
+  }
+
+  setTimeout(() => { getItalyBoard(); }, 2500);
+
+  app.get('/api/italy/board', (req, res) => {
+    const board = getItalyBoard();
+    if (!board) return res.json({ source: 'RFI / ViaggiaTreno', stations: [], totalServices: 0, delayedCount: 0, pending: true });
+    res.json(board);
+  });
 
   app.get('/api/mav', (req, res) => {
     const trains = getMavTrains();

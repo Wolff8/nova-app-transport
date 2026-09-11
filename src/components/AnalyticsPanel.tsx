@@ -89,6 +89,51 @@ const DATASETS: DatasetDef[] = [
   }
 ];
 
+/**
+ * Italian services are a station board, not map markers. ViaggiaTreno publishes
+ * arrivals and departures per station with no live coordinates, so plotting
+ * them would mean inventing positions. They are listed here instead, which is
+ * exactly what the data supports.
+ */
+interface ItalyService {
+  station: string;
+  direction: 'odhod' | 'prihod';
+  trainNumber: string;
+  category: string;
+  counterpart: string;
+  scheduled: string;
+  delayMin: number;
+  platform: string;
+}
+
+function useItalyBoard(isOpen: boolean, active: boolean) {
+  const [board, setBoard] = useState<{ services: ItalyService[]; delayed: number; worst: number } | null>(null);
+  useEffect(() => {
+    if (!isOpen || !active) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/italy/board');
+        const data = await res.json();
+        const services: ItalyService[] = [];
+        for (const st of data.stations || []) {
+          for (const d of st.departures || []) services.push({ ...d, station: st.name, direction: 'odhod' });
+          for (const a of st.arrivals || []) services.push({ ...a, station: st.name, direction: 'prihod' });
+        }
+        if (!cancelled) setBoard({ services, delayed: data.delayedCount || 0, worst: data.worstDelayMin || 0 });
+      } catch {
+        if (!cancelled) setBoard(null);
+      }
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [isOpen, active]);
+  return board;
+}
+
+const ITALY_ID = '__italy';
+
 interface AnalyticsPanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -109,6 +154,8 @@ export function AnalyticsPanel({ isOpen, onClose, mapController, onSelectNode }:
     () => DATASETS.find(d => d.sourceId === activeId) || DATASETS[0],
     [activeId]
   );
+  const isItaly = activeId === ITALY_ID;
+  const italyBoard = useItalyBoard(isOpen, isItaly);
 
   // Poll the live sources while the panel is open. The map updates these on its
   // own cadence, so re-reading is how the table stays in step with it.
@@ -171,7 +218,9 @@ export function AnalyticsPanel({ isOpen, onClose, mapController, onSelectNode }:
         <div>
           <h2 className="text-white font-bold text-sm">Analitika živih podatkov</h2>
           <p className="text-[11px] text-text-dim font-mono">
-            {filtered.length} od {rows.length} zapisov · vir: {active.sourceId}
+            {isItaly
+              ? `${italyBoard?.services.length ?? 0} storitev · ${italyBoard?.delayed ?? 0} z zamudo · vir: ViaggiaTreno`
+              : `${filtered.length} od ${rows.length} zapisov · vir: ${active.sourceId}`}
           </p>
         </div>
         <button
@@ -203,6 +252,17 @@ export function AnalyticsPanel({ isOpen, onClose, mapController, onSelectNode }:
             </button>
           );
         })}
+        <button
+          onClick={() => setActiveId(ITALY_ID)}
+          title="Italija — postajna tabla (ViaggiaTreno)"
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold whitespace-nowrap transition-colors ${
+            isItaly ? 'bg-white/10 text-white border-sky-400' : 'bg-white/[0.03] text-text-dim border-line hover:text-white'
+          }`}
+        >
+          <Train size={12} />
+          Italija
+          <span className="text-text-dim font-mono">{italyBoard?.services.length ?? '·'}</span>
+        </button>
       </div>
 
       {/* Controls */}
@@ -224,7 +284,7 @@ export function AnalyticsPanel({ isOpen, onClose, mapController, onSelectNode }:
         >
           {sortByValue ? <Gauge size={13} /> : <ArrowUpDown size={13} />}
         </button>
-        <button
+        {!isItaly && <button
           onClick={() => toggleDataset(active)}
           title={visible[active.sourceId] ? 'Skrij sloj na zemljevidu' : 'Prikaži sloj na zemljevidu'}
           className={`flex items-center gap-1 px-2 py-1.5 rounded-lg border text-[11px] transition-colors ${
@@ -234,7 +294,7 @@ export function AnalyticsPanel({ isOpen, onClose, mapController, onSelectNode }:
           }`}
         >
           {visible[active.sourceId] ? <Eye size={13} /> : <EyeOff size={13} />}
-        </button>
+        </button>}
         <button
           onClick={() => { mapController?.setLabelsVisible(!labelsOn); setLabelsOn(!labelsOn); }}
           title={labelsOn ? 'Skrij oznake na zemljevidu' : 'Prikaži oznake na zemljevidu'}
@@ -248,8 +308,49 @@ export function AnalyticsPanel({ isOpen, onClose, mapController, onSelectNode }:
         </button>
       </div>
 
+      {/* Italian station board — listed, never plotted, since ViaggiaTreno
+          publishes no live coordinates. */}
+      {isItaly && (
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          <p className="px-4 py-2 text-[10.5px] text-text-dim border-b border-line/60 leading-snug">
+            Postajna tabla Villa Opicina (mejni prehod) in Trst. ViaggiaTreno ne objavlja
+            koordinat, zato ti vlaki niso izrisani na zemljevidu.
+          </p>
+          {!italyBoard && <p className="px-4 py-6 text-[12px] text-text-dim text-center">Nalagam …</p>}
+          {italyBoard && italyBoard.services.length === 0 && (
+            <p className="px-4 py-6 text-[12px] text-text-dim text-center">Trenutno ni objavljenih storitev.</p>
+          )}
+          {(italyBoard?.services || [])
+            .filter(s => !query.trim() || `${s.trainNumber} ${s.counterpart} ${s.station}`.toLowerCase().includes(query.toLowerCase()))
+            .map((s, i) => (
+              <div key={`${s.station}-${s.direction}-${s.trainNumber}-${i}`}
+                   className="flex items-center gap-3 px-4 py-2.5 border-b border-line/60">
+                <span className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                  s.direction === 'odhod' ? 'bg-sky-500/15 text-sky-300' : 'bg-emerald-500/15 text-emerald-300'
+                }`}>{s.category}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12.5px] text-white font-semibold truncate">
+                    {s.trainNumber} · {s.counterpart || '—'}
+                  </span>
+                  <span className="block text-[11px] text-text-dim truncate">
+                    {s.station} · {s.direction}{s.platform ? ` · tir ${s.platform}` : ''}
+                  </span>
+                </span>
+                <span className="text-right shrink-0">
+                  <span className="block text-[11px] font-mono text-text-dim">{s.scheduled}</span>
+                  <span className={`block text-[11px] font-mono font-bold ${
+                    s.delayMin > 5 ? 'text-red-400' : s.delayMin > 0 ? 'text-amber-300' : 'text-emerald-400'
+                  }`}>
+                    {s.delayMin > 0 ? `+${s.delayMin} min` : 'točno'}
+                  </span>
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
+
       {/* Rows */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
+      {!isItaly && <div className="flex-1 overflow-y-auto overscroll-contain">
         {filtered.length === 0 && (
           <p className="px-4 py-6 text-[12px] text-text-dim text-center">
             Ni živih zapisov za ta sloj.
@@ -271,7 +372,7 @@ export function AnalyticsPanel({ isOpen, onClose, mapController, onSelectNode }:
             <Crosshair size={13} className="text-text-dim opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
