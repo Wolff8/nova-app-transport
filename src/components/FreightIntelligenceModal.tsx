@@ -512,6 +512,16 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                     ))}
                   </div>
 
+                  {/* The map shows modelled markers again; this says what
+                      they are, so the number above and the dots agree. */}
+                  <div className="p-3 rounded-xl bg-slate-950/60 border border-amber-500/25 text-[10.5px] text-slate-300 leading-relaxed">
+                    <strong className="text-amber-300">Na mapi:</strong> tovorni vlaki so prikazani kot{' '}
+                    <strong className="text-amber-300">modelirana lega</strong> — ne meritev. Koliko jih je, izhaja iz objavljenih{' '}
+                    {corridorLoad.basis?.annualTrains?.toLocaleString('sl-SI')} odprem na leto in časa vožnje; kje so, iz prave geometrije tira in
+                    objavljenih hitrostnih omejitev (75 km/h Koper–Divača, 100 km/h drugje). Pas okoli vlaka je razpon,
+                    kjer lahko je — širši pas pomeni manj zanesljivo oceno. Številk vlakov ni, ker niso objavljene.
+                  </div>
+
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     Tovor, ki je zdaj v Luki Koper, pomeni približno{' '}
                     <strong className="text-emerald-300">{corridorLoad.load.trains} vlakov</strong> — to je{' '}

@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadModelledFreight } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
@@ -1294,6 +1294,46 @@ export class MapController {
         }
       });
 
+      // Modelled freight. Drawn as an uncertainty band along the track with
+      // the most likely point on it, rather than a confident dot, because that
+      // is the honest shape of the estimate.
+      this.map.addSource('freight_modelled', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      this.map.addLayer({
+        id: 'freight_modelled_band', type: 'line', source: 'freight_modelled',
+        filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-cap': 'round' },
+        paint: {
+          'line-color': '#f59e0b',
+          'line-width': 7,
+          // A wide window is a weak claim and is drawn as one.
+          'line-opacity': ['*', 0.45, ['coalesce', ['get', 'confidence'], 0.5]],
+          'line-blur': 2
+        }
+      });
+      this.map.addLayer({
+        id: 'freight_modelled', type: 'symbol', source: 'freight_modelled',
+        filter: ['==', ['geometry-type'], 'Point'],
+        layout: {
+          'icon-image': 'icon-train-freight',
+          'icon-size': 0.85,
+          'icon-rotate': ['coalesce', ['get', 'bearing'], 0],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true
+        },
+        paint: { 'icon-opacity': 0.9 }
+      });
+      this.map.addLayer({
+        id: 'freight_modelled_label', type: 'symbol', source: 'freight_modelled',
+        filter: ['==', ['geometry-type'], 'Point'],
+        layout: {
+          'text-field': ['concat', '📦 ~', ['get', 'speedKmh'], ' km/h  ±', ['get', 'uncertaintyKm'], ' km'],
+          'text-size': 10.5,
+          'text-offset': [0, 1.5],
+          'text-anchor': 'top'
+        },
+        paint: { 'text-color': '#fcd34d', 'text-halo-color': '#0f172a', 'text-halo-width': 1.4 }
+      });
+
       // The six places where the Slovenian network actually meets a
       // neighbour's. Both managers describe each under one UOPID, which is
       // what makes the routing graph continuous across the border.
@@ -1331,6 +1371,18 @@ export class MapController {
           const src = this.map?.getSource('border_crossings') as maplibregl.GeoJSONSource | undefined;
           if (src && gj?.features?.length) src.setData(gj);
         }).catch(() => {});
+      }
+
+      // Modelled positions move, so they refresh on their own timer.
+      if (!this.modelledFreightTimer) {
+        const pushModelled = () => {
+          loadModelledFreight().then(gj => {
+            const src = this.map?.getSource('freight_modelled') as maplibregl.GeoJSONSource | undefined;
+            if (src && gj?.features) src.setData(gj);
+          }).catch(() => {});
+        };
+        pushModelled();
+        this.modelledFreightTimer = window.setInterval(pushModelled, 15000);
       }
 
       // Freight Trains Layer (Corridor Approximation)
@@ -1741,6 +1793,12 @@ export class MapController {
     if (layerKey === 'border_crossings') {
       toggle('border_crossings');
       toggle('border_crossings_label');
+      return;
+    }
+    if (layerKey === 'freight_modelled') {
+      toggle('freight_modelled');
+      toggle('freight_modelled_band');
+      toggle('freight_modelled_label');
       return;
     }
     if (layerKey === 'freight_trains') {
@@ -3042,6 +3100,7 @@ export class MapController {
    * clear the map.
    */
   private tentRailwaysLoaded = false;
+  private modelledFreightTimer: number | null = null;
   private emptyUpdateStreak = new Map<string, number>();
   private static readonly EMPTY_UPDATES_BEFORE_CLEARING = 3;
 

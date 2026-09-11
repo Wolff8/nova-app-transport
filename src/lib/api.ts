@@ -778,6 +778,26 @@ export async function loadTentRailways(errors?: string[]): Promise<any> {
     return { type: 'FeatureCollection', features: [] };
 }
 
+/**
+ * Modelled freight positions. Not observations — nobody publishes freight
+ * positions on this corridor — but the best the data supports: count from the
+ * port's published departures, route and distance from RINF, speed capped by
+ * SŽ's published line limits, cargo from what is alongside in Koper now, and
+ * an uncertainty window that widens with time and with live corridor delay.
+ */
+export async function loadModelledFreight(errors?: string[]): Promise<any> {
+    try {
+        const res = await fetch('/api/freight/modelled-positions');
+        if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.features)) return data;
+        }
+    } catch (e) {
+        if (errors) errors.push('Modelled freight error');
+    }
+    return { type: 'FeatureCollection', features: [] };
+}
+
 export async function loadBorderCrossings(errors?: string[]): Promise<any> {
     try {
         const res = await fetch('/api/rinf/border-crossings');

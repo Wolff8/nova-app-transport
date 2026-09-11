@@ -57,6 +57,14 @@ const DATASETS: DatasetDef[] = [
     // freight positions on this corridor, so the layer now carries the TEN-T
     // designated network instead: real track, labelled by what the Commission
     // says it may be used for.
+    sourceId: 'freight_modelled', layerKey: 'freight_modelled', label: 'Tovorni (model)', icon: Anchor, accent: '#f59e0b',
+    primary: () => 'Tovorni vlak (model)',
+    secondary: r => [r.direction, r.cargo].filter(Boolean).join(' · ') || '—',
+    metric: r => r.speedKmh != null ? `~${r.speedKmh} km/h ±${r.uncertaintyKm} km` : '—',
+    sortValue: r => num(r.kmAlong),
+    nodeType: 'freight_modelled'
+  },
+  {
     sourceId: 'tent_railways', layerKey: 'tent_railways', label: 'TEN-T proge', icon: Anchor, accent: '#f59e0b',
     primary: r => {
       const act = r.activity === 'Freight' ? 'Tovorna proga'

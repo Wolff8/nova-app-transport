@@ -18,7 +18,7 @@ const CATEGORIES = [
   },
   { 
     name: 'SŽ Potniški & Tovorni Promet (TEN-T)', 
-    keys: ['sz_rail', 'orm', 'rinf_network', 'sz_stations', 'rinf', 'sz_crossings', 'delays_heatmap', 'transit', 'eurorail', 'rail_sensors', 'hafas', 'yard', 'tent_railways'], 
+    keys: ['sz_rail', 'orm', 'rinf_network', 'sz_stations', 'rinf', 'sz_crossings', 'delays_heatmap', 'transit', 'eurorail', 'rail_sensors', 'hafas', 'yard', 'tent_railways', 'freight_modelled'], 
     icon: Train,
     accent: '#38bdf8'
   },

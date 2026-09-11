@@ -9112,6 +9112,200 @@ app.post('/api/log', express.json(), (req, res) => {
    */
   let borderCrossingsCache: { body: any; ts: number } = { body: null, ts: 0 };
 
+  /* ------------------------------------------------------------------ *
+   * Modelled freight positions.
+   *
+   * Nobody publishes where freight trains are, so these are not observations
+   * and never claim to be. What they are is the best position the data in this
+   * app can support, and every input is real:
+   *
+   *   how many    Luka Koper publishes 20,886 rail departures a year — 57 a
+   *               day. How many are on the line at once follows from that and
+   *               the journey time, not from a guess: 57/day over a ~2.5 h run
+   *               puts about six in each direction at any moment.
+   *   where       The route, its length and its intermediate points come from
+   *               RINF; the position is interpolated along the real surveyed
+   *               track geometry, not a straight line.
+   *   how fast    Capped by SŽ's published line speeds — 75 km/h up the 26‰
+   *               Kraški rob ramp, 100 km/h elsewhere under the UIC brake
+   *               regime — and integrated so position and speed agree.
+   *   what        Cargo and wagon type are sampled from the commodity mix
+   *               actually alongside in Koper right now.
+   *   how sure    The window widens with time since departure and with the
+   *               delay live passenger trains are currently running on the
+   *               same corridor.
+   *
+   * Two things are deliberately withheld. There are no train numbers: the
+   * numbers are not published and inventing them is what made the old layer
+   * dishonest. And departures are assumed evenly spaced, because no freight
+   * timetable is public — so an individual marker is "a train is about here",
+   * never "this train is here".
+   * ------------------------------------------------------------------ */
+  const MODELLED_FREIGHT_TTL_MS = 15000;
+  let modelledFreightCache: { body: any; ts: number } = { body: null, ts: 0 };
+
+  function modelledFreightPositions() {
+    if (!GEO_KOPER_ZALOG || GEO_KOPER_ZALOG.length < 2) return null;
+    const track: [number, number][] = GEO_KOPER_ZALOG;
+
+    const route = routeOverRinf(CORRIDOR_ORIGIN, CORRIDOR_DESTINATION);
+    const routeKm = route && !route.detourSuspected ? route.km : 152.6;
+    const forkKm = route?.points.find(p => p.name === CORRIDOR_FORK)?.km ?? 45.5;
+    const basis = koperRailBasis();
+    const trainsPerDay = Math.max(1, Math.round(basis.annualTrains / 365));
+
+    // Live congestion on the corridor, from passenger trains that do report.
+    const delayed = delayedTrainSample();
+
+    // Cargo mix actually in port, so the modelled loads reflect what is there.
+    const ships = koperShipsCache.data;
+    const mix: { cargo: string; series: string | null; weight: number }[] = [];
+    if (ships) {
+      const seen = new Map<string, number>();
+      for (const r of [...(ships.arrivals ?? []), ...(ships.atBerth ?? [])]) {
+        const rail = railConsequenceFor(r.cargo, r.cargoTonnes, basis);
+        if (!rail?.isFreight) continue;
+        const key = `${r.cargo}|${rail.wagonSeries ?? ''}`;
+        seen.set(key, (seen.get(key) ?? 0) + (rail.railTonnes ?? 0));
+      }
+      for (const [key, tonnes] of seen) {
+        const [cargo, series] = key.split('|');
+        mix.push({ cargo, series: series || null, weight: tonnes });
+      }
+    }
+    const mixTotal = mix.reduce((s, m) => s + m.weight, 0);
+
+    const slotShape = { routeKm, fromName: CORRIDOR_ORIGIN, toName: CORRIDOR_DESTINATION };
+
+    // A representative run time from the same speed model used for position,
+    // so the count and the motion cannot disagree.
+    const probeSamples = 40;
+    let hours = 0;
+    for (let i = 0; i < probeSamples; i++) {
+      const km = (routeKm * (i + 0.5)) / probeSamples;
+      hours += (routeKm / probeSamples) / Math.max(20, sloFreightLineSpeedCap(slotShape, km) * 0.72);
+    }
+    const journeyMin = Math.max(60, hours * 60);
+
+    const headwayMin = (24 * 60) / trainsPerDay;
+    const nowMs = Date.now();
+    const features: any[] = [];
+
+    for (const direction of ['up', 'down'] as const) {
+      // Departures on a fixed grid, so markers stay put between polls instead
+      // of jittering; the grid is an assumption and is reported as one.
+      const phase = direction === 'up' ? 0 : headwayMin / 2;
+      const running = Math.max(1, Math.floor(journeyMin / headwayMin));
+      for (let n = 0; n < running; n++) {
+        const departedMinAgo = ((nowMs / 60000 + phase) % headwayMin) + n * headwayMin;
+        if (departedMinAgo > journeyMin) continue;
+
+        const motion = freightMotion(slotShape, departedMinAgo, journeyMin);
+        const kmAlong = direction === 'up' ? motion.km : routeKm - motion.km;
+        const t = Math.max(0, Math.min(1, kmAlong / routeKm));
+        const pos = interpolatePolyline(track, t);
+
+        const corridor = corridorDelayNear(pos.lat, pos.lon, delayed);
+        const unc = freightUncertainty(departedMinAgo, kmAlong, routeKm, motion.speedKmh, corridor.delayMin);
+
+        // The band is drawn along the track between the earliest and latest
+        // plausible point, not as a straight chord, so it reads as a stretch of
+        // line rather than a bar floating across the countryside.
+        const bandCoords: [number, number][] = [];
+        const steps = 12;
+        for (let b = 0; b <= steps; b++) {
+          const bandKm = unc.earliestKm + ((unc.latestKm - unc.earliestKm) * b) / steps;
+          const bp = interpolatePolyline(track, Math.max(0, Math.min(1, bandKm / routeKm)));
+          bandCoords.push([bp.lon, bp.lat]);
+        }
+
+        // Pick a cargo by tonnage share, deterministically per marker.
+        let cargo: string | null = null, series: string | null = null;
+        if (mixTotal > 0) {
+          let pick = ((n * 7919 + (direction === 'up' ? 13 : 71)) % 1000) / 1000 * mixTotal;
+          for (const m of mix) { pick -= m.weight; if (pick <= 0) { cargo = m.cargo; series = m.series; break; } }
+          if (!cargo) { cargo = mix[mix.length - 1].cargo; series = mix[mix.length - 1].series; }
+        }
+
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [pos.lon, pos.lat] },
+          properties: {
+            id: `modelled_${direction}_${n}`,
+            type: 'freight_modelled',
+            isModelled: true,
+            name: 'Tovorni vlak (model)',
+            direction: direction === 'up' ? 'Koper → Ljubljana' : 'Ljubljana → Koper',
+            heading: pos.bearing,
+            bearing: pos.bearing,
+            speedKmh: Math.round(motion.speedKmh),
+            kmAlong: Number(kmAlong.toFixed(1)),
+            routeKm,
+            elapsedMin: Math.round(departedMinAgo),
+            cargo,
+            wagonSeries: series,
+            grossWeightTons: Math.round(basis.tonnesPerTrain),
+            wagons: Math.round(basis.wagonsPerTrain),
+            confidence: unc.confidence,
+            uncertaintyKm: unc.spanKm,
+            earliestKm: unc.earliestKm,
+            latestKm: unc.latestKm,
+            corridorDelayMin: corridor.delayMin,
+            corridorSampleSize: corridor.sampleSize,
+            certainty: kmAlong <= forkKm ? 'all-port-traffic' : 'upper-bound',
+            note: 'Modelirana lega, ne meritev. Pozicij tovornih vlakov ne objavlja nihče.'
+          }
+        });
+
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: bandCoords },
+          properties: {
+            id: `modelled_band_${direction}_${n}`,
+            type: 'freight_modelled_band',
+            isModelled: true,
+            confidence: unc.confidence,
+            uncertaintyKm: unc.spanKm,
+            certainty: kmAlong <= forkKm ? 'all-port-traffic' : 'upper-bound'
+          }
+        });
+      }
+    }
+
+    return {
+      type: 'FeatureCollection',
+      generatedAt: new Date().toISOString(),
+      isModelled: true,
+      method: {
+        countFrom: `${basis.annualTrains} vlakov/leto (${trainsPerDay}/dan) — ${basis.source}`,
+        journeyMin: Math.round(journeyMin),
+        headwayMin: Number(headwayMin.toFixed(1)),
+        speedCaps: `${KOPER_DIVACA_MAX_KMH} km/h Koper–Divača (26 ‰), ${FREIGHT_BRAKE_REGIME_MAX_KMH} km/h drugje (UIC zavorni režim)`,
+        geometry: 'Interpolacija po dejanski geometriji tira',
+        routeSource: rinfRaw?.source ?? null,
+        cargoMixFrom: mixTotal > 0 ? 'Živ tovor v Luki Koper' : 'Ni podatka o tovoru',
+        corridorDelayFrom: `${delayed.length} potniških vlakov z zamudo (GTFS-RT)`,
+        assumptions: [
+          'Odhodi so enakomerno razporejeni — javnega voznega reda za tovorni promet ni.',
+          'Številk vlakov ni, ker niso objavljene.',
+          'Za Divačo se koridor razcepi; tam je lega manj zanesljiva.'
+        ]
+      },
+      count: features.filter(f => f.geometry.type === 'Point').length,
+      features
+    };
+  }
+
+  app.get('/api/freight/modelled-positions', (req, res) => {
+    if (modelledFreightCache.body && Date.now() - modelledFreightCache.ts < MODELLED_FREIGHT_TTL_MS) {
+      return res.json(modelledFreightCache.body);
+    }
+    const body = modelledFreightPositions();
+    if (!body) return res.status(503).json({ error: 'Geometrija koridorja ni na voljo' });
+    modelledFreightCache = { body, ts: Date.now() };
+    res.json(body);
+  });
+
   app.get('/api/rinf/border-crossings', (req, res) => {
     if (borderCrossingsCache.body) return res.json(borderCrossingsCache.body);
     if (!rinfRaw) return res.status(503).json({ error: 'Register RINF ni naložen' });
