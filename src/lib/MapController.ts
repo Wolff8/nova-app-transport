@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
@@ -1294,6 +1294,31 @@ export class MapController {
         }
       });
 
+      // The six places where the Slovenian network actually meets a
+      // neighbour's. Both managers describe each under one UOPID, which is
+      // what makes the routing graph continuous across the border.
+      this.map.addSource('border_crossings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      this.map.addLayer({
+        id: 'border_crossings', type: 'circle', source: 'border_crossings',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#f472b6',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fce7f3',
+          'circle-opacity': 0.9
+        }
+      });
+      this.map.addLayer({
+        id: 'border_crossings_label', type: 'symbol', source: 'border_crossings',
+        layout: {
+          'text-field': ['concat', ['get', 'name'], '  ', ['get', 'countries']],
+          'text-size': 10.5,
+          'text-offset': [0, 1.3],
+          'text-anchor': 'top'
+        },
+        paint: { 'text-color': '#fbcfe8', 'text-halo-color': '#0f172a', 'text-halo-width': 1.4 }
+      });
+
       // Reference geometry, not live data: fetch once, as soon as the layer
       // exists, rather than waiting on the thirty-second data tick.
       if (!this.tentRailwaysLoaded) {
@@ -1302,6 +1327,10 @@ export class MapController {
           const src = this.map?.getSource('tent_railways') as maplibregl.GeoJSONSource | undefined;
           if (src && gj?.features?.length) src.setData(gj);
         }).catch(() => { this.tentRailwaysLoaded = false; });
+        loadBorderCrossings().then(gj => {
+          const src = this.map?.getSource('border_crossings') as maplibregl.GeoJSONSource | undefined;
+          if (src && gj?.features?.length) src.setData(gj);
+        }).catch(() => {});
       }
 
       // Freight Trains Layer (Corridor Approximation)
@@ -1707,6 +1736,11 @@ export class MapController {
     }
     if (layerKey === 'tent_railways') {
       toggle('tent_railways');
+      return;
+    }
+    if (layerKey === 'border_crossings') {
+      toggle('border_crossings');
+      toggle('border_crossings_label');
       return;
     }
     if (layerKey === 'freight_trains') {

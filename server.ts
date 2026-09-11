@@ -9084,6 +9084,64 @@ app.post('/api/log', express.json(), (req, res) => {
     console.warn('[TEN-T] Could not load railway geometry:', e?.message);
   }
 
+  /**
+   * Border crossings as map points.
+   *
+   * RINF names every crossing and says which two managers describe it, but
+   * publishes no coordinates for Slovenian points, so the names are joined
+   * against the station set this app already carries — which does have
+   * coordinates and uses the same register's naming. A crossing that cannot be
+   * placed is omitted rather than guessed at.
+   */
+  let borderCrossingsCache: { body: any; ts: number } = { body: null, ts: 0 };
+
+  app.get('/api/rinf/border-crossings', (req, res) => {
+    if (borderCrossingsCache.body) return res.json(borderCrossingsCache.body);
+    if (!rinfRaw) return res.status(503).json({ error: 'Register RINF ni naložen' });
+
+    const stations: any[] = Array.isArray((rinfStaticData as any).stations) ? (rinfStaticData as any).stations : [];
+    const byName = new Map<string, any>();
+    for (const s of stations) {
+      if (!s?.name || !Number.isFinite(s.lat) || !Number.isFinite(s.lon)) continue;
+      byName.set(normalisePlace(s.name), s);
+    }
+
+    const features: any[] = [];
+    const unplaced: string[] = [];
+    for (const op of rinfOps) {
+      if (op.countries.length < 2) continue;
+      const key = normalisePlace(op.name);
+      // "Hodoš d.m." in the register is "Hodoš" in the station set, so try the
+      // name with the border suffix stripped as well.
+      const bare = key.replace(/\bd m\b\s*$/, '').trim();
+      const hit = byName.get(key) ?? byName.get(bare);
+      if (!hit) { unplaced.push(op.name); continue; }
+      features.push({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [hit.lon, hit.lat] },
+        properties: {
+          id: op.id,
+          name: op.name,
+          countries: op.countries.join('+'),
+          countryList: op.countries,
+          type: 'border_crossing',
+          source: rinfRaw!.source
+        }
+      });
+    }
+    const body = {
+      type: 'FeatureCollection',
+      source: rinfRaw.source,
+      note: 'Mejni prehod je ena točka z enim UOPID, ki jo opisujeta oba upravljavca. Koordinate so pripisane po imenu iz zbirke službenih mest.',
+      placed: features.length,
+      unplaced: unplaced.length,
+      unplacedNames: unplaced.slice(0, 40),
+      features
+    };
+    borderCrossingsCache = { body, ts: Date.now() };
+    res.json(body);
+  });
+
   app.get('/api/tent/railways', (req, res) => {
     if (!tentRailways) return res.status(503).json({ error: 'TEN-T geometrija ni naložena' });
     const activity = String(req.query.activity || '').trim();

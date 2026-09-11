@@ -19,13 +19,17 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   onFlyTo,
   onSelectTerminal
 }) => {
-  const [activeTab, setActiveTab] = useState<'trains' | 'pipeline' | 'yards' | 'corridors' | 'modalsplit' | 'uic' | 'murska_sobota'>('trains');
+  const [activeTab, setActiveTab] = useState<'trains' | 'pipeline' | 'yards' | 'corridors' | 'modalsplit' | 'uic' | 'registers' | 'murska_sobota'>('trains');
   
   // Data states
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [koperShips, setKoperShips] = useState<any>(null);
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
+  const [registerQuery, setRegisterQuery] = useState('');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines'>('vkm');
+  const [registerResults, setRegisterResults] = useState<any>(null);
+  const [networkRef, setNetworkRef] = useState<any>(null);
   const [feedHealth, setFeedHealth] = useState<any>(null);
   const [terminalsData, setTerminalsData] = useState<any[]>([]);
   const [corridorsData, setCorridorsData] = useState<any>(null);
@@ -109,6 +113,12 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     };
     loadCorridor();
     const corridorTimer = setInterval(loadCorridor, 120000);
+
+    // Static reference: official line register, classes and traction series.
+    fetch('/api/freight/network')
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then(d => { if (d?.networkStatement) setNetworkRef(d); })
+      .catch(() => {});
 
     // Murska Sobota's own departures, and how fresh the feed behind them is.
     const loadStationLive = () => {
@@ -358,6 +368,18 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
           >
             <ShieldCheck size={14} />
             <span>UIC Dekoder Vagonov</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('registers')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'registers'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+            }`}
+          >
+            <Search size={14} />
+            <span>Uradni registri</span>
           </button>
         </div>
 
@@ -1179,6 +1201,120 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
           )}
 
           {/* TAB 5: UIC ROLLING STOCK & WAGON DECODER */}
+          {activeTab === 'registers' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              {/* Four registers were being consulted server-side with nothing
+                  on screen to show them. This is that data, searchable. */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800 w-fit flex-wrap">
+                {[
+                  { k: 'vkm', label: 'Imetniki vozil (VKM)' },
+                  { k: 'operators', label: 'Prevozniki (ERA)' },
+                  { k: 'lines', label: 'Proge SŽ' }
+                ].map(t => (
+                  <button
+                    key={t.k}
+                    onClick={() => { setRegisterKind(t.k as any); setRegisterResults(null); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                      registerKind === t.k
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {registerKind !== 'lines' && (
+                <form
+                  onSubmit={e => {
+                    e.preventDefault();
+                    const url = registerKind === 'vkm'
+                      ? `/api/era/vkm?q=${encodeURIComponent(registerQuery)}`
+                      : `/api/era/organisations?q=${encodeURIComponent(registerQuery)}`;
+                    fetch(url).then(r => r.json()).then(setRegisterResults).catch(() => setRegisterResults(null));
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    value={registerQuery}
+                    onChange={e => setRegisterQuery(e.target.value)}
+                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : 'Ime prevoznika (npr. Metrans, Adria)'}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                  <button type="submit" className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors cursor-pointer shrink-0">
+                    Išči
+                  </button>
+                </form>
+              )}
+
+              {registerKind === 'lines' ? (
+                networkRef?.networkStatement?.lines ? (
+                  <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                        Uradni register prog ({networkRef.networkStatement.lines.length})
+                      </h4>
+                      <span className="text-[10px] font-mono text-slate-400">R1–R4 = progovni razred</span>
+                    </div>
+                    <div className="max-h-80 overflow-auto custom-scrollbar space-y-1">
+                      {networkRef.networkStatement.lines.map((l: any) => (
+                        <div key={l.number} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/70 text-[11px]">
+                          <span className="truncate">
+                            <span className="font-mono font-bold text-amber-300">{l.number}</span>
+                            <span className="text-slate-200"> {l.name}</span>
+                          </span>
+                          <span className={`font-mono shrink-0 ${l.lineClass === 'R4' ? 'text-emerald-300' : 'text-slate-400'}`}>
+                            {l.lineClass}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-emerald-400/80 font-mono break-words pt-1 border-t border-slate-800">
+                      Vir: {networkRef.networkStatement.source}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 text-xs text-slate-400">Nalagam register prog …</div>
+                )
+              ) : registerResults ? (
+                <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                      {registerResults.matched ?? 0} zadetkov od {registerResults.total ?? 0}
+                    </h4>
+                    {registerResults.issue && (
+                      <span className="text-[10px] font-mono text-slate-400">izdaja {registerResults.issue}</span>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-auto custom-scrollbar space-y-1">
+                    {(registerResults.keepers ?? registerResults.organisations ?? []).slice(0, 80).map((r: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/70 text-[11px]">
+                        <span className="truncate text-slate-200">{r.keeper ?? r.name}</span>
+                        <span className="font-mono shrink-0 text-right">
+                          <span className="text-amber-300">{r.vkm ?? r.code}</span>
+                          <span className="text-slate-500"> {r.country}</span>
+                          {r.status && r.status !== 'in use' && (
+                            <span className="text-rose-400/90"> · {r.status}</span>
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-emerald-400/80 font-mono break-words pt-1 border-t border-slate-800">
+                    Vir: {registerResults.source}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 text-xs text-slate-400">
+                  {registerKind === 'vkm'
+                    ? 'Register oznak imetnikov vozil (VKM) — 4.988 vpisov, ERA/OTIF. Vpišite ime ali oznako.'
+                    : 'Register organizacij ERA/UIC — 1.394 prevoznikov in upravljavcev. Vpišite ime.'}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeTab === 'uic' && (
             <div className="space-y-5 animate-in fade-in duration-150">
               {/* Decoder Input Box */}
