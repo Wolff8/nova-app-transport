@@ -7967,11 +7967,17 @@ app.post('/api/log', express.json(), (req, res) => {
       count: organisations.length,
       organisations
     };
-    fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'organisationCodes.json'), JSON.stringify(out));
+    // The cache on disk is a convenience for the next cold start. On a
+    // platform with an ephemeral or read-only filesystem the write can fail,
+    // and that must not stop the register we just fetched from being used.
+    let cached = true;
+    try {
+      fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'organisationCodes.json'), JSON.stringify(out));
+    } catch { cached = false; }
     const before = organisationRegister.length;
     organisationRegister = organisations;
     orgLookupCache.clear();
-    return { ok: true, count: organisations.length, note: `${before} → ${organisations.length} organizacij` };
+    return { ok: true, count: organisations.length, note: `${before} → ${organisations.length} organizacij${cached ? '' : ' (brez zapisa na disk)'}` };
   }
 
   /** "Domains of Activity" is free text; these are the roles the app reasons about. */
@@ -9179,14 +9185,17 @@ app.post('/api/log', express.json(), (req, res) => {
       count: keepers.length,
       keepers
     };
-    fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'vkmRegister.json'), JSON.stringify(out));
+    let cachedVkm = true;
+    try {
+      fs.writeFileSync(path.join(process.cwd(), 'src', 'data', 'vkmRegister.json'), JSON.stringify(out));
+    } catch { cachedVkm = false; }
     vkmRegister = out as any;
     vkmByCode.clear();
     for (const k of keepers) {
       const key = k.v.toUpperCase();
       if (!vkmByCode.has(key) || k.s === 1) vkmByCode.set(key, k);
     }
-    return { ok: true, issue: found.issue, note: `izdaja ${found.issue}, ${before} → ${keepers.length} oznak` };
+    return { ok: true, issue: found.issue, note: `izdaja ${found.issue}, ${before} → ${keepers.length} oznak${cachedVkm ? '' : ' (brez zapisa na disk)'}` };
   }
 
   let registerRefreshState: any = { lastRun: null, organisations: null, vkm: null };
