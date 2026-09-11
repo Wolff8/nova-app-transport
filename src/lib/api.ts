@@ -755,19 +755,31 @@ export async function loadTrainTrip(params: {
     return null;
 }
 
-export async function loadFreightTrains(errors?: string[]): Promise<any[]> {
+/**
+ * The freight layer used to plot the app's own invented workings as if they
+ * were vehicles on the map — train numbers, positions and speeds that no feed
+ * publishes, because none does for freight on this corridor. Those are gone.
+ *
+ * What the map draws now is the TEN-T designated rail network, coloured by
+ * what the Commission says each segment carries. The freight that is real —
+ * the tonnage sitting in Koper and the movement it implies — is quantified in
+ * the corridor-load panel rather than dressed up as train markers.
+ */
+export async function loadTentRailways(errors?: string[]): Promise<any> {
     try {
-        const res = await fetch('/api/freight/active-trains');
+        const res = await fetch('/api/tent/railways');
         if (res.ok) {
-            const text = await res.text();
-            if (text && text.trim().startsWith('{')) {
-                const data = JSON.parse(text);
-                return data.trains || [];
-            }
+            const data = await res.json();
+            if (data && Array.isArray(data.features)) return data;
         }
     } catch (e) {
-        if (errors) errors.push('Freight Trains API error');
+        if (errors) errors.push('TEN-T railway geometry error');
     }
+    return { type: 'FeatureCollection', features: [] };
+}
+
+export async function loadFreightTrains(_errors?: string[]): Promise<any[]> {
+    // Deliberately empty: see loadTentRailways above.
     return [];
 }
 

@@ -53,12 +53,25 @@ const DATASETS: DatasetDef[] = [
     nodeType: 'transit'
   },
   {
-    sourceId: 'freight_trains', layerKey: 'freight_trains', label: 'Tovorni', icon: Anchor, accent: '#f59e0b',
-    primary: r => r.name || r.trainNum || 'Tovorni vlak',
-    secondary: r => [r.operator, r.destination].filter(Boolean).join(' → ') || '—',
-    metric: speedText,
-    sortValue: r => num(r.speed),
-    nodeType: 'freight_trains'
+    // Was a list of this app's invented freight workings. No feed publishes
+    // freight positions on this corridor, so the layer now carries the TEN-T
+    // designated network instead: real track, labelled by what the Commission
+    // says it may be used for.
+    sourceId: 'tent_railways', layerKey: 'tent_railways', label: 'TEN-T proge', icon: Anchor, accent: '#f59e0b',
+    primary: r => {
+      const act = r.activity === 'Freight' ? 'Tovorna proga'
+        : r.activity === 'Passenger' ? 'Potniška proga'
+        : r.activity === 'Passenger and freight' ? 'Mešana proga'
+        : 'Proga TEN-T';
+      return r.country ? `${act} (${r.country})` : act;
+    },
+    secondary: r => [
+      r.network === 'core' ? 'Jedrno omrežje' : 'Celovito omrežje',
+      r.corridors ? `koridor ${r.corridors}` : null
+    ].filter(Boolean).join(' · '),
+    metric: r => r.activity === 'Freight' ? 'samo tovor' : (r.activity === 'Passenger' ? 'samo potniki' : 'tovor + potniki'),
+    sortValue: r => (r.activity === 'Freight' ? 2 : r.activity === 'Passenger and freight' ? 1 : 0),
+    nodeType: 'tent_railways'
   },
   {
     sourceId: 'micromobility', layerKey: 'micromobility', label: 'Mikromobilnost', icon: Bike, accent: '#65a30d',

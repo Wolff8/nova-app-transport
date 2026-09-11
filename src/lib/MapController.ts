@@ -1,6 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
@@ -1272,6 +1272,38 @@ export class MapController {
         }
       });
 
+      // The TEN-T designated rail network, styled by what the Commission says
+      // each segment carries. This replaced a layer of invented freight trains:
+      // no feed publishes freight positions on this corridor, so the map now
+      // shows the designated infrastructure instead of made-up vehicles on it.
+      this.map.addSource('tent_railways', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      this.map.addLayer({
+        id: 'tent_railways', type: 'line', source: 'tent_railways',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': [
+            'match', ['coalesce', ['get', 'activity'], 'unknown'],
+            'Freight', '#f59e0b',
+            'Passenger', '#38bdf8',
+            'Passenger and freight', '#a78bfa',
+            '#64748b'
+          ],
+          // Core network reads heavier than comprehensive.
+          'line-width': ['case', ['==', ['get', 'network'], 'core'], 3.2, 1.8],
+          'line-opacity': ['case', ['==', ['get', 'activity'], 'Freight'], 0.95, 0.55]
+        }
+      });
+
+      // Reference geometry, not live data: fetch once, as soon as the layer
+      // exists, rather than waiting on the thirty-second data tick.
+      if (!this.tentRailwaysLoaded) {
+        this.tentRailwaysLoaded = true;
+        loadTentRailways().then(gj => {
+          const src = this.map?.getSource('tent_railways') as maplibregl.GeoJSONSource | undefined;
+          if (src && gj?.features?.length) src.setData(gj);
+        }).catch(() => { this.tentRailwaysLoaded = false; });
+      }
+
       // Freight Trains Layer (Corridor Approximation)
       this.map.addSource('freight_trains', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addLayer({
@@ -1672,6 +1704,10 @@ export class MapController {
        toggle('micromobility_trips_path');
        toggle('micromobility_trips_endpoints_circle');
        toggle('micromobility_trips_endpoints_label');
+    }
+    if (layerKey === 'tent_railways') {
+      toggle('tent_railways');
+      return;
     }
     if (layerKey === 'freight_trains') {
        toggle('freight_trains_glow');
@@ -2971,6 +3007,7 @@ export class MapController {
    * Consecutive empty responses seen per vehicle source, so one bad poll cannot
    * clear the map.
    */
+  private tentRailwaysLoaded = false;
   private emptyUpdateStreak = new Map<string, number>();
   private static readonly EMPTY_UPDATES_BEFORE_CLEARING = 3;
 

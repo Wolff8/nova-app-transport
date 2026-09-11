@@ -8956,6 +8956,143 @@ app.post('/api/log', express.json(), (req, res) => {
     });
   });
 
+  /* ------------------------------------------------------------------ *
+   * Where the freight actually presses on the network.
+   *
+   * This replaces the invented trains. Rather than draw fifty-four made-up
+   * workings, take what is measurably in the port right now, convert it to the
+   * rail movement it implies, and lay that against the real line it has to use.
+   *
+   * The geography does the honest work. Koper has one rail connection, so every
+   * tonne leaving the port by rail crosses Koper–Divača: that section's load is
+   * certain, not apportioned. At Divača the corridor forks — Sežana into Italy,
+   * Pivka toward Croatia, Ljubljana for everything north and east — and the app
+   * has no source for the split, so beyond Divača the same tonnage is an upper
+   * bound and is labelled one.
+   *
+   * The load is also expressed in days of the port's own published throughput,
+   * which is the figure that makes it legible: cargo alongside is a stock, and
+   * 57 trains a day is the flow that clears it.
+   * ------------------------------------------------------------------ */
+  const CORRIDOR_ORIGIN = 'Koper tovorna';
+  const CORRIDOR_FORK = 'Divača';
+  const CORRIDOR_DESTINATION = 'Ljubljana Zalog';
+
+  app.get('/api/freight/corridor-load', (req, res) => {
+    const ships = koperShipsCache.data;
+    if (!ships) return res.status(503).json({ error: 'Podatki Luke Koper še niso naloženi' });
+    const route = routeOverRinf(CORRIDOR_ORIGIN, CORRIDOR_DESTINATION);
+    if (!route || route.detourSuspected) {
+      return res.status(503).json({ error: 'Trase Koper–Ljubljana ni mogoče razrešiti v registru RINF' });
+    }
+    const basis = koperRailBasis();
+
+    // One row per call, as elsewhere: a berthed ship is also an announced one.
+    const byCall = new Map<string, any>();
+    for (const r of [...(ships.arrivals ?? []), ...(ships.atBerth ?? [])]) {
+      byCall.set(r.callNumber ?? r.vessel, r);
+    }
+    let railTonnes = 0;
+    const contributors: any[] = [];
+    for (const r of byCall.values()) {
+      const rail = railConsequenceFor(r.cargo, r.cargoTonnes, basis);
+      if (!rail?.isFreight) continue;
+      railTonnes += rail.railTonnes ?? 0;
+      contributors.push({
+        vessel: r.vessel, cargo: r.cargo, cargoTonnes: r.cargoTonnes,
+        railTonnes: rail.railTonnes, wagons: rail.wagonsAtPortAverage,
+        wagonSeries: rail.wagonSeries,
+        nationalCommodityShare: rail.nationalCommodityShare?.railSharePercent ?? null
+      });
+    }
+    const wagons = Math.ceil(railTonnes / basis.tonnesPerWagon);
+    const trains = Math.round(railTonnes / basis.tonnesPerTrain);
+
+    const forkIndex = route.points.findIndex(p => p.name === CORRIDOR_FORK);
+    const forkKm = forkIndex >= 0 ? route.points[forkIndex].km : null;
+
+    // Section-by-section, from the register's own point sequence.
+    const sections: any[] = [];
+    for (let i = 0; i < route.points.length - 1; i++) {
+      const a = route.points[i];
+      const b = route.points[i + 1];
+      const beyondFork = forkIndex >= 0 && i >= forkIndex;
+      sections.push({
+        from: a.name,
+        to: b.name,
+        fromId: a.id,
+        toId: b.id,
+        km: Number((b.km - a.km).toFixed(1)),
+        cumulativeKm: b.km,
+        railTonnes,
+        wagons,
+        trains,
+        certainty: beyondFork ? 'upper-bound' : 'all-port-traffic',
+        note: beyondFork
+          ? 'Za Divačo se koridor razcepi (Sežana, Pivka, Ljubljana); brez vira o delitvi je to zgornja meja.'
+          : 'Luka Koper ima en sam železniški priključek — ves ta tovor gre čez ta odsek.'
+      });
+    }
+
+    res.json({
+      generatedAt: new Date().toISOString(),
+      shipSource: ships.source,
+      shipsUpdatedAt: ships.updatedAt,
+      basis,
+      route: {
+        from: CORRIDOR_ORIGIN,
+        to: CORRIDOR_DESTINATION,
+        km: route.km,
+        operationalPoints: route.points.length,
+        forkAt: forkIndex >= 0 ? { name: CORRIDOR_FORK, km: forkKm } : null,
+        source: rinfRaw?.source ?? null
+      },
+      load: {
+        shipsContributing: contributors.length,
+        railTonnes: Math.round(railTonnes),
+        wagons,
+        trains,
+        // A stock of cargo against the published flow that clears it.
+        daysOfAverageThroughput: basis.tonnesPerTrain > 0 && basis.annualTrains > 0
+          ? Number((trains / (basis.annualTrains / 365)).toFixed(1))
+          : null,
+        averageTrainsPerDay: Math.round(basis.annualTrains / 365)
+      },
+      certainSection: forkKm != null
+        ? { from: CORRIDOR_ORIGIN, to: CORRIDOR_FORK, km: forkKm,
+            note: 'Enotirni odsek z vzponom 26 ‰; ozko grlo za ves pristaniški tovor.' }
+        : null,
+      contributors: contributors.sort((a, b) => (b.railTonnes ?? 0) - (a.railTonnes ?? 0)),
+      sections
+    });
+  });
+
+  /**
+   * TEN-T rail geometry for the map: which track the Commission designates and
+   * whether it carries freight, passengers or both. Sixteen segments in this
+   * region are freight-only. Served as GeoJSON so the map can style by
+   * designation rather than drawing invented trains over it.
+   */
+  let tentRailways: any = null;
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'tentRailways.json');
+    if (fs.existsSync(p)) {
+      tentRailways = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log('[TEN-T] Railway geometry loaded:', tentRailways.features.length, 'segments');
+    }
+  } catch (e: any) {
+    console.warn('[TEN-T] Could not load railway geometry:', e?.message);
+  }
+
+  app.get('/api/tent/railways', (req, res) => {
+    if (!tentRailways) return res.status(503).json({ error: 'TEN-T geometrija ni naložena' });
+    const activity = String(req.query.activity || '').trim();
+    const features = activity
+      ? tentRailways.features.filter((f: any) => f.properties?.activity === activity)
+      : tentRailways.features;
+    res.json({ ...tentRailways, features });
+  });
+
   app.get('/api/tent/network', (req, res) => {
     if (!tentNetwork) return res.status(503).json({ error: 'TENtec podatki niso naloženi' });
     const country = String(req.query.country || '').toUpperCase().slice(0, 2);

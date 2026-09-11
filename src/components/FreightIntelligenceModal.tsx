@@ -25,6 +25,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [koperShips, setKoperShips] = useState<any>(null);
   const [msDepartures, setMsDepartures] = useState<any>(null);
+  const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [feedHealth, setFeedHealth] = useState<any>(null);
   const [terminalsData, setTerminalsData] = useState<any[]>([]);
   const [corridorsData, setCorridorsData] = useState<any>(null);
@@ -99,6 +100,16 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     loadKoperShips();
     const koperTimer = setInterval(loadKoperShips, 120000);
 
+    // What that cargo means for the line, refreshed alongside the ships.
+    const loadCorridor = () => {
+      fetch('/api/freight/corridor-load')
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then(d => { if (d?.sections) setCorridorLoad(d); })
+        .catch(() => {});
+    };
+    loadCorridor();
+    const corridorTimer = setInterval(loadCorridor, 120000);
+
     // Murska Sobota's own departures, and how fresh the feed behind them is.
     const loadStationLive = () => {
       fetch('/api/motis/departures?stopId=sz_1122956&n=10')
@@ -152,6 +163,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
       clearInterval(msTimer);
       clearInterval(koperTimer);
       clearInterval(stationTimer);
+      clearInterval(corridorTimer);
     };
   }, [isOpen]);
 
@@ -357,31 +369,35 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
             <div className="space-y-6 animate-in fade-in duration-150">
               {/* Top Key Metrics Bento */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* These three counted the app's own invented trains: "live
+                    trains on the tracks", their combined mass, the lorries
+                    they supposedly displaced. None of it was observed. They
+                    now count ships, which are. */}
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-emerald-500/20 flex flex-col justify-between">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Vlaki v Živo na Tirih</span>
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Ladij s tovorom za tir</span>
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   </div>
                   <div className="my-1 text-2xl font-bold font-mono text-emerald-400">
-                    {runningTrainsList.length}
+                    {corridorLoad?.load?.shipsContributing ?? '—'}
                   </div>
-                  <span className="text-[10px] text-emerald-300/80">Aktivno na slovenskem omrežju</span>
+                  <span className="text-[10px] text-emerald-300/80">V živo iz Luke Koper</span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-sky-500/20 flex flex-col justify-between">
-                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Masa Tovora v Gibanju</span>
+                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Tovor za železnico</span>
                   <div className="my-1 text-2xl font-bold font-mono text-sky-400">
-                    {totalTransitTons.toLocaleString('sl-SI')} t
+                    {corridorLoad ? `${Number(corridorLoad.load.railTonnes).toLocaleString('sl-SI')} t` : '—'}
                   </div>
-                  <span className="text-[10px] text-slate-400">Trenutno v železniškem tranzitu</span>
+                  <span className="text-[10px] text-slate-400">Izpeljano iz pristaniških tonaž</span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-amber-500/20 flex flex-col justify-between">
-                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Razbremenitev Avtocest</span>
+                  <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Obremenitev koridorja</span>
                   <div className="my-1 text-2xl font-bold font-mono text-amber-400">
-                    {totalTrucksOffset} vlačilcev
+                    {corridorLoad ? `${Number(corridorLoad.load.daysOfAverageThroughput).toLocaleString('sl-SI')} dni` : '—'}
                   </div>
-                  <span className="text-[10px] text-amber-300/80">Manj tovornjakov na A1 / A2</span>
+                  <span className="text-[10px] text-amber-300/80">Pri {corridorLoad?.load?.averageTrainsPerDay ?? '—'} vlakih/dan</span>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-purple-500/20 flex flex-col justify-between">
@@ -437,7 +453,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       </span>
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      15 celodnevnih tovornih vlakov (Metrans, SŽ-TP, Foxrail, CER Cargo) do mejne tovorne postaje Hodoš s točno tirno osjo.
+                      Mejni prehod Hodoš je edini železniški izstop proti Madžarski; promet skozenj ni javno objavljen.
                     </p>
                   </div>
                 </div>
@@ -452,289 +468,102 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </div>
               </div>
 
-              {/* Segmented Filter Control */}
-              <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
-                <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800">
-                  <button
-                    onClick={() => setTrainFilter('running')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
-                      trainFilter === 'running'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>V vožnji po odsekih ({runningTrainsList.length})</span>
-                  </button>
+              {/* Corridor load, in place of the invented trains.
+                  This tab used to list fifty-four made-up workings with
+                  made-up numbers, times and speeds. Nothing publishes freight
+                  positions here, so instead it shows what is measurably in the
+                  port converted into the movement it implies, laid against the
+                  line that movement has to use. */}
+              {corridorLoad ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Tovor za tir', value: `${Number(corridorLoad.load.railTonnes).toLocaleString('sl-SI')} t`, tone: 'text-amber-300' },
+                      { label: 'Vagonov', value: Number(corridorLoad.load.wagons).toLocaleString('sl-SI'), tone: 'text-sky-300' },
+                      { label: 'Vlakov', value: Number(corridorLoad.load.trains).toLocaleString('sl-SI'), tone: 'text-emerald-300' },
+                      { label: 'Dni povprečne odpreme', value: Number(corridorLoad.load.daysOfAverageThroughput).toLocaleString('sl-SI'), tone: 'text-purple-300' }
+                    ].map(c => (
+                      <div key={c.label} className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-center">
+                        <div className={`font-mono font-bold text-xl ${c.tone}`}>{c.value}</div>
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{c.label}</div>
+                      </div>
+                    ))}
+                  </div>
 
-                  <button
-                    onClick={() => setTrainFilter('terminals')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
-                      trainFilter === 'terminals'
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Factory size={13} />
-                    <span>Na terminalih & ranžirnih tirih ({terminalTrainsList.length})</span>
-                  </button>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Tovor, ki je zdaj v Luki Koper, pomeni približno{' '}
+                    <strong className="text-emerald-300">{corridorLoad.load.trains} vlakov</strong> — to je{' '}
+                    <strong className="text-purple-300">{Number(corridorLoad.load.daysOfAverageThroughput).toLocaleString('sl-SI')} dni</strong>{' '}
+                    pri objavljenem povprečju {corridorLoad.load.averageTrainsPerDay} vlakov na dan.
+                  </p>
 
-                  <button
-                    onClick={() => setTrainFilter('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
-                      trainFilter === 'all'
-                        ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <Layers size={13} />
-                    <span>Vse 24h voznoredne trase ({allSlotsList.length})</span>
-                  </button>
-                </div>
+                  {corridorLoad.certainSection && (
+                    <div className="p-3.5 rounded-xl bg-amber-950/25 border border-amber-500/30">
+                      <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                        <span className="text-xs font-bold text-amber-200">
+                          Ozko grlo: {corridorLoad.certainSection.from} → {corridorLoad.certainSection.to}
+                        </span>
+                        <span className="font-mono text-[11px] text-amber-300">{corridorLoad.certainSection.km} km</span>
+                      </div>
+                      <p className="text-[10.5px] text-slate-300 leading-relaxed">
+                        {corridorLoad.certainSection.note} Luka Koper ima en sam železniški priključek, zato gre{' '}
+                        <strong className="text-amber-300">ves</strong> ta tovor čez ta odsek — to ni ocena, ampak posledica omrežja.
+                      </p>
+                    </div>
+                  )}
 
-                <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
-                  <Activity size={13} className="text-emerald-400" />
-                  <span>Telemetrija: v realnem času</span>
-                </div>
-              </div>
-
-              {/* Active / Scheduled Trains List */}
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {displayedTrains.map((train: any, idx: number) => {
-                    const isRunning = train.isRunning ?? (train.status && train.status.includes('V vožnji'));
-                    const isTerminal = train.isAtTerminal ?? (train.status && train.status.includes('Priprava'));
-
-                    return (
-                      <div 
-                        key={`${train.id || train.slotId || 'train'}_${idx}`}
-                        className={`p-4 rounded-xl bg-slate-900/90 border transition-all flex flex-col justify-between space-y-3 shadow-lg group ${
-                          isRunning 
-                            ? 'border-emerald-500/30 hover:border-emerald-500/60' 
-                            : isTerminal 
-                            ? 'border-amber-500/30 hover:border-amber-500/60'
-                            : 'border-slate-800/80 hover:border-slate-700'
-                        }`}
-                      >
-                        {/* Card Header */}
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              {isRunning ? (
-                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                              ) : isTerminal ? (
-                                <span className="w-2 h-2 rounded-full bg-amber-400" />
-                              ) : (
-                                <span className="w-2 h-2 rounded-full bg-slate-600" />
-                              )}
-                              <span className="font-bold text-sm text-slate-100 font-mono group-hover:text-amber-300 transition-colors">
-                                {train.name}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-400 font-sans mt-0.5">
-                              {train.title}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-col items-end gap-1">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold ${
-                              isRunning 
-                                ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' 
-                                : isTerminal 
-                                ? 'bg-amber-500/10 border border-amber-500/30 text-amber-300'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}>
-                              {isRunning ? `${train.speedKmh} km/h` : isTerminal ? '0 km/h (Postanek)' : 'V čakanju'}
+                  <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                        Odseki po registru RINF
+                      </h4>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {corridorLoad.route.from} → {corridorLoad.route.to} · {corridorLoad.route.km} km
+                      </span>
+                    </div>
+                    <div className="max-h-72 overflow-auto custom-scrollbar space-y-1">
+                      {corridorLoad.sections.map((s: any, i: number) => (
+                        <div key={i} className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-[10.5px] ${
+                          s.certainty === 'all-port-traffic'
+                            ? 'bg-amber-950/20 border-amber-500/25'
+                            : 'bg-slate-950/50 border-slate-800/70'
+                        }`}>
+                          <span className="truncate text-slate-200">
+                            {s.from} → {s.to}
+                          </span>
+                          <span className="font-mono shrink-0 text-right">
+                            <span className="text-slate-400">{s.km} km</span>
+                            <span className={s.certainty === 'all-port-traffic' ? ' text-amber-300' : ' text-slate-500'}>
+                              {' '}· {s.certainty === 'all-port-traffic' ? 'ves tovor' : 'zgornja meja'}
                             </span>
-                          </div>
-                        </div>
-
-                        {/* Route and Timetable Banner */}
-                        <div className="px-3 py-2 rounded-lg bg-slate-950/70 border border-slate-800/80 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2 font-medium text-slate-200">
-                            <span className="text-amber-400 font-mono font-bold">{train.from}</span>
-                            <span className="text-slate-500">➔</span>
-                            <span className="text-sky-400 font-mono font-bold">{train.to}</span>
-                          </div>
-                          <div className="text-[11px] font-mono flex items-center gap-1.5 text-slate-400">
-                            <Clock size={11} className="text-slate-500" />
-                            <span>{train.departureTime} – {train.arrivalTime}</span>
-                          </div>
-                        </div>
-
-                        {/* Current section status */}
-                        {train.currentSection && (
-                          <div className="text-[11px] px-2.5 py-1 rounded bg-slate-950/50 border border-slate-800/60 flex items-center justify-between text-slate-300">
-                            <span className="text-slate-400 text-[10px]">Odsek:</span>
-                            <span className="font-medium text-slate-200 truncate">{train.currentSection}</span>
-                          </div>
-                        )}
-
-                        {/* Specs Grid */}
-                        <div className="grid grid-cols-2 gap-2 text-[11px]">
-                          <div className="bg-slate-950/40 p-2 rounded border border-slate-800/50">
-                            <span className="text-slate-500 block text-[10px]">Prevoznik</span>
-                            <span className="font-semibold text-slate-300 truncate block">{train.operator}</span>
-                          </div>
-                          <div className="bg-slate-950/40 p-2 rounded border border-slate-800/50">
-                            <span className="text-slate-500 block text-[10px]">Tovor</span>
-                            <span className="font-semibold text-amber-300 truncate block">{train.cargo}</span>
-                          </div>
-                          <div className="bg-slate-950/40 p-2 rounded border border-slate-800/50">
-                            <span className="text-slate-500 block text-[10px]">Vleka (Lokomotiva)</span>
-                            <span className="font-mono text-slate-300 truncate block">{train.locomotive}</span>
-                          </div>
-                          <div className="bg-slate-950/40 p-2 rounded border border-slate-800/50">
-                            <span className="text-slate-500 block text-[10px]">Bruto masa / Dolžina</span>
-                            <span className="font-mono text-slate-300 block">{train.grossWeightTons} t · {train.lengthM} m</span>
-                          </div>
-                        </div>
-
-                        {/* What the public registers say about this path, kept
-                            visibly apart from the scheduled figures above. The
-                            fields in the grid are this app's own schedule; the
-                            ones below come from ERA RINF, the ERA/UIC
-                            organisation register and the SŽ Network Statement,
-                            and say so. */}
-                        {train.registerData && (
-                          <div className="px-2.5 py-2 rounded-lg bg-slate-950/60 border border-slate-800/70 space-y-1.5 text-[10px]">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-slate-300 uppercase tracking-wider text-[9.5px]">Iz uradnih registrov</span>
-                              {train.registerData.classification?.speedClass && (
-                                <span className="font-mono text-slate-400 shrink-0">
-                                  {train.registerData.classification.speedClass.code} · maks. {train.registerData.classification.speedClass.maxSpeedKmh} km/h
-                                </span>
-                              )}
-                            </div>
-
-                            {train.registerData.route?.unresolved ? (
-                              <div className="text-slate-500 leading-relaxed">
-                                Trasa ni preverljiva v RINF — ena od končnih točk ni v registru.
-                              </div>
-                            ) : train.registerData.route ? (
-                              <>
-                                <div className="flex items-center justify-between gap-2 font-mono">
-                                  <span className="text-slate-400">Dolžina po RINF</span>
-                                  <span className="text-emerald-300 font-bold">
-                                    {train.registerData.route.km} km
-                                    {train.registerData.route.kmDeltaVsSchedule !== 0 && (
-                                      <span className="text-slate-500 font-normal">
-                                        {' '}(vozni red navaja {train.registerData.route.scheduleKm})
-                                      </span>
-                                    )}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between gap-2 font-mono">
-                                  <span className="text-slate-400">Službena mesta</span>
-                                  <span className="text-slate-300">{train.registerData.route.operationalPoints.length}</span>
-                                </div>
-                                {train.registerData.route.borderCrossings?.length > 0 && (
-                                  <div className="flex items-center justify-between gap-2 font-mono">
-                                    <span className="text-slate-400 shrink-0">Mejni prehod</span>
-                                    <span className="text-sky-300 truncate">{train.registerData.route.borderCrossings.join(', ')}</span>
-                                  </div>
-                                )}
-                              </>
-                            ) : null}
-
-                            {train.registerData.operators && (
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="text-slate-400 shrink-0">Prevoznik v registru</span>
-                                <span className="text-right min-w-0">
-                                  {train.registerData.operators.registered.map((o: any) => (
-                                    <span key={o.code} className="block font-mono text-emerald-300 truncate">
-                                      {o.name} <span className="text-slate-500">[{o.code}]</span>
-                                      {/* Keeper marking is a separate registration
-                                          from the operating licence; shown when the
-                                          VKM register has one under the same name. */}
-                                      {o.keeperMarkings?.length > 0 && (
-                                        <span className="text-sky-400/90"> · VKM {o.keeperMarkings.map((k: any) => k.vkm).join(', ')}</span>
-                                      )}
-                                    </span>
-                                  ))}
-                                  {train.registerData.operators.unregistered.map((name: string) => (
-                                    <span key={name} className="block font-mono text-amber-400/90 truncate">
-                                      {name} <span className="text-slate-500">— ni v registru</span>
-                                    </span>
-                                  ))}
-                                </span>
-                              </div>
-                            )}
-
-                            {(train.registerData.classification?.massClass || train.registerData.classification?.lengthClass) && (
-                              <div className="flex items-center justify-between gap-2 font-mono">
-                                <span className="text-slate-400">Razred SŽ</span>
-                                <span className="text-slate-300">
-                                  {[train.registerData.classification.massClass?.code, train.registerData.classification.lengthClass?.code]
-                                    .filter(Boolean).join(' · ')}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Environmental & Road Offload Metrics */}
-                        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-950/20 border border-emerald-500/20 text-[10px]">
-                          <div className="flex items-center gap-1.5 text-emerald-300 font-mono">
-                            <Leaf size={12} className="text-emerald-400 shrink-0" />
-                            <span>-{train.co2SavedKg ? Number(train.co2SavedKg).toLocaleString('sl-SI') : '---'} kg CO₂</span>
-                          </div>
-                          <div className="text-slate-400 font-mono">
-                            Odstranjeno: <strong className="text-amber-300">{train.trucksEquivalent || Math.round(train.grossWeightTons / 25)}</strong> tovornjakov
-                          </div>
-                        </div>
-
-                        {/* Progress bar */}
-                        <div>
-                          <div className="flex justify-between text-[10px] text-slate-400 font-mono mb-1">
-                            <span>Napredek po progi ({train.currentKm != null ? `${train.currentKm} / ${train.totalKm} km` : `${train.progressPercent}%`})</span>
-                            <span className="text-amber-300">{train.progressPercent} %</span>
-                          </div>
-                          <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-300 rounded-full transition-all duration-500"
-                              style={{ width: `${Math.min(100, Math.max(0, train.progressPercent || 0))}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Multi-Source Estimation & Snapping Provenance */}
-                        <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/70 text-[10px]">
-                          <div className="flex items-center gap-1.5 text-emerald-400 font-mono">
-                            <ShieldCheck size={12} className="text-emerald-400 shrink-0" />
-                            <span>Brez simulacije · Fuzija 5 uradnih virov</span>
-                          </div>
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/30 text-sky-300">
-                            {train.multiSourceEstimation?.snappedToRailTrack ? 'Tirna os: Poravnano' : 'Vektorska tirna os'}
                           </span>
                         </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Za Divačo se koridor razcepi (Sežana, Pivka, Ljubljana). Brez vira o delitvi prometa je
+                      obremenitev naprej <span className="text-slate-400">zgornja meja</span>, ne izmerjena vrednost.
+                    </p>
+                  </div>
 
-                        {train.weatherAdvisory && (
-                          <div className="text-[10px] px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center gap-1.5">
-                            <AlertTriangle size={11} className="shrink-0 text-amber-400" />
-                            <span className="truncate">{train.weatherAdvisory}</span>
-                          </div>
-                        )}
-
-                        {/* Action Button */}
-                        <button
-                          onClick={() => {
-                            if (onFlyTo && train.lon != null && train.lat != null) {
-                              onFlyTo([train.lon, train.lat], 14.5);
-                              onClose();
-                            }
-                          }}
-                          disabled={train.lon == null || train.lat == null}
-                          className="w-full py-1.5 px-3 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer group-hover:bg-amber-500 group-hover:text-slate-950 disabled:opacity-40 disabled:pointer-events-none"
-                        >
-                          <Navigation size={13} />
-                          <span>Centriraj na karti</span>
-                        </button>
+                  <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Od katerih ladij</h4>
+                    {corridorLoad.contributors.slice(0, 8).map((c: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between gap-2 text-[10.5px] font-mono">
+                        <span className="text-slate-200 truncate">{c.vessel}</span>
+                        <span className="text-slate-400 shrink-0 text-right truncate max-w-[55%]">
+                          {c.cargo} · {Number(c.railTonnes).toLocaleString('sl-SI')} t · {c.wagons} vag
+                          {c.wagonSeries ? ` ${c.wagonSeries}` : ''}
+                        </span>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 text-xs text-slate-400">
+                  Nalagam obremenitev koridorja …
+                </div>
+              )}
             </div>
           )}
 
