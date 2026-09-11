@@ -23,6 +23,11 @@ export default defineConfig(() => {
       emptyOutDir: true,
       chunkSizeWarningLimit: 3500,
     },
+    // MapLibre starts its worker with `new Worker(url, { type: 'module' })`, so
+    // the worker bundle Vite emits has to be an ES module too.
+    worker: {
+      format: 'es',
+    },
     optimizeDeps: {
       exclude: ['maplibre-gl']
     }

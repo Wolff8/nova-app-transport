@@ -1,4 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
@@ -6,6 +7,24 @@ import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
 import { snapToRailTrack } from './railTrackSnapper';
 import { MicromobilityTracker } from './micromobilityTracker';
 
+
+/**
+ * MapLibre locates its web worker with `new URL('./maplibre-gl-worker.mjs',
+ * import.meta.url)`. Once bundled, import.meta.url points at the built entry
+ * chunk, so it requests /assets/maplibre-gl-worker.mjs — a file Vite never
+ * emits. In production that 404s, the SPA catch-all route answers with
+ * index.html, and the module worker fails to start on an HTML payload.
+ *
+ * Everything MapLibre parses in that worker — i.e. every GeoJSON and vector
+ * layer: vehicles, stations, tracks — then silently renders nothing, while
+ * raster tiles keep working because they load on the main thread. That is why
+ * the basemap and rail tiles appeared but no live telemetry did. Dev builds are
+ * unaffected, since Vite's dev server serves the worker module directly.
+ *
+ * Point MapLibre at the worker bundle Vite actually emits (`?worker&url` also
+ * bundles the worker's own ./maplibre-gl-shared.mjs import).
+ */
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 export const CENTER: [number, number] = [16.1714, 46.6573];
 
