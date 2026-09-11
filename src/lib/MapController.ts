@@ -9,6 +9,44 @@ import { MicromobilityTracker } from './micromobilityTracker';
 
 export const CENTER: [number, number] = [16.1714, 46.6573];
 
+/**
+ * Basemap style, declared inline rather than fetched from a remote style.json.
+ *
+ * The previous setup pointed `style` at a hosted vector style (CartoCDN
+ * dark-matter). MapLibre only fires its 'load' event once that style AND its
+ * sprite/glyph sidecars have downloaded — and the entire app is gated on
+ * 'load' (icon setup, layer creation, data polling, dismissing the loading
+ * overlay). On a slow or flaky mobile connection any one of those requests
+ * stalling left the app spinning forever with no map and no data.
+ *
+ * An inline style has nothing to download before 'load' fires, so the app
+ * always starts. The basemap is a plain raster layer: tiles stream in
+ * progressively and never block startup, and if they fail entirely the
+ * background layer below keeps the map dark and readable with all the live
+ * telemetry still drawn on top.
+ */
+const BASEMAP_STYLE: any = {
+  version: 8,
+  // Layers use MapLibre's default font stack (Open Sans Regular); this glyph
+  // host serves it. Without a glyphs URL every text layer would fail.
+  glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
+  sources: {
+    basemap: {
+      type: 'raster',
+      tiles: [
+        'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+      ],
+      tileSize: 256,
+      maxzoom: 16,
+      attribution: '© Esri · © OpenStreetMap contributors'
+    }
+  },
+  layers: [
+    { id: 'basemap-background', type: 'background', paint: { 'background-color': '#0b1220' } },
+    { id: 'basemap', type: 'raster', source: 'basemap' }
+  ]
+};
+
 export const DYNAMIC_MOVING_SOURCES = new Set<string>([
   'buses',
   'transit',
@@ -120,13 +158,10 @@ export class MapController {
 
   
   
-  private styleFellBack = false;
-  private styleLoadWatchdog: ReturnType<typeof setTimeout> | null = null;
-
   private initMap() {
     this.map = new maplibregl.Map({
       container: this.container,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: BASEMAP_STYLE,
       center: CENTER,
       zoom: 11.5, // See whole Slovenia
       pitch: 45,
@@ -140,31 +175,17 @@ export class MapController {
       console.error("MAP ERROR:", e);
     });
 
-    // Resilience: everything downstream (icon loading, layer setup, data
-    // polling, clearing the loading overlay) is gated on the map's 'load'
-    // event. If the primary basemap style fails to download — a transient CDN
-    // reset, a blocked host, a flaky mobile connection — 'load' never fires and
-    // the app hangs on the loading spinner forever. If the map is not ready a
-    // few seconds after init, switch to a fallback style hosted on a different
-    // origin so 'load' can still fire and the app can start. (MapLibre fires
-    // 'load' the first time any style finishes loading, so the existing
-    // handler below runs for the fallback too.)
-    this.styleLoadWatchdog = setTimeout(() => {
-      if (this.isReady || this.styleFellBack) return;
-      this.styleFellBack = true;
-      console.warn('[MAP] Primary basemap did not load in time; switching to fallback basemap.');
-      try {
-        this.map.setStyle('https://demotiles.maplibre.org/style.json');
-      } catch (err) {
-        console.error('[MAP] Fallback setStyle failed:', err);
-      }
-    }, 8000);
 
     
 
 
-  this.map.on('load', async () => {
-      if (this.styleLoadWatchdog) { clearTimeout(this.styleLoadWatchdog); this.styleLoadWatchdog = null; }
+  // Gate setup on 'style.load', not 'load'. 'load' additionally waits for the
+  // first visually complete render, so slow (not failed) basemap tiles can
+  // delay it indefinitely — which would stall icon setup, layer creation and
+  // all data polling. 'style.load' fires as soon as the style is usable, which
+  // for the inline style above is immediate, so the live data renders even
+  // while basemap tiles are still streaming in or failing.
+  this.map.once('style.load', async () => {
     await this.loadIcons();
       this.isReady = true;
 
@@ -4025,7 +4046,6 @@ export class MapController {
     await Promise.all(iconPromises);
   }
   public destroy() {
-    if (this.styleLoadWatchdog) { clearTimeout(this.styleLoadWatchdog); this.styleLoadWatchdog = null; }
     if (this.pollingInterval) clearTimeout(this.pollingInterval);
     if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
     if (this.rafId) cancelAnimationFrame(this.rafId);
