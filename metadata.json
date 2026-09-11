@@ -1,0 +1,8 @@
+{
+  "name": "Remix NOVA APP TRANSPORT",
+  "description": "An impressive IoT open data map application showing real-time traffic, public transit, bikes, weather, and air quality using MapLibre GL.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
