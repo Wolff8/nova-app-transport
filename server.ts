@@ -7587,121 +7587,8 @@ app.post('/api/log', express.json(), (req, res) => {
     res.json(board);
   });
 
-  /**
-   * Croatian services via Transitous, a public MOTIS aggregator.
-   *
-   * The Slovenian OJPP gateway only carries Slovenian feeds and TRAVIC has
-   * almost nothing for Croatia — measured on the live endpoint, 26 vehicles
-   * against 632 Slovenian. Transitous hosts the Croatian GTFS feeds and speaks
-   * the same MOTIS v1 API this endpoint already parses, so its segments can be
-   * merged straight into the existing pipeline.
-   *
-   * Only rail, tram and metro are kept. A full response for the Croatian box is
-   * ~5.8 MB and mostly regional buses; dropping those keeps the payload and the
-   * per-request parsing cost sane on a small instance, and rail is the coverage
-   * that was actually missing. It is refreshed in the background on a longer
-   * TTL than the client's poll so the big download happens rarely.
-   */
-  const TRANSITOUS_MODES = new Set(['REGIONAL_RAIL', 'LONG_DISTANCE', 'HIGHSPEED_RAIL', 'NIGHT_RAIL', 'TRAM', 'METRO']);
-  let transitousCache: { data: any[]; ts: number } = { data: [], ts: 0 };
-  let transitousRefreshing = false;
-  /**
-   * Deliberately narrow, and deliberately infrequent.
-   *
-   * The first version of this requested the whole Slovenia-Croatia-Hungary box.
-   * That response is ~5.8 MB, and parsing it every 30s on a 512 MB instance put
-   * the service into a crash-restart loop — health checks alternated 200/502 and
-   * every train layer read zero. Attribution showed the wide box was not even
-   * earning its cost: Croatia was already covered by TRAVIC (only 7 HŽ trains
-   * and 17 Zagreb trams were new), and the one genuinely missing country was
-   * Italy. Restricting the box to the Italian corridor takes the payload to
-   * ~2.1 MB and keeps the Trenitalia services that were the actual gain.
-   */
-  const TRANSITOUS_BBOX = 'min=45.4,12.3&max=46.7,14.3';
-  const TRANSITOUS_TTL_MS = 150000;
-  const TRANSITOUS_MAX_SEGMENTS = 200;
 
-  async function refreshTransitous(): Promise<void> {
-    try {
-      const d = new Date();
-      const t2 = d.toISOString();
-      d.setMinutes(d.getMinutes() - 2);
-      const t1 = d.toISOString();
-      const url = `https://api.transitous.org/api/v1/map/trips?${TRANSITOUS_BBOX}&startTime=${t1}&endTime=${t2}&zoom=20`;
-      // Transitous rejects generic user agents with a 403, so identify the app.
-      const r = await fetch(url, {
-        headers: { 'User-Agent': 'NOVA-APP-TRANSPORT/1.0 (live transit map; github.com/Wolff8/nova-app-transport)' },
-        signal: AbortSignal.timeout(12000)
-      });
-      if (!r.ok) {
-        console.warn('[Transitous] HTTP', r.status);
-        return;
-      }
-      const segments: any[] = await r.json();
-      if (!Array.isArray(segments)) return;
-      // Cap what is retained so a surprise in the upstream response can never
-      // grow this cache without bound. The feed tag is stamped here, once per
-      // refresh, rather than in the request path — copying these segments per
-      // request meant hundreds of large object clones every few seconds.
-      const kept = segments
-        .filter(s => TRANSITOUS_MODES.has(s?.mode))
-        .slice(0, TRANSITOUS_MAX_SEGMENTS);
-      for (const s of kept) s.__feed = 'tt';
-      transitousCache = { data: kept, ts: Date.now() };
-    } catch (e: any) {
-      console.warn('[Transitous] refresh failed:', e?.message);
-    }
-  }
 
-  function getTransitousSegments(): any[] {
-    if (!transitousRefreshing && Date.now() - transitousCache.ts > TRANSITOUS_TTL_MS) {
-      transitousRefreshing = true;
-      refreshTransitous().finally(() => { transitousRefreshing = false; });
-    }
-    return transitousCache.data;
-  }
-
-  setTimeout(() => { getTransitousSegments(); }, 3500);
-
-  /**
-   * Remove Transitous services that another feed already provides.
-   *
-   * The Croatian bounding box necessarily overlaps Slovenia, so the same train
-   * arrives from both the OJPP gateway and Transitous. Measured on the live
-   * feed, 120 of 190 Transitous vehicles duplicated one already present, most
-   * within 100 metres — two markers stacked on the same train.
-   *
-   * Matching is on service name *and* proximity: two trains sharing a route
-   * number but running hundreds of kilometres apart are genuinely different
-   * services in different countries, and both are kept.
-   */
-  function dropDuplicateTransitous(vehicles: any[]): any[] {
-    const isTransitous = (v: any) => String(v?.id || '').startsWith('travic_tt_');
-    const byName = new Map<string, any[]>();
-    for (const v of vehicles) {
-      if (isTransitous(v)) continue;
-      const name = String(v?.name || '').trim();
-      if (!name) continue;
-      if (!byName.has(name)) byName.set(name, []);
-      byName.get(name)!.push(v);
-    }
-
-    const nearbyKm = (a: any, b: any) => {
-      const toRad = (x: number) => (x * Math.PI) / 180;
-      const dLat = toRad(b.lat - a.lat);
-      const dLon = toRad(b.lon - a.lon);
-      const h = Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
-      return 2 * 6371 * Math.asin(Math.sqrt(h));
-    };
-
-    return vehicles.filter(v => {
-      if (!isTransitous(v)) return true;
-      const candidates = byName.get(String(v?.name || '').trim());
-      if (!candidates) return true;
-      return !candidates.some(p => nearbyKm(v, p) < 5);
-    });
-  }
 
   app.get('/api/mav', (req, res) => {
     const trains = getMavTrains();
@@ -7752,8 +7639,10 @@ app.post('/api/log', express.json(), (req, res) => {
       const motisTrainPositions: { lat: number; lon: number; name: string }[] = [];
 
       // 1. Process Motis (authoritative GTFS-RT train/bus schedules) FIRST
-      // Slovenian OJPP segments plus the cached Croatian ones from Transitous.
-      // Both speak MOTIS v1, so they go through one parser.
+      // Slovenian OJPP segments. A second MOTIS source (Transitous) was merged
+      // in here to add Italian services; it took the whole service down on this
+      // instance — every /api/transit call killed the process — so it is gone.
+      // See the Italy station board for Italian coverage instead.
       const mergedMotis: any[] = [];
       if (resMotis.status === 'fulfilled' && resMotis.value.ok) {
           try {
@@ -7763,11 +7652,6 @@ app.post('/api/log', express.json(), (req, res) => {
               }
           } catch (e) {}
       }
-      // Already tagged at cache time, so these are pushed by reference.
-      for (const s of getTransitousSegments()) {
-          if (s) mergedMotis.push(s);
-      }
-
       if (mergedMotis.length > 0) {
           try {
               const data = mergedMotis;
@@ -8146,7 +8030,7 @@ app.post('/api/log', express.json(), (req, res) => {
           } catch(e) {}
       }
 
-      const baseTransit = dropDuplicateTransitous([...motisVehicles, ...travicVehicles]);
+      const baseTransit = [...motisVehicles, ...travicVehicles];
 
       // Fold in MÁV's own Hungarian trains. Where the same train number is
       // already present from TRAVIC/MOTIS the existing record wins, so this
