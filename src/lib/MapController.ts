@@ -265,6 +265,56 @@ export class MapController {
       addArrowCanvas('subway-arrow', '#8b5cf6');
       addArrowCanvas('freight-arrow', '#f59e0b');
 
+      // Modelled freight gets its own mark: deliberately not the amber used by
+      // yards and traffic, nor the cyan of live passenger trains, because it is
+      // a different kind of claim and should not be mistaken for either. A
+      // wagon body with a direction chevron, drawn large enough to read at
+      // corridor zoom.
+      const addModelledFreightIcon = (id: string) => {
+        const size = 52;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const cx = size / 2;
+
+        // Soft halo so it separates from dark track lines underneath.
+        ctx.beginPath();
+        ctx.arc(cx, cx, 20, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(217, 70, 239, 0.22)';
+        ctx.fill();
+
+        // Wagon body, pointing up; the layer rotates it to the bearing.
+        ctx.beginPath();
+        ctx.roundRect(cx - 11, cx - 6, 22, 16, 3);
+        ctx.fillStyle = '#e879f9';
+        ctx.fill();
+        ctx.strokeStyle = '#1e1b4b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Direction chevron on the nose.
+        ctx.beginPath();
+        ctx.moveTo(cx, cx - 19);
+        ctx.lineTo(cx + 11, cx - 6);
+        ctx.lineTo(cx - 11, cx - 6);
+        ctx.closePath();
+        ctx.fillStyle = '#f5d0fe';
+        ctx.fill();
+        ctx.strokeStyle = '#1e1b4b';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // Two axles, so it reads as rolling stock rather than a generic pin.
+        ctx.fillStyle = '#1e1b4b';
+        ctx.beginPath(); ctx.arc(cx - 6, cx + 11, 2.6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 6, cx + 11, 2.6, 0, Math.PI * 2); ctx.fill();
+
+        const imgData = ctx.getImageData(0, 0, size, size);
+        if (!this.map!.hasImage(id)) this.map!.addImage(id, imgData);
+      };
+      addModelledFreightIcon('freight-modelled-icon');
+
       // High-DPI Directional Navigation Arrows with 3D Spine, Crisp White Outline & Beacon
       const addNavigationArrow = (
         id: string,
@@ -1303,8 +1353,8 @@ export class MapController {
         filter: ['==', ['geometry-type'], 'LineString'],
         layout: { 'line-cap': 'round' },
         paint: {
-          'line-color': '#f59e0b',
-          'line-width': 7,
+          'line-color': '#e879f9',
+          'line-width': 8,
           // A wide window is a weak claim and is drawn as one.
           'line-opacity': ['*', 0.45, ['coalesce', ['get', 'confidence'], 0.5]],
           'line-blur': 2
@@ -1314,8 +1364,8 @@ export class MapController {
         id: 'freight_modelled', type: 'symbol', source: 'freight_modelled',
         filter: ['==', ['geometry-type'], 'Point'],
         layout: {
-          'icon-image': 'icon-train-freight',
-          'icon-size': 0.85,
+          'icon-image': 'freight-modelled-icon',
+          'icon-size': 1.0,
           'icon-rotate': ['coalesce', ['get', 'bearing'], 0],
           'icon-rotation-alignment': 'map',
           'icon-allow-overlap': true
@@ -1331,7 +1381,7 @@ export class MapController {
           'text-offset': [0, 1.5],
           'text-anchor': 'top'
         },
-        paint: { 'text-color': '#fcd34d', 'text-halo-color': '#0f172a', 'text-halo-width': 1.4 }
+        paint: { 'text-color': '#f5d0fe', 'text-halo-color': '#0f172a', 'text-halo-width': 1.6 }
       });
 
       // The six places where the Slovenian network actually meets a
@@ -4454,7 +4504,9 @@ export const LAYER_META: Record<string, { label: string; color: string; category
   sparql:         { label: 'European Data Portal', color: '#a855f7', category: 'iot' },
   warehouse:      { label: 'Skladišča & Logistični Depoji', color: '#64748b', category: 'logistics' },
   yard:           { label: 'Tovorni Terminali & Ranžirna Vozlišča (Luka Koper / Zalog)', color: '#f59e0b', category: 'sz' },
-  freight_trains: { label: 'Tovorni Vlaki (Trase SŽ · Na tirih)', color: '#f59e0b', category: 'sz' },
+  freight_modelled: { label: 'Tovorni vlaki (modelirana lega)', color: '#e879f9', category: 'sz' },
+  tent_railways:  { label: 'TEN-T proge (tovor / potniki)', color: '#a78bfa', category: 'sz' },
+  border_crossings: { label: 'Mejni prehodi (RINF)', color: '#f472b6', category: 'sz' },
   sensorcommunity:{ label: 'Sensor.Community (Nokia/Siemens/Air)', color: '#14b8a6', category: 'iot' },
   github:         { label: 'GitHub Open Source (Smart City)', color: '#e2e8f0', category: 'logistics' },
   openaq:         { label: 'OpenAQ (.gov zrak)', color: '#14b8a6', category: 'env' },
