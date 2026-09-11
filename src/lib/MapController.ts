@@ -1,11 +1,10 @@
 import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadMicromobility, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadBikes, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
 import { snapToRailTrack, loadRailTrackGeometry } from './railTrackSnapper';
-import { MicromobilityTracker } from './micromobilityTracker';
 
 
 /**
@@ -42,6 +41,40 @@ export const CENTER: [number, number] = [16.1714, 46.6573];
 const BASEMAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
 /**
+ * What the map falls back to if the basemap style cannot be fetched.
+ *
+ * Everything — icons, layers, polling — is set up on 'style.load', so a style
+ * that never arrives used to leave the app with a blank map and no data until
+ * the loading overlay's safety timer gave up. Measured with the CDN blocked:
+ * canvas up in 446 ms, then nothing for 8 seconds, then a dead map. This
+ * style has no dependency on that CDN: a plain dark ground, OpenStreetMap
+ * raster tiles for orientation, and MapLibre's own glyph server for labels.
+ */
+const FALLBACK_STYLE: any = {
+  version: 8,
+  name: 'nova-fallback',
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }
+  },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#0b1220' } },
+    // Dimmed and desaturated so the vehicle icons still read as the foreground.
+    { id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.45, 'raster-saturation': -0.9, 'raster-brightness-max': 0.7 } }
+  ]
+};
+/** How long the basemap style gets before the fallback replaces it. */
+const STYLE_FALLBACK_AFTER_MS = 5000;
+/** After a style-stage error, how long to still wait for 'style.load' before falling back. */
+const STYLE_FALLBACK_AFTER_ERROR_MS = 1500;
+
+/**
  * Upper bound on a believable ground speed per feed, in km/h. Used to reject
  * nonsense from upstream telemetry (a stale field, a unit mix-up, or a GPS
  * jump) rather than drawing a city bus doing 900 km/h.
@@ -68,7 +101,6 @@ const MAX_PLAUSIBLE_SPEED_KMH: Record<string, number> = {
   hafas: 250,
   freight_trains: 160,
   eurorail: 350,
-  micromobility: 45,
   aircraft: 1100
 };
 
@@ -79,7 +111,6 @@ export const DYNAMIC_MOVING_SOURCES = new Set<string>([
   'aircraft',
   'freight_trains',
   'eurorail',
-  'micromobility',
   // Catalogue freight paths move continuously along the corridor, so they
   // belong in the interpolation system like everything else that moves. They
   // used to be written straight to the source on a thirty-second timer, which
@@ -175,6 +206,12 @@ export class MapController {
   private vehicleMotionMap = new Map<string, VehicleMotionEntity>();
   private cachedSourceGeoJSON = new Map<string, GeoJSON.FeatureCollection>();
   private lastSourceAnimationTimestamp = new Map<string, number>();
+  /** Whether a dynamic source's features all carry unique ids (required by updateData). */
+  private sourceHasUniqueIds = new Map<string, boolean>();
+  /** `?nodiff` in the URL forces the old whole-collection path, for measurement. */
+  private forceFullSetData = (() => { try { return /[?&]nodiff\b/.test(location.search); } catch { return false; } })();
+  /** Sources where updateData failed once; they use setData from then on. */
+  private diffUnsupported = new Set<string>();
 
   // Backwards compatibility accessors
   private get busMotionMap(): Map<string, VehicleMotionEntity> {
@@ -212,6 +249,22 @@ export class MapController {
 
   
   
+  private styleLoaded = false;
+  private fallbackStyleApplied = false;
+  private styleFallbackTimer: number | null = null;
+
+  private armStyleFallback(afterMs: number) {
+    if (this.styleLoaded || this.fallbackStyleApplied) return;
+    if (this.styleFallbackTimer != null) clearTimeout(this.styleFallbackTimer);
+    this.styleFallbackTimer = window.setTimeout(() => {
+      this.styleFallbackTimer = null;
+      if (this.styleLoaded || this.fallbackStyleApplied) return;
+      this.fallbackStyleApplied = true;
+      console.warn(`[map] basemap style did not load after ${Math.round(performance.now())} ms; switching to the built-in fallback`);
+      try { this.map.setStyle(FALLBACK_STYLE); } catch (err) { console.error('[map] fallback style failed', err); }
+    }, afterMs);
+  }
+
   private initMap() {
     this.map = new maplibregl.Map({
       container: this.container,
@@ -227,7 +280,36 @@ export class MapController {
 
     this.map.on('error', (e) => {
       console.error("MAP ERROR:", e);
+      // Before the style has loaded, an error is a style, sprite or glyph
+      // fetch failing. Give 'style.load' a short grace period — a sprite
+      // failure alone does not block it — and fall back if it does not come.
+      if (!this.styleLoaded && !this.fallbackStyleApplied) {
+        this.armStyleFallback(STYLE_FALLBACK_AFTER_ERROR_MS);
+      }
     });
+    this.map.once('style.load', () => {
+      this.styleLoaded = true;
+      if (this.styleFallbackTimer != null) { clearTimeout(this.styleFallbackTimer); this.styleFallbackTimer = null; }
+    });
+    this.armStyleFallback(STYLE_FALLBACK_AFTER_MS);
+    // Vehicles outside the viewport are not animated (see animateVehiclePositions),
+    // so after the view changes, push every dynamic source's cached positions
+    // once so nothing newly on screen is where it was seconds ago.
+    this.map.on('moveend', () => {
+      for (const sourceId of DYNAMIC_MOVING_SOURCES) {
+        const fc = this.cachedSourceGeoJSON.get(sourceId);
+        const src = this.map?.getSource(sourceId) as maplibregl.GeoJSONSource | undefined;
+        if (fc && src) { try { src.setData(fc); } catch {} }
+      }
+    });
+
+    // Debug hooks for automated checks: expose the map so a headless browser
+    // can count features per source. Off unless asked for in the URL.
+    try {
+      if (typeof location !== 'undefined' && /[?&]debug\b/.test(location.search)) {
+        (window as any).__nova = { map: this.map, controller: this };
+      }
+    } catch {}
 
 
     
@@ -419,7 +501,7 @@ export class MapController {
       const interactiveLayers = [
         'buses', 'buses_label',
         'transit', 'hafas', 'aircraft', 'eurorail', 'freight_trains', 
-        'micromobility', 'micromobility_arrow', 'micromobility_trips_path', 'micromobility_trips_endpoints_circle', 'stations_layer', 'rinf', 'rinf_network_line', 
+        'stations_layer', 'rinf', 'rinf_network_line', 
         'traffic', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 
         'ttn', 'lorawan', 'nbiot', 'evcharge', 'bike', 'quakes', 'air', 'spat', 'hydro', 'yard'
       ];
@@ -522,6 +604,9 @@ export class MapController {
       });
       this.map.addLayer({
         id: 'buses_label', type: 'symbol', source: 'buses',
+        // Names for thousands of vehicles at region zoom are unreadable and cost a
+        // collision pass on every re-tile; icons stay at every zoom, names from 12.
+        minzoom: 12,
         layout: { 
           'text-field': ['coalesce', ['get', 'labelText'], ['get', 'name'], ''],
           'text-size': 10,
@@ -549,6 +634,9 @@ export class MapController {
       });
       this.map.addLayer({
         id: 'transit_label', type: 'symbol', source: 'transit',
+        // Names for thousands of vehicles at region zoom are unreadable and cost a
+        // collision pass on every re-tile; icons stay at every zoom, names from 12.
+        minzoom: 12,
         layout: {
           'text-field': ['coalesce', ['get', 'labelText'], ['get', 'name'], ''],
           'text-size': 10,
@@ -1012,182 +1100,6 @@ export class MapController {
       // NB-IoT
       this.map.addSource('nbiot', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       
-      this.map.addSource('micromobility', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-      
-      // Halo / glow for moving micromobility (scooters, cars, bikes) and active rentals in trip (Metoda C)
-      this.map.addLayer({
-        id: 'micromobility_glow',
-        type: 'circle',
-        source: 'micromobility',
-        filter: ['any', ['>=', ['coalesce', ['get', 'speed'], 0], 3], ['==', ['get', 'status'], 'in_trip']],
-        paint: {
-          'circle-color': [
-            'case',
-            ['==', ['get', 'status'], 'in_trip'], '#f59e0b',
-            ['match', ['get', 'form'],
-              'CAR', '#06b6d4',
-              'BICYCLE', '#84cc16',
-              '#10b981'
-            ]
-          ],
-          'circle-radius': [
-            'case',
-            ['==', ['get', 'status'], 'in_trip'], 18,
-            14
-          ],
-          'circle-opacity': [
-            'case',
-            ['==', ['get', 'status'], 'in_trip'], 0.45,
-            0.30
-          ],
-          'circle-blur': 0.55
-        }
-      });
-
-      this.map.addLayer({
-        id: 'micromobility',
-        type: 'circle',
-        source: 'micromobility',
-        paint: {
-          'circle-color': [
-            'case',
-            ['==', ['get', 'status'], 'in_trip'], '#f59e0b',
-            ['==', ['get', 'type'], 'STATION'], [
-              'match', ['get', 'form'],
-              'CAR', '#0284c7',
-              'BICYCLE', '#16a34a',
-              '#059669'
-            ],
-            [
-              'match', ['get', 'form'],
-              'CAR', '#06b6d4',
-              'BICYCLE', '#84cc16',
-              '#10b981'
-            ]
-          ],
-          'circle-radius': [
-            'case',
-            ['any', ['==', ['get', 'status'], 'in_trip'], ['>=', ['coalesce', ['get', 'speed'], 0], 3]], 0,
-            ['==', ['get', 'type'], 'STATION'], 6.5,
-            5
-          ],
-          'circle-stroke-width': [
-            'case',
-            ['==', ['get', 'status'], 'in_trip'], 0,
-            ['==', ['get', 'type'], 'STATION'], 1.8,
-            ['>=', ['coalesce', ['get', 'speed'], 0], 3], 0,
-            1
-          ],
-          'circle-stroke-color': '#ffffff'
-        }
-      });
-
-      // Directional arrow for moving vehicles and active in-trip entities rotated to live heading
-      this.map.addLayer({
-        id: 'micromobility_arrow',
-        type: 'symbol',
-        source: 'micromobility',
-        filter: ['any', ['>=', ['coalesce', ['get', 'speed'], 0], 3], ['==', ['get', 'status'], 'in_trip']],
-        layout: {
-          'icon-image': [
-            'case',
-            ['==', ['get', 'status'], 'in_trip'], 'in-trip-arrow',
-            [
-              'match', ['get', 'form'],
-              'CAR', 'car-arrow',
-              'BICYCLE', 'bike-arrow',
-              'scooter-arrow'
-            ]
-          ],
-          'icon-size': 0.95,
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'icon-rotate': ['coalesce', ['get', 'heading'], 0],
-          'icon-rotation-alignment': 'map',
-          'icon-offset': [0, 0]
-        }
-      });
-
-      this.map.addLayer({
-        id: 'micromobility_label',
-        type: 'symbol',
-        source: 'micromobility',
-        layout: {
-          'text-field': ['coalesce', ['get', 'labelText'], ['concat', ['get', 'form'], ' (', ['get', 'network'], ')']],
-          'text-size': 10,
-          'text-offset': [0, 1.4],
-          'text-anchor': 'top',
-          'text-allow-overlap': false
-        },
-        paint: {
-          'text-color': [
-            'case',
-            ['==', ['get', 'status'], 'in_trip'], '#fde047',
-            ['>=', ['coalesce', ['get', 'speed'], 0], 3], '#67e8f9',
-            '#e4e4e7'
-          ],
-          'text-halo-color': '#09090b',
-          'text-halo-width': 1.8
-        }
-      });
-
-      // Micromobility Trips Vector Source & Layers (A: Origin -> B: Destination / Current)
-      this.map.addSource('micromobility_trips_path', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-
-      this.map.addLayer({
-        id: 'micromobility_trips_path',
-        type: 'line',
-        source: 'micromobility_trips_path',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        },
-        paint: {
-          'line-color': ['coalesce', ['get', 'color'], '#f59e0b'],
-          'line-width': ['case', ['==', ['get', 'selected'], true], 5, 3.5],
-          'line-opacity': ['case', ['==', ['get', 'selected'], true], 1, 0.85],
-          'line-dasharray': [2, 1.5]
-        }
-      });
-
-      this.map.addSource('micromobility_trips_endpoints', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-
-      this.map.addLayer({
-        id: 'micromobility_trips_endpoints_circle',
-        type: 'circle',
-        source: 'micromobility_trips_endpoints',
-        paint: {
-          'circle-color': ['coalesce', ['get', 'color'], '#10b981'],
-          'circle-radius': ['case', ['==', ['get', 'selected'], true], 8.5, 7],
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff'
-        }
-      });
-
-      this.map.addLayer({
-        id: 'micromobility_trips_endpoints_label',
-        type: 'symbol',
-        source: 'micromobility_trips_endpoints',
-        layout: {
-          'text-field': ['get', 'labelText'],
-          'text-size': 10.5,
-          'text-offset': [0, 1.3],
-          'text-anchor': 'top',
-          'text-allow-overlap': true
-        },
-        paint: {
-          'text-color': '#ffffff',
-          'text-halo-color': '#000000',
-          'text-halo-width': 2
-        }
-      });
-
       this.map.addSource('rail_sensors', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addSource('traffic_sensors', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addSource('logistics_sensors', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -1554,15 +1466,15 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'micromobility', 'micromobility_arrow', 'micromobility_glow', 'micromobility_trips_path', 'micromobility_trips_endpoints_circle', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'transit_delay', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'micromobility_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'transit_delay', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
         });
         
         if (features.length) {
           // If a vehicle was clicked along with station/background, prioritize the vehicle!
           const vehicleFeature = features.find(feat => 
-            feat.source === 'buses' || feat.source === 'hafas' || feat.source === 'transit' || feat.source === 'eurorail' || feat.source === 'freight_trains' || feat.source === 'freight_paths' || feat.source === 'micromobility' ||
+            feat.source === 'buses' || feat.source === 'hafas' || feat.source === 'transit' || feat.source === 'eurorail' || feat.source === 'freight_trains' || feat.source === 'freight_paths' ||
             feat.layer.id === 'buses' || feat.layer.id === 'buses_label' || feat.layer.id === 'hafas' || feat.layer.id === 'transit' || feat.layer.id === 'eurorail' || feat.layer.id === 'freight_trains' ||
-            feat.layer.id === 'hafas_label' || feat.layer.id === 'transit_label' || feat.layer.id === 'freight_trains_label' || feat.layer.id === 'micromobility' || feat.layer.id === 'micromobility_arrow' || feat.layer.id === 'micromobility_glow'
+            feat.layer.id === 'hafas_label' || feat.layer.id === 'transit_label' || feat.layer.id === 'freight_trains_label'
           );
           const f = vehicleFeature || features[0];
           const p = f.properties;
@@ -1578,14 +1490,6 @@ export class MapController {
           this.activeSelectedNodeType = type;
           this.lastSelectedNodeSignature = '';
 
-          // If active micromobility trip was clicked, highlight its trajectory and A/B endpoints
-          if (type === 'micromobility' && (p.status === 'in_trip' || p.tripInfo)) {
-            const tripId = p.tripInfo?.tripId || p.id;
-            const tripObj = (this.latestActiveTrips || []).find((at: any) => at.id === tripId || `in_trip_${at.vehicleId}` === p.id || at.vehicleId === p.realVehicleId);
-            if (tripObj) {
-              this.selectTrip(tripObj);
-            }
-          }
 
           // Snappy interaction: only gently ease if feature is obscured under left sidebar
           if (window.innerWidth >= 640 && e.point.x < 360) {
@@ -1695,182 +1599,14 @@ export class MapController {
   private latestNonBusTransit: any[] = [];
   private latestGtfsRealtime: any[] = [];
 
-  // Dedicated Micromobility & Metoda C Poller properties
-  private lastMicroFetchTime = 0;
-  private isMicroPolling = false;
-  private readonly MICRO_POLL_INTERVAL_MS = 2500; // 2.5s TTL for real-time micromobility (GBFS)
-  private latestProcessedMicromobility: any[] = [];
   private latestActiveTrips: any[] = [];
   private latestCompletedTrips: any[] = [];
-  private latestMicromobilityStats: any = null;
   private selectedTripId: string | null = null;
 
-  public getSelectedTripId(): string | null {
-    return this.selectedTripId;
-  }
 
-  public selectTrip(trip: any): void {
-    if (!trip || !this.map) return;
-    this.selectedTripId = trip.id;
 
-    const origLat = trip.originLat ?? trip.origin?.[0];
-    const origLon = trip.originLon ?? trip.origin?.[1];
-    const destLat = trip.destination?.[0] ?? trip.destLat ?? trip.currentLat ?? origLat;
-    const destLon = trip.destination?.[1] ?? trip.destLon ?? trip.currentLon ?? origLon;
 
-    if (origLat && origLon && destLat && destLon) {
-      try {
-        const bounds = new maplibregl.LngLatBounds();
-        bounds.extend([origLon, origLat]);
-        bounds.extend([destLon, destLat]);
-        this.map.fitBounds(bounds, { padding: 90, maxZoom: 16.5, duration: 1200 });
-      } catch (e) {
-        this.flyTo([destLon, destLat], 16);
-      }
-    }
 
-    this.updateMicromobilityTrips(this.latestActiveTrips, this.latestCompletedTrips, trip.id);
-  }
-
-  public clearSelectedTrip(): void {
-    this.selectedTripId = null;
-    this.updateMicromobilityTrips(this.latestActiveTrips, this.latestCompletedTrips, null);
-  }
-
-  public updateMicromobilityTrips(activeTrips: any[], completedTrips: any[], selectedTripId?: string | null): void {
-    if (!this.map || !this.map.isStyleLoaded()) return;
-    const pathSource = this.map.getSource('micromobility_trips_path') as maplibregl.GeoJSONSource;
-    const endpointSource = this.map.getSource('micromobility_trips_endpoints') as maplibregl.GeoJSONSource;
-    if (!pathSource || !endpointSource) return;
-
-    const lineFeatures: any[] = [];
-    const pointFeatures: any[] = [];
-
-    // Samo trenutne znane lokacije vozil na zemljevidu; trase in zgodovina voženj se prikazujejo v meniju.
-    // Trasa (črta in točki A/B) se na mapi izriše IZKLJUČNO takrat, ko uporabnik v meniju klikne posamezno vožnjo.
-    if (selectedTripId) {
-      const activeTrip = (activeTrips || []).find((t: any) => t.id === selectedTripId);
-      const compTrip = (completedTrips || []).find((t: any) => t.id === selectedTripId);
-      const t = activeTrip || compTrip;
-
-      if (t) {
-        const isCompleted = !activeTrip && !!compTrip;
-        const origLat = t.originLat ?? t.origin?.[0];
-        const origLon = t.originLon ?? t.origin?.[1];
-        const destLat = isCompleted ? (t.destination?.[0] ?? t.destLat) : (t.currentLat ?? t.lastLat ?? origLat);
-        const destLon = isCompleted ? (t.destination?.[1] ?? t.destLon) : (t.currentLon ?? t.lastLon ?? origLon);
-
-        if (origLat && origLon && destLat && destLon) {
-          let coords: [number, number][];
-          if (t.waypoints && t.waypoints.length > 1) {
-            coords = t.waypoints.map((wp: [number, number]) => [wp[1], wp[0]]);
-            if (!isCompleted) coords.push([destLon, destLat]);
-          } else {
-            coords = [[origLon, origLat], [destLon, destLat]];
-          }
-
-          lineFeatures.push({
-            type: 'Feature' as const,
-            id: `line_${t.id}`,
-            geometry: {
-              type: 'LineString' as const,
-              coordinates: coords
-            },
-            properties: {
-              id: t.id,
-              tripType: isCompleted ? 'completed' : 'active',
-              status: isCompleted ? 'completed' : 'in_trip',
-              selected: true,
-              color: isCompleted ? '#38bdf8' : '#fbbf24',
-              name: t.name,
-              distanceKm: t.estimatedDistanceKm || t.distanceKm || 0
-            }
-          });
-
-          // Začetek A
-          pointFeatures.push({
-            type: 'Feature' as const,
-            id: `orig_${t.id}`,
-            geometry: { type: 'Point' as const, coordinates: [origLon, origLat] },
-            properties: {
-              id: t.id,
-              pointType: 'origin',
-              color: '#10b981',
-              selected: true,
-              labelText: `A: Začetek (${t.name || 'Vozilo'})`
-            }
-          });
-
-          // Cilj ali trenutna pozicija B
-          pointFeatures.push({
-            type: 'Feature' as const,
-            id: `dest_${t.id}`,
-            geometry: { type: 'Point' as const, coordinates: [destLon, destLat] },
-            properties: {
-              id: t.id,
-              pointType: isCompleted ? 'destination' : 'current',
-              color: isCompleted ? '#38bdf8' : '#f59e0b',
-              selected: true,
-              labelText: isCompleted ? `B: Cilj (${t.distanceKm || 0} km)` : `B: V vožnji (${t.durationFormatted || ''})`
-            }
-          });
-        }
-      }
-    }
-
-    const pathGeoJSON = {
-      type: 'FeatureCollection',
-      features: lineFeatures
-    };
-    const endpointGeoJSON = {
-      type: 'FeatureCollection',
-      features: pointFeatures
-    };
-
-    (this as any)._lastTripPathGeoJSON = pathGeoJSON;
-    (this as any)._lastTripEndpointsGeoJSON = endpointGeoJSON;
-
-    pathSource.setData(pathGeoJSON as any);
-    endpointSource.setData(endpointGeoJSON as any);
-  }
-
-  private syncSelectedTripEndpoint(lon: number, lat: number): void {
-    if (!this.map || !this.selectedTripId) return;
-    try {
-      const pathSource = this.map.getSource('micromobility_trips_path') as maplibregl.GeoJSONSource;
-      const lastPath = (this as any)._lastTripPathGeoJSON;
-      if (pathSource && lastPath) {
-        let changed = false;
-        for (const f of lastPath.features) {
-          if (f.properties?.id === this.selectedTripId && f.geometry?.coordinates) {
-            const coords = f.geometry.coordinates;
-            if (coords.length >= 2) {
-              coords[coords.length - 1] = [lon, lat];
-              changed = true;
-            }
-          }
-        }
-        if (changed) pathSource.setData(lastPath);
-      }
-
-      const endpointSource = this.map.getSource('micromobility_trips_endpoints') as maplibregl.GeoJSONSource;
-      const lastEndpoints = (this as any)._lastTripEndpointsGeoJSON;
-      if (endpointSource && lastEndpoints) {
-        let changed = false;
-        for (const f of lastEndpoints.features) {
-          if (f.properties?.id === this.selectedTripId && (f.properties?.pointType === 'current' || f.properties?.pointType === 'destination')) {
-            if (f.geometry?.coordinates) {
-              f.geometry.coordinates = [lon, lat];
-              changed = true;
-            }
-          }
-        }
-        if (changed) endpointSource.setData(lastEndpoints);
-      }
-    } catch (e) {
-      // non-blocking
-    }
-  }
 
   private trackHistory = new Map<string, any>();
   
@@ -1893,11 +1629,6 @@ export class MapController {
     // must take their chips with them rather than leave them floating.
     toggle(layerKey + '_delay');
     
-    if (layerKey === 'micromobility') {
-       toggle('micromobility_trips_path');
-       toggle('micromobility_trips_endpoints_circle');
-       toggle('micromobility_trips_endpoints_label');
-    }
     if (layerKey === 'tent_railways') {
       toggle('tent_railways');
       return;
@@ -2140,10 +1871,6 @@ export class MapController {
         minJitterMeters = 10.0;
         minJitterSpeed = 10.0;
         maxTeleportMeters = 40000; // Planes cruise at up to 900 km/h (~1.5 km in 6s)
-      } else if (sourceId === 'micromobility') {
-        minJitterMeters = 4.0;
-        minJitterSpeed = 2.0;
-        maxTeleportMeters = 3000;
       }
 
       const isTrain = (
@@ -2343,7 +2070,7 @@ export class MapController {
         // frozen until the next fix — the lurching "drive and stop" motion.
         // Spanning the actual interval instead keeps vehicles gliding at the
         // speed they are really travelling.
-        const isTransit = (sourceId === 'buses' || sourceId === 'transit' || sourceId === 'hafas' || sourceId === 'freight_trains' || sourceId === 'micromobility');
+        const isTransit = (sourceId === 'buses' || sourceId === 'transit' || sourceId === 'hafas' || sourceId === 'freight_trains');
         const minDuration = isTransit ? 1800 : 2500;
         const defaultDuration = isTransit ? 2200 : 4800;
         const maxDuration = 45000;
@@ -2393,11 +2120,30 @@ export class MapController {
       if (!cachedGeoJSON || cachedGeoJSON.features.length === 0) continue;
 
       const lastTimestamp = this.lastSourceAnimationTimestamp.get(sourceId) || 0;
-      // Stagger per-source to 48ms (~20 FPS) for buttery smooth motion without blocking main thread
-      if (timestamp - lastTimestamp < 48) continue;
+      // Ten updates a second per source. Every update, however small the diff,
+      // makes the worker re-tile the whole source and the main thread reload
+      // its tiles and re-place its symbols; twenty a second of that for four
+      // sources is what held a phone at a few frames per second.
+      if (timestamp - lastTimestamp < 100) continue;
 
       let hasMotionUpdates = false;
       const features = cachedGeoJSON.features;
+      // Only the vehicles that moved this frame, as diffs. Sending the whole
+      // collection re-serialised 3,200 features to the worker twenty times a
+      // second for a few hundred that had changed — the main-thread cost that
+      // made the map stutter on a phone.
+      const diffs: any[] = [];
+      const useDiff = !this.diffUnsupported.has(sourceId)
+        && this.sourceHasUniqueIds.get(sourceId) === true
+        && !this.forceFullSetData;
+      // Only vehicles in (or just outside) the viewport are worth an update:
+      // at region zoom that is a handful out of thousands. Everything else
+      // still has its cached position advanced, so the next full refresh or a
+      // pan (see 'moveend') shows it where it should be.
+      const b = this.map.getBounds();
+      const padLon = (b.getEast() - b.getWest()) * 0.25, padLat = (b.getNorth() - b.getSouth()) * 0.25;
+      const west = b.getWest() - padLon, east = b.getEast() + padLon, south = b.getSouth() - padLat, north = b.getNorth() + padLat;
+      let visibleMoved = 0;
 
       for (const motion of this.vehicleMotionMap.values()) {
         if (motion.sourceId !== sourceId || !motion.isInterpolating) continue;
@@ -2443,6 +2189,14 @@ export class MapController {
                 if (sourceId === 'freight_trains' || sourceId === 'freight_paths') {
                   feat.properties.bearing = normHeading;
                 }
+                const inView = curLon >= west && curLon <= east && curLat >= south && curLat <= north;
+                if (inView) visibleMoved++;
+                if (useDiff && inView) {
+                  const props: { key: string; value: any }[] = [{ key: 'heading', value: normHeading }];
+                  if (sourceId === 'aircraft') props.push({ key: 'true_track', value: normHeading });
+                  if (sourceId === 'freight_trains' || sourceId === 'freight_paths') props.push({ key: 'bearing', value: normHeading });
+                  diffs.push({ id: feat.id, newGeometry: { type: 'Point', coordinates: [curLon, curLat] }, addOrUpdateProperties: props });
+                }
               }
               hasMotionUpdates = true;
             }
@@ -2453,20 +2207,26 @@ export class MapController {
       if (hasMotionUpdates) {
         this.lastSourceAnimationTimestamp.set(sourceId, timestamp);
         const source = this.map?.getSource(sourceId) as maplibregl.GeoJSONSource;
+        // Nothing the user can see has moved: leave the worker alone.
+        if (source && visibleMoved === 0) continue;
         if (source) {
-          source.setData(cachedGeoJSON);
+          if (useDiff && diffs.length > 0 && typeof (source as any).updateData === 'function') {
+            try {
+              (source as any).updateData({ update: diffs }).catch?.((err: any) => {
+                console.warn(`[map] updateData rejected for ${sourceId}; using setData`, err);
+                this.diffUnsupported.add(sourceId);
+              });
+            } catch (err) {
+              console.warn(`[map] updateData threw for ${sourceId}; using setData`, err);
+              this.diffUnsupported.add(sourceId);
+              source.setData(cachedGeoJSON);
+            }
+          } else {
+            source.setData(cachedGeoJSON);
+          }
           updatedSourcesBudget--;
         }
 
-        // Real-time synchronization of active trip route endpoint to current render position
-        if (sourceId === 'micromobility' && this.selectedTripId) {
-          for (const m of this.vehicleMotionMap.values()) {
-            if (m.sourceId === 'micromobility' && (m.id === this.selectedTripId || this.selectedTripId.includes(m.id) || m.id.includes(this.selectedTripId))) {
-              this.syncSelectedTripEndpoint(m.renderLon, m.renderLat);
-              break;
-            }
-          }
-        }
       }
     }
   }
@@ -2506,47 +2266,6 @@ export class MapController {
       }
     } catch (err) {
       // Non-blocking: will retry next 2s cycle
-    }
-  }
-
-  /**
-   * Dedicated polling mechanism for BrezAvta Micromobility GBFS
-   * Executes Metoda C (Differential In-Trip Inference):
-   * - Tracks stations and floating vehicles (Bolt, Kvik, Avant2Go, BicikeLJ, etc.)
-   * - Infers in-trip unlocks when floating vehicles disappear from available feed
-   * - Computes real trip metrics (distance, duration, average speed) upon return
-   * - Feeds into differential motion interpolation for butter-smooth gliding
-   */
-  private async pollDedicatedMicromobility(): Promise<void> {
-    if (!this.isReady || !this.map) return;
-    try {
-      const raw = await fetchWithTimeout(loadMicromobility([]), 4500, null);
-      if (!raw || !Array.isArray(raw) || raw.length === 0) return;
-      this.slowDataCache.micromobility = raw;
-
-      const { renderedItems, activeTrips, completedTrips, stats } =
-        MicromobilityTracker.getInstance().processFeed(raw);
-
-      this.latestProcessedMicromobility = renderedItems;
-      this.latestActiveTrips = activeTrips;
-      this.latestCompletedTrips = completedTrips;
-      this.latestMicromobilityStats = stats;
-
-      this.updateGeoJSONSource('micromobility', renderedItems);
-      this.updateMicromobilityTrips(activeTrips, completedTrips, this.selectedTripId);
-
-      if (this.onStateUpdate) {
-        this.onStateUpdate({
-          counts: {
-            micromobility: renderedItems.length
-          },
-          activeTrips,
-          completedTrips,
-          micromobilityStats: stats
-        });
-      }
-    } catch (err) {
-      // Non-blocking: will retry next cycle
     }
   }
 
@@ -2721,16 +2440,6 @@ export class MapController {
         });
       }
 
-      // 1b) Dedicated Micromobility & Metoda C Poller (BrezAvta GBFS):
-      // Refreshes micromobility positions, detects in-trip rentals, and calculates trajectory deltas
-      if (timestamp - this.lastMicroFetchTime > this.MICRO_POLL_INTERVAL_MS && !this.isMicroPolling) {
-        this.isMicroPolling = true;
-        this.lastMicroFetchTime = timestamp;
-        this.pollDedicatedMicromobility().finally(() => {
-          this.isMicroPolling = false;
-        });
-      }
-
       // 1c) Global Telemetry Poller: Trains (HAFAS, Eurorail, Freight), Planes, Weather, etc. (every 5s)
       if (timestamp - this.lastFetchTime > 5000 && !this.isPolling) {
         this.isPolling = true;
@@ -2807,7 +2516,7 @@ export class MapController {
             loadEVCharging(errors),
             fetchWithTimeout(loadBikes(errors), 3000, []),
             fetchWithTimeout(loadWeather(errors), 3000, []),
-            fetchWithTimeout(loadMicromobility(errors), 3000, []),
+            Promise.resolve([] as any[]),
             fetchWithTimeout(loadAprs(errors), 3000, []),
             fetchWithTimeout(loadLoraMesh(errors), 3000, []),
             fetchWithTimeout(loadSparql(errors), 3000, []),
@@ -2838,22 +2547,7 @@ export class MapController {
       if (!(this as any).trackHistory) (this as any).trackHistory = new Map();
       const nowTime = Date.now();
 
-      // Micromobility & Metoda C (Differential In-Trip Inference):
-      // Process GBFS snapshots through MicromobilityTracker to infer in-trip rides, moving speed, and station deltas
-      const rawMicro = this.slowDataCache.micromobility || micromobility || [];
-      let allMicromobility = this.latestProcessedMicromobility;
-      if (!allMicromobility || allMicromobility.length === 0) {
-        if (rawMicro && rawMicro.length > 0) {
-          const processed = MicromobilityTracker.getInstance().processFeed(rawMicro);
-          allMicromobility = processed.renderedItems;
-          this.latestProcessedMicromobility = processed.renderedItems;
-          this.latestActiveTrips = processed.activeTrips;
-          this.latestCompletedTrips = processed.completedTrips;
-          this.latestMicromobilityStats = processed.stats;
-        } else {
-          allMicromobility = [];
-        }
-      }
+      const allMicromobility: any[] = [];
       
       transit.forEach(t => this.applyMovementPhysics(t, nowTime));
       hafas.forEach(t => this.applyMovementPhysics(t, nowTime));
@@ -3004,8 +2698,6 @@ export class MapController {
       ];
 
       this.updateGeoJSONSource('bike', bikes);
-      this.updateGeoJSONSource('micromobility', allMicromobility);
-      this.updateMicromobilityTrips(this.latestActiveTrips, this.latestCompletedTrips, this.selectedTripId);
       this.updateGeoJSONSource('transit', allTransit);
       this.updateGeoJSONSource('weather', weather);
       this.updateGeoJSONSource('hafas', deduplicatedHafas);
@@ -3139,7 +2831,7 @@ export class MapController {
       state.micromobility = allMicromobility;
       state.activeTrips = this.latestActiveTrips;
       state.completedTrips = this.latestCompletedTrips;
-      state.micromobilityStats = this.latestMicromobilityStats;
+      state.micromobilityStats = null;
       state.buses = this.latestDedicatedBuses;
       state.transit = transit;
       state.freight = freightTrains;
@@ -3538,6 +3230,19 @@ export class MapController {
 
       if (isDynamic) {
         this.cachedSourceGeoJSON.set(sourceId, fc);
+        // updateData() needs every feature to carry a unique id; decide once
+        // per refresh whether this source qualifies, so the animation tick can
+        // send diffs instead of the whole collection.
+        let unique = features.length > 0;
+        if (unique) {
+          const seen = new Set<string | number>();
+          for (const f of features) {
+            const id = f.id as any;
+            if ((typeof id !== 'string' && typeof id !== 'number') || seen.has(id)) { unique = false; break; }
+            seen.add(id);
+          }
+        }
+        this.sourceHasUniqueIds.set(sourceId, unique);
       }
 
       source.setData(fc);
@@ -4324,7 +4029,6 @@ export class MapController {
                    this.latestCompletedTrips.find(t => t.id === data.id) || 
                    data.rawPayload || data;
       
-      this.selectTrip(trip);
       const isActive = trip.status === 'in_trip' || trip.tripType === 'active';
       const origLat = trip.originLat ?? trip.origin?.[0];
       const origLon = trip.originLon ?? trip.origin?.[1];
@@ -4371,7 +4075,7 @@ export class MapController {
         id: String(trip.id || data.id),
         title: nodeTitle,
         category: resolvedCategory,
-        type: 'micromobility_trip',
+        type: 'micromobility',
         trainNum: tNum,
         coordinates: coords,
         timestamp: new Date(),
@@ -4698,7 +4402,6 @@ export const LAYER_META: Record<string, { label: string; color: string; category
   roads:          { label: 'Avtocesta A5 & Vpadnice',      color: '#94a3b8', category: 'traffic' },
   traffic_counts: { label: 'Cestni števci prometa',  color: '#ef4444', category: 'traffic' },
   bikeshare:      { label: 'Kolesa Pomurje Bikes',          color: '#84cc16', category: 'mobility' },
-  micromobility: { label: 'BrezAvta Mikromobilnost (Bikes, Scooters, Taxis)',          color: '#65a30d', category: 'mobility' },
   evcharge:       { label: 'EV Polnilnice (CCS/Type2)',    color: '#a3e635', category: 'mobility' },
   lorawan:        { label: 'LoRaWAN Nokia IoT Prehodi',    color: '#fbbf24', category: 'iot' },
   nbiot:          { label: 'NB-IoT Pametni Senzorji (Telekom)', color: '#d97706', category: 'iot' },

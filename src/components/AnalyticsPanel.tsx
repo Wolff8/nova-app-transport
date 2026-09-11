@@ -87,17 +87,6 @@ const DATASETS: DatasetDef[] = [
     nodeType: 'tent_railways'
   },
   {
-    sourceId: 'micromobility', layerKey: 'micromobility', label: 'Mikromobilnost', icon: Bike, accent: '#65a30d',
-    primary: r => r.name || r.network || 'Postajališče',
-    secondary: r => r.network || '—',
-    // GBFS stations report availability; free-floating vehicles report a count of 1.
-    metric: r => (r.spaces != null && num(r.spaces) > 0)
-      ? `${num(r.vehicles)}/${num(r.vehicles) + num(r.spaces)} na voljo`
-      : `${num(r.vehicles)} na voljo`,
-    sortValue: r => num(r.vehicles),
-    nodeType: 'micromobility'
-  },
-  {
     sourceId: 'evcharge', layerKey: 'evcharge', label: 'EV polnilnice', icon: Zap, accent: '#a3e635',
     primary: r => r.name || 'Polnilnica',
     secondary: r => r.operator || r.network || '—',

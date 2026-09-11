@@ -501,22 +501,6 @@ export async function loadOverpass(type: string, errors: string[]) {
   }
 }
 
-export async function loadMicromobility(errors: string[]) {
-  try {
-    const res = await fetch(`/api/micromobility?_=${Date.now()}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) return data;
-    }
-    // Fallback to direct BrezAvta endpoint if server route returned empty or error
-    const fallback = await fetch(`https://api.beta.brezavta.si/micromobility/?_=${Date.now()}`);
-    if (!fallback.ok) throw new Error('Failed to fetch micromobility data');
-    return await fallback.json();
-  } catch (e: any) {
-    errors.push('Micromobility API napaka: ' + e.message);
-    return [];
-  }
-}
 
 
 export async function loadSensorCommunity(errors: string[]) {

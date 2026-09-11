@@ -27,6 +27,16 @@ export default function App() {
   const [isStreamOpen, setIsStreamOpen] = useState(false);
   const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLogEntry[]>([]);
 
+  // Each lazy panel is mounted the first time it is asked for and stays
+  // mounted after, so its chunk is not downloaded on a phone that never opens
+  // it, and its state is not thrown away every time it is closed.
+  const [everOpened, setEverOpened] = useState({ insights: false, freight: false, analytics: false, stream: false, inspector: false });
+  useEffect(() => { if (insightsOpen) setEverOpened(e => e.insights ? e : { ...e, insights: true }); }, [insightsOpen]);
+  useEffect(() => { if (freightModalOpen) setEverOpened(e => e.freight ? e : { ...e, freight: true }); }, [freightModalOpen]);
+  useEffect(() => { if (analyticsOpen) setEverOpened(e => e.analytics ? e : { ...e, analytics: true }); }, [analyticsOpen]);
+  useEffect(() => { if (isStreamOpen) setEverOpened(e => e.stream ? e : { ...e, stream: true }); }, [isStreamOpen]);
+  useEffect(() => { if (selectedNode) setEverOpened(e => e.inspector ? e : { ...e, inspector: true }); }, [selectedNode]);
+
   // Ref buffer for telemetry logs to prevent re-render thrashing
   const logBufferRef = useRef<TelemetryLogEntry[]>([]);
 
@@ -251,6 +261,7 @@ export default function App() {
         </button>
       </div>
 
+      {everOpened.analytics && (
       <Suspense fallback={null}>
       <AnalyticsPanel
         isOpen={analyticsOpen}
@@ -259,6 +270,7 @@ export default function App() {
         onSelectNode={setSelectedNode}
       />
       </Suspense>
+      )}
 
       {/* Main Sidebar */}
       <Sidebar
@@ -274,6 +286,7 @@ export default function App() {
       />
 
       {/* AI Insights Flyout */}
+      {everOpened.insights && (
       <Suspense fallback={null}>
       <AiInsights 
         isOpen={insightsOpen} 
@@ -281,8 +294,10 @@ export default function App() {
         appState={appState} 
       />
       </Suspense>
+      )}
 
       {/* Interactive Telemetry Node Inspector */}
+      {everOpened.inspector && (
       <Suspense fallback={null}>
       <TelemetryInspector 
         node={selectedNode}
@@ -298,8 +313,10 @@ export default function App() {
         onHighlightRoute={handleHighlightRoute}
       />
       </Suspense>
+      )}
 
       {/* Live Telemetry Log Stream / Terminal */}
+      {everOpened.stream && (
       <Suspense fallback={null}>
       <LiveTelemetryStream
         isOpen={isStreamOpen}
@@ -308,8 +325,10 @@ export default function App() {
         onSelectLog={handleSelectLog}
       />
       </Suspense>
+      )}
 
       {/* Multimodal Freight Intelligence Modal */}
+      {everOpened.freight && (
       <Suspense fallback={null}>
       <FreightIntelligenceModal
         isOpen={freightModalOpen}
@@ -324,6 +343,7 @@ export default function App() {
         }}
       />
       </Suspense>
+      )}
 
       {/* Bottom Footer Source Banner */}
       <div className="hidden sm:flex absolute bottom-2 right-3 z-10 
