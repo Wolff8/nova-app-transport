@@ -265,7 +265,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                       <div className="text-[9.5px] text-amber-400/80 font-mono">
                         {nearMsFreight 
                           ? `🚂 ${nearMsFreight.trainNumber}: ${nearMsFreight.currentSection || 'Murska Sobota'}`
-                          : 'TEN-T RFC 5/6 · 61% Železnica · UIC'}
+                          : 'TEN-T RFC 5/6 · UIC'}
                       </div>
                     </div>
                   </div>

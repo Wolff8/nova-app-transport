@@ -862,24 +862,135 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   });
 
   // 5. Modal Split & Ecology: Road (DARS A1/A2) vs Rail (SŽ)
-  app.get('/api/freight/modal-split', (req, res) => {
-    const modalSplit = {
-      corridor: 'Avtocesta A1 (Koper - Ljubljana - Maribor) vs. Železniški koridor',
-      dailyFreightTonnageRail: 58000, // tons moved by train
-      dailyFreightTonnageRoad: 42000, // tons moved by trucks on A1
-      equivalentHeavyTrucksDiverted: 2420, // articulated 40t trucks avoided per day
-      dailyCo2SavedKg: 1452000, // ~1.45 million kg CO2 saved daily
-      co2ComparisonPerTonKm: {
-        railElectricGramsCo2: 14.8, // 3 kV DC electrified rail with Slovenian green energy mix
-        roadEuro6TruckGramsCo2: 82.4, // Standard 40t diesel tractor unit
-        efficiencyRatio: 'Železnica proizvede 5,5-krat manj emisij CO2 na tono/km kot cestni tovornjak'
+  /**
+   * Rail versus road freight, from Eurostat's published national statistics.
+   *
+   * This endpoint used to return invented constants — 58,000 tonnes by rail
+   * against 42,000 by road, 2,420 lorries removed from the A1 daily, 485,000
+   * litres of fuel and €32m of asphalt wear saved a year — none of which came
+   * from anywhere. They also had the picture backwards: they implied rail
+   * carries the majority of Slovenian freight, when Eurostat's own figures put
+   * rail at roughly a sixth of it.
+   *
+   * Eurostat publishes both sides annually (rail_go_total and road_go_ta_tott),
+   * so the split is now computed from those. Tonne-kilometres are the headline
+   * measure, since they account for distance rather than counting a wagon
+   * shunted across a yard the same as one hauled to Hamburg.
+   */
+  let modalSplitCache: { body: any; ts: number } = { body: null, ts: 0 };
+  const MODAL_SPLIT_TTL_MS = 6 * 60 * 60 * 1000;
+  const EUROSTAT_BASE = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data';
+
+  /**
+   * Resolve one observation from a JSON-stat response. Values arrive as a flat,
+   * row-major array, so the index is folded from the chosen category of each
+   * dimension in the order the dataset declares them.
+   */
+  function jsonStatValue(payload: any, picks: Record<string, string>): number | null {
+    try {
+      const ids: string[] = payload.id;
+      const sizes: number[] = payload.size;
+      let index = 0;
+      for (let i = 0; i < ids.length; i++) {
+        const dimId = ids[i];
+        const categories = payload.dimension[dimId].category.index;
+        const wanted = picks[dimId];
+        const categoryIndex = wanted !== undefined ? categories[wanted] : 0;
+        if (categoryIndex === undefined) return null;
+        index = index * sizes[i] + categoryIndex;
+      }
+      const value = payload.value[String(index)];
+      return typeof value === 'number' ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function jsonStatFirstCategory(payload: any, dimId: string): string | null {
+    try {
+      return Object.keys(payload.dimension[dimId].category.index)[0] ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function fetchEurostat(dataset: string, query: string): Promise<any | null> {
+    try {
+      const r = await fetch(`${EUROSTAT_BASE}/${dataset}?format=JSON&lang=EN&${query}`, {
+        signal: AbortSignal.timeout(12000)
+      });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch (e: any) {
+      console.warn(`[eurostat] ${dataset} failed:`, e?.message);
+      return null;
+    }
+  }
+
+  async function buildModalSplit(geo: string): Promise<any> {
+    const [rail, road] = await Promise.all([
+      fetchEurostat('rail_go_total', `geo=${geo}&lastTimePeriod=1`),
+      fetchEurostat('road_go_ta_tott', `geo=${geo}&lastTimePeriod=1`)
+    ]);
+    if (!rail || !road) return null;
+
+    const railTkm = jsonStatValue(rail, { unit: 'MIO_TKM' });
+    const railTonnes = jsonStatValue(rail, { unit: 'THS_T' });
+    const roadTkm = jsonStatValue(road, { tra_type: 'TOTAL', tra_oper: 'TOTAL', unit: 'MIO_TKM' });
+    const roadTonnes = jsonStatValue(road, { tra_type: 'TOTAL', tra_oper: 'TOTAL', unit: 'THS_T' });
+    if (railTkm == null || roadTkm == null) return null;
+
+    const share = (a: number, b: number) => Number(((a / (a + b)) * 100).toFixed(1));
+
+    // Reference emission factors, not measurements. Stated here rather than
+    // buried so the derived figure can be checked against its assumptions.
+    const RAIL_G_CO2_PER_TKM = 24;
+    const ROAD_G_CO2_PER_TKM = 137;
+    // railTkm is in millions of tonne-km, and grams convert to tonnes by 1e6,
+    // so those factors cancel: the answer is simply Mtkm × (g/tkm difference).
+    const avoidedTonnesCo2 = Math.round(railTkm * (ROAD_G_CO2_PER_TKM - RAIL_G_CO2_PER_TKM));
+
+    return {
+      source: 'Eurostat — rail_go_total, road_go_ta_tott',
+      datasetUpdated: { rail: rail.updated, road: road.updated },
+      geo,
+      year: jsonStatFirstCategory(rail, 'time'),
+      isEstimate: false,
+      tonneKm: {
+        unit: 'million tonne-km',
+        rail: railTkm,
+        road: roadTkm,
+        railSharePercent: share(railTkm, roadTkm)
       },
-      energyEfficiency: {
-        fuelSavedLitersPerDay: 485000,
-        wearAndTearAsphaltSavingsEurPerYear: 32000000
+      tonnes: {
+        unit: 'thousand tonnes',
+        rail: railTonnes,
+        road: roadTonnes,
+        railSharePercent: railTonnes != null && roadTonnes != null ? share(railTonnes, roadTonnes) : null
+      },
+      co2: {
+        isEstimate: true,
+        note: 'Izpeljano iz uradnih tonskih kilometrov in navedenih referenčnih faktorjev — ni meritev.',
+        railGramsPerTonneKm: RAIL_G_CO2_PER_TKM,
+        roadGramsPerTonneKm: ROAD_G_CO2_PER_TKM,
+        avoidedTonnesCo2PerYear: avoidedTonnesCo2
       }
     };
-    res.json(modalSplit);
+  }
+
+  app.get('/api/freight/modal-split', async (req, res) => {
+    const geo = String(req.query.geo || 'SI').toUpperCase().slice(0, 2);
+    const cacheable = geo === 'SI';
+    if (cacheable && modalSplitCache.body && Date.now() - modalSplitCache.ts < MODAL_SPLIT_TTL_MS) {
+      return res.json(modalSplitCache.body);
+    }
+    const body = await buildModalSplit(geo);
+    if (!body) {
+      if (modalSplitCache.body) return res.json(modalSplitCache.body);
+      return res.status(503).json({ error: 'Eurostat ni dosegljiv', source: 'Eurostat' });
+    }
+    if (cacheable) modalSplitCache = { body, ts: Date.now() };
+    res.json(body);
   });
 
   // 6. Interactive UIC Freight Wagon Decoder & Rolling Stock Catalog

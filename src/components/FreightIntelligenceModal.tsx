@@ -894,60 +894,99 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </div>
               </div>
 
-              {/* Big Stats Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-4 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center space-y-1">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Prihranek CO2 Dnevno</span>
-                  <div className="text-3xl font-bold font-mono text-emerald-400">1.452 t</div>
-                  <span className="text-[11px] text-slate-400">1.452.000 kg CO2 / dan</span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-900/80 border border-sky-500/20 text-center space-y-1">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Odstranjenih Tovornjakov</span>
-                  <div className="text-3xl font-bold font-mono text-sky-400">2.420</div>
-                  <span className="text-[11px] text-slate-400">40-tonskih vlačilcev manj na A1/dan</span>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-900/80 border border-amber-500/20 text-center space-y-1">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Prihranek Goriva</span>
-                  <div className="text-3xl font-bold font-mono text-amber-400">485.000 L</div>
-                  <span className="text-[11px] text-slate-400">Dizelskega goriva na dan</span>
-                </div>
-              </div>
-
-              {/* Detailed comparison table */}
-              <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                  Primerjava emisij na tono-kilometer (g CO2 / t·km)
-                </h4>
-
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <div className="flex items-center justify-between mb-1 font-mono">
-                      <span className="text-emerald-400 font-bold">🚂 Električni tovorni vlak SŽ:</span>
-                      <span className="text-emerald-400 font-bold">14,8 g CO2 / t·km</span>
+              {/* Sourced national figures. The three cards that stood here —
+                  1.452 t of CO2 a day, 2.420 lorries removed, 485.000 L of
+                  diesel — were constants with no origin, and they implied rail
+                  carries most Slovenian freight when Eurostat puts it near a
+                  sixth. Only what the statistics support is shown, and the one
+                  derived number is labelled as derived. */}
+              {modalSplitData?.tonneKm ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-4 rounded-xl bg-slate-900/80 border border-amber-500/20 text-center space-y-1">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Delež železnice</span>
+                      <div className="text-3xl font-bold font-mono text-amber-400">{modalSplitData.tonneKm.railSharePercent} %</div>
+                      <span className="text-[11px] text-slate-400">tonskih kilometrov ({modalSplitData.year})</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: '18%' }}></div>
+                    <div className="p-4 rounded-xl bg-slate-900/80 border border-sky-500/20 text-center space-y-1">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Železnica</span>
+                      <div className="text-3xl font-bold font-mono text-sky-400">{Number(modalSplitData.tonneKm.rail).toLocaleString('sl-SI')}</div>
+                      <span className="text-[11px] text-slate-400">mio t·km · {Number(modalSplitData.tonnes.rail).toLocaleString('sl-SI')} tis. ton</span>
+                    </div>
+                    <div className="p-4 rounded-xl bg-slate-900/80 border border-rose-500/20 text-center space-y-1">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cesta</span>
+                      <div className="text-3xl font-bold font-mono text-rose-400">{Number(modalSplitData.tonneKm.road).toLocaleString('sl-SI')}</div>
+                      <span className="text-[11px] text-slate-400">mio t·km · {Number(modalSplitData.tonnes.road).toLocaleString('sl-SI')} tis. ton</span>
                     </div>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1 font-mono">
-                      <span className="text-rose-400 font-bold">🚛 Težki vlačilec Euro-6 Diesel:</span>
-                      <span className="text-rose-400 font-bold">82,4 g CO2 / t·km</span>
+                  <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between text-xs flex-wrap gap-2">
+                      <span className="font-bold text-white">Delitev tovora v Sloveniji ({modalSplitData.year})</span>
+                      <span className="text-[10px] text-emerald-400/80 font-mono">Vir: {modalSplitData.source}</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
-                      <div className="h-full bg-rose-500 rounded-full" style={{ width: '100%' }}></div>
+                    <div className="w-full h-3 rounded-full bg-slate-950 overflow-hidden flex border border-slate-700/60 p-0.5">
+                      <div className="h-full bg-gradient-to-r from-amber-500 to-amber-400 rounded-l-full" style={{ width: `${modalSplitData.tonneKm.railSharePercent}%` }}></div>
+                      <div className="h-full bg-gradient-to-r from-sky-500 to-sky-400 rounded-r-full" style={{ width: `${100 - modalSplitData.tonneKm.railSharePercent}%` }}></div>
+                    </div>
+                    {modalSplitData.co2 && (
+                      <p className="text-[10.5px] text-slate-400 leading-relaxed">
+                        Ob {Number(modalSplitData.co2.railGramsPerTonneKm)} g CO2/t·km za železnico in {Number(modalSplitData.co2.roadGramsPerTonneKm)} g za cesto
+                        bi prenos teh tonskih kilometrov na cesto pomenil dodatnih
+                        <strong className="text-emerald-400"> {Number(modalSplitData.co2.avoidedTonnesCo2PerYear).toLocaleString('sl-SI')} t CO2 </strong>
+                        na leto. <span className="text-amber-400/80">Izračun, ne meritev</span> — temelji na zgoraj navedenih faktorjih.
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 text-xs text-slate-400">
+                  Nalagam uradne statistike (Eurostat) …
+                </div>
+              )}
+
+              {/* Emission factors, read from the same place the CO2 figure above
+                  is derived from. This table used to hardcode a different pair
+                  (14,8 and 82,4 g/t·km) than the calculation it sat beside, and
+                  closed with an unsourced €32m asphalt saving. One set of
+                  factors now feeds both, and they are labelled as assumptions. */}
+              {modalSplitData?.co2 && (
+                <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Uporabljeni referenčni faktorji (g CO2 / t·km)
+                  </h4>
+
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <div className="flex items-center justify-between mb-1 font-mono gap-2">
+                        <span className="text-emerald-400 font-bold">🚂 Železnica</span>
+                        <span className="text-emerald-400 font-bold shrink-0">{modalSplitData.co2.railGramsPerTonneKm} g / t·km</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 rounded-full"
+                          style={{ width: `${(modalSplitData.co2.railGramsPerTonneKm / modalSplitData.co2.roadGramsPerTonneKm) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1 font-mono gap-2">
+                        <span className="text-rose-400 font-bold">🚛 Cestni tovorni promet</span>
+                        <span className="text-rose-400 font-bold shrink-0">{modalSplitData.co2.roadGramsPerTonneKm} g / t·km</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-slate-950 overflow-hidden">
+                        <div className="h-full bg-rose-500 rounded-full" style={{ width: '100%' }}></div>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-                  <strong>Razmerje učinkovitosti:</strong> Železniški prevoz je kar <strong>5,5-krat okoljsko čistejši</strong> na prepeljano tono tovora kot cestni prevoz.
-                  Letni prihranek pri vzdrževanju asfaltne infrastrukture avtocest znaša več kot 32 milijonov EUR.
-                </p>
-              </div>
+                  <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800 leading-relaxed">
+                    Razmerje <strong className="text-white">{(modalSplitData.co2.roadGramsPerTonneKm / modalSplitData.co2.railGramsPerTonneKm).toFixed(1)}×</strong> v korist železnice.
+                    Tonski kilometri zgoraj so uradna statistika; ta faktorja sta privzeti referenčni vrednosti, zato je izračunani prihranek CO2 ocena.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
