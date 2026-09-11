@@ -1107,6 +1107,18 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                             Hodošu; lega med njimi je interpolirana po kilometraži.
                           </p>
                         )}
+                        {/* The map can show two published paths nose to tail on a
+                            single-track line. Each position is an honest reading of
+                            its own timings, but the pair together is not something
+                            that can happen, and the panel should say so. */}
+                        <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
+                            Med objavljenimi točkami je predpostavljena stalna hitrost. V resnici vlak
+                            vozi blizu progovne hitrosti in nato dlje časa stoji na križišču — kje, iz
+                            kataloga ni razvidno. Progi 40 (Pragersko–Ormož) in 41 (Ormož–Hodoš) sta
+                            <strong className="text-amber-200"> enotirni</strong> (Program omrežja, Priloga 2A), zato se
+                            prehitevanje zgodi na postaji, ne na odprti progi. Če sta na mapi dve poti
+                            tesno skupaj, je to posledica te poenostavitve, ne dejanska lega.
+                        </p>
                         {raw.source && (
                           <p className="mt-1.5 text-[9.5px] font-mono text-amber-200/60 leading-snug">
                             {raw.source}{raw.timetableYear ? ` · TT${raw.timetableYear}` : ''}

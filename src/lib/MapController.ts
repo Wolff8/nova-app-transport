@@ -362,47 +362,6 @@ export class MapController {
       addArrowCanvas('subway-arrow', '#8b5cf6');
       addArrowCanvas('freight-arrow', '#f59e0b');
 
-      /**
-       * Chip drawn behind a delay reading, as a stretchable image so it grows
-       * with the text instead of clipping "+12 min" into "+12 mi".
-       *
-       * The middle band declared in stretchX/stretchY is the part MapLibre
-       * repeats; the rounded corners outside it are left alone.
-       */
-      const addDelayBadge = (id: string, fill: string, stroke: string) => {
-        const w = 24, h = 22, r = 7, pad = 2;
-        const canvas = document.createElement('canvas');
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.beginPath();
-        ctx.moveTo(pad + r, pad);
-        ctx.lineTo(w - pad - r, pad);
-        ctx.quadraticCurveTo(w - pad, pad, w - pad, pad + r);
-        ctx.lineTo(w - pad, h - pad - r);
-        ctx.quadraticCurveTo(w - pad, h - pad, w - pad - r, h - pad);
-        ctx.lineTo(pad + r, h - pad);
-        ctx.quadraticCurveTo(pad, h - pad, pad, h - pad - r);
-        ctx.lineTo(pad, pad + r);
-        ctx.quadraticCurveTo(pad, pad, pad + r, pad);
-        ctx.closePath();
-        ctx.fillStyle = fill;
-        ctx.fill();
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        if (this.map.hasImage(id)) return;
-        this.map.addImage(id, ctx.getImageData(0, 0, w, h), {
-          content: [pad + 1, pad + 1, w - pad - 1, h - pad - 1],
-          stretchX: [[r + pad, w - pad - r]],
-          stretchY: [[r + pad, h - pad - r]]
-        } as any);
-      };
-      // Graded so a two-minute slip does not shout as loudly as half an hour.
-      addDelayBadge('delay-badge-minor', '#f59e0b', '#78350f');
-      addDelayBadge('delay-badge-major', '#ef4444', '#450a0a');
-      addDelayBadge('delay-badge-severe', '#b91c1c', '#000000');
 
       // Modelled freight gets its own mark: deliberately not the amber used by
       // yards and traffic, nor the cyan of live passenger trains, because it is
@@ -645,36 +604,6 @@ export class MapController {
           'text-anchor': 'top'
         },
         paint: { 'text-color': '#93c5fd', 'text-halo-color': '#000', 'text-halo-width': 1.5 }
-      });
-      // Reported delay, as a chip above the train.
-      //
-      // `delayMin` is only present on vehicles whose feed actually carries a
-      // delay reading, so `has` is what keeps this off the thousands of
-      // vehicles that simply never report one. A train reporting zero is on
-      // time and gets no chip; a train reporting nothing gets no chip either,
-      // and the two are not the same claim — the inspector panel says which.
-      this.map.addLayer({
-        id: 'transit_delay', type: 'symbol', source: 'transit',
-        filter: ['all', ['has', 'delayMin'], ['>', ['to-number', ['get', 'delayMin'], 0], 0]],
-        layout: {
-          'icon-image': [
-            'step', ['to-number', ['get', 'delayMin'], 0],
-            'delay-badge-minor', 6, 'delay-badge-major', 16, 'delay-badge-severe'
-          ],
-          'icon-text-fit': 'both',
-          'icon-text-fit-padding': [1, 4, 1, 4],
-          'icon-allow-overlap': true,
-          'text-allow-overlap': true,
-          // No icon-offset: with icon-text-fit the chip is placed around the
-          // text, so text-offset alone moves both and they cannot drift apart.
-          // No text-font either — the layers above inherit the style's default,
-          // and naming a face the glyph source does not carry drops the label.
-          'text-field': ['concat', '+', ['to-string', ['round', ['to-number', ['get', 'delayMin'], 0]]], ' min'],
-          'text-size': 10,
-          'text-offset': [0, -2.4],
-          'text-anchor': 'center'
-        },
-        paint: { 'text-color': '#ffffff' }
       });
       this.map.addSource('weather', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       this.map.addLayer({
@@ -1467,7 +1396,7 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'transit_delay', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'bike', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
         });
         
         if (features.length) {
@@ -1626,9 +1555,6 @@ export class MapController {
     toggle(layerKey + '_label');
     toggle(layerKey + '_arrow');
     toggle(layerKey + '_glow');
-    // Delay chips belong to the vehicles they sit above, so hiding the trains
-    // must take their chips with them rather than leave them floating.
-    toggle(layerKey + '_delay');
     
     if (layerKey === 'tent_railways') {
       toggle('tent_railways');
