@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ChevronDown, ChevronUp, ChevronRight, Radio, Activity, Navigation, 
   LocateFixed, Sun, Moon, Sparkles, Terminal, Globe,
-  Package, Compass
+  Package, Compass, BarChart3
 } from 'lucide-react';
 import { LAYER_META, MapController } from '../lib/MapController';
 import { AppState } from '../types';
@@ -62,6 +62,8 @@ interface SidebarProps {
   onOpenFreightModal?: () => void;
   onToggleTelemetryStream?: () => void;
   isStreamOpen?: boolean;
+  onToggleAnalytics?: () => void;
+  analyticsOpen?: boolean;
 }
 
 const LiveClock: React.FC = () => {
@@ -80,7 +82,9 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
   onOpenInsights, 
   onOpenFreightModal,
   onToggleTelemetryStream,
-  isStreamOpen
+  isStreamOpen,
+  onToggleAnalytics,
+  analyticsOpen
 }) => {
   const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
   const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>(() => {
@@ -118,14 +122,14 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                     overflow-hidden transition-all duration-300">
       
       {/* Header */}
-      <div className="p-4 flex items-start justify-between border-b border-line/60 bg-white/[0.02]">
-        <div>
+      <div className="p-3 sm:p-4 flex items-start justify-between gap-2 border-b border-line/60 bg-white/[0.02]">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-[15px] font-bold tracking-tight text-white m-0 leading-tight">
+            <h1 className="text-[14px] sm:text-[15px] font-bold tracking-tight text-white m-0 leading-tight truncate">
               Live City · Murska Sobota
             </h1>
           </div>
-          <p className="text-[11px] text-text-dim mt-0.5 mb-2 font-medium">
+          <p className="text-[11px] text-text-dim mt-0.5 mb-2 font-medium truncate">
             SŽ Vlaki · DPD/GLS Sledenje · C-ITS Semaforji
           </p>
           <div className="flex items-center gap-2 font-mono text-[10px] uppercase font-semibold text-mura tracking-wider">
@@ -134,35 +138,49 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
             <LiveClock />
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <button 
+        {/* Control row. Touch targets are 32px on phones (28px from sm up) and
+            the row never shrinks, so the buttons cannot be squeezed or overlapped
+            by the heading beside them. */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
             onClick={onToggleTelemetryStream}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-colors cursor-pointer focus:outline-none ${
-              isStreamOpen 
-                ? 'bg-wheat text-ink border-wheat shadow-[0_0_8px_rgba(217,164,65,0.6)] font-bold' 
+            className={`w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg border transition-colors cursor-pointer focus:outline-none ${
+              isStreamOpen
+                ? 'bg-wheat text-ink border-wheat shadow-[0_0_8px_rgba(217,164,65,0.6)] font-bold'
                 : 'border-line text-text-dim hover:text-white hover:border-white/25 bg-white/5'
             }`}
             title="Živi telemetrijski tok (Terminal)"
           >
             <Terminal size={14} />
           </button>
-          <button 
+          <button
+            onClick={onToggleAnalytics}
+            className={`w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg border transition-colors cursor-pointer focus:outline-none ${
+              analyticsOpen
+                ? 'bg-wheat text-ink border-wheat shadow-[0_0_8px_rgba(217,164,65,0.6)]'
+                : 'border-line text-text-dim hover:text-white hover:border-white/25 bg-white/5'
+            }`}
+            title="Analitika živih podatkov"
+          >
+            <BarChart3 size={14} />
+          </button>
+          <button
             onClick={onOpenInsights}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-mura/20 border border-mura/30 text-mura hover:bg-mura/30 transition-colors cursor-pointer focus:outline-none"
+            className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg bg-mura/20 border border-mura/30 text-mura hover:bg-mura/30 transition-colors cursor-pointer focus:outline-none"
             title="AI Prometna & Logistična Analitika"
           >
             <Sparkles size={14} />
           </button>
-          <button 
+          <button
             onClick={handleFlyHome}
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-line text-text-dim hover:text-white hover:border-white/25 transition-colors cursor-pointer focus:outline-none"
+            className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg border border-line text-text-dim hover:text-white hover:border-white/25 transition-colors cursor-pointer focus:outline-none"
             title="Centriraj na Mursko Soboto"
           >
             <LocateFixed size={14} />
           </button>
-          <button 
+          <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-line text-text-dim hover:text-white hover:border-white/25 transition-colors cursor-pointer focus:outline-none"
+            className="w-8 h-8 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg border border-line text-text-dim hover:text-white hover:border-white/25 transition-colors cursor-pointer focus:outline-none"
             title="Skrči/razširi"
           >
             {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
