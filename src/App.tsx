@@ -40,6 +40,7 @@ export default function App() {
 
   // Ref buffer for telemetry logs to prevent re-render thrashing
   const logBufferRef = useRef<TelemetryLogEntry[]>([]);
+  const warmedRef = useRef(false);
 
   // Safety net: never trap the user on the loading overlay. It is normally
   // dismissed the moment the map style is usable (see onReady below); if even
@@ -116,6 +117,21 @@ export default function App() {
           };
         });
         setLoading(false);
+        // The panel chunks are only warmed once vehicles are on the map: on a
+        // slow connection five chunk downloads racing the first bus and train
+        // responses put the first buses at 13 s instead of ~4 s.
+        if (!warmedRef.current && ((state?.counts?.buses ?? 0) > 0 || (state?.counts?.transit ?? 0) > 0)) {
+          warmedRef.current = true;
+          const warm = () => {
+            import('./components/TelemetryInspector').catch(() => {});
+            import('./components/FreightIntelligenceModal').catch(() => {});
+            import('./components/AnalyticsPanel').catch(() => {});
+            import('./components/AiInsights').catch(() => {});
+            import('./components/LiveTelemetryStream').catch(() => {});
+          };
+          if ('requestIdleCallback' in window) (window as any).requestIdleCallback(warm, { timeout: 8000 });
+          else setTimeout(warm, 4000);
+        }
       },
       (node) => {
         setSelectedNode(prev => {
@@ -144,15 +160,6 @@ export default function App() {
       // perfectly usable. The map is what the user is waiting for.
       () => {
         setLoading(false);
-        const warm = () => {
-          import('./components/TelemetryInspector').catch(() => {});
-          import('./components/FreightIntelligenceModal').catch(() => {});
-          import('./components/AnalyticsPanel').catch(() => {});
-          import('./components/AiInsights').catch(() => {});
-          import('./components/LiveTelemetryStream').catch(() => {});
-        };
-        if ('requestIdleCallback' in window) (window as any).requestIdleCallback(warm, { timeout: 8000 });
-        else setTimeout(warm, 4000);
       }
     );
 

@@ -94,6 +94,8 @@ const SPEED_SMOOTHING = 0.5;
  * a plausible refresh gap, then faded out and finally zeroed.
  */
 const IDLE_FADE_START_MS = 35000;
+/** How long an icon takes to swing onto a new heading, independent of the glide length. */
+const HEADING_TURN_MS = 1500;
 const IDLE_STOP_MS = 70000;
 
 const MAX_PLAUSIBLE_SPEED_KMH: Record<string, number> = {
@@ -167,6 +169,26 @@ function readFixTimeMs(row: any): number | null {
 export type BusMotionEntity = VehicleMotionEntity;
 
 /**
+ * A train's arrow follows the track it is on, but only when the track
+ * geometry actually describes that track. The corridor file covers the main
+ * lines only, and the snapper returns the nearest segment within 3 km, so a
+ * train on a line the file does not have (Ljubljana–Kamnik, say, which runs
+ * alongside the Jesenice line for its first kilometres) was given the
+ * neighbouring corridor's bearing — a regional train drawn pointing 60° off
+ * its direction of travel. The track bearing is now used only when the
+ * segment is close enough to be the train's own track and agrees with the
+ * measured direction of travel; otherwise the measured direction stands.
+ */
+const TRACK_SNAP_MAX_METERS = 150;
+const TRACK_SNAP_MAX_ANGLE = 35;
+function alignHeadingToTrack(lon: number, lat: number, heading: number): number {
+  const snapped = snapToRailTrack(lon, lat, TRACK_SNAP_MAX_METERS, heading);
+  if (!snapped.snapped || snapped.bearing == null) return heading;
+  const diff = Math.abs(((snapped.bearing - heading + 540) % 360) - 180);
+  return diff <= TRACK_SNAP_MAX_ANGLE ? snapped.bearing : heading;
+}
+
+/**
  * Computes geodetic forward azimuth (heading vector) and distance in meters
  * from (lat1, lon1) to (lat2, lon2). Returns heading in degrees [0, 360).
  */
@@ -209,6 +231,8 @@ export class MapController {
   private lastSourceAnimationTimestamp = new Map<string, number>();
   /** Whether a dynamic source's features all carry unique ids (required by updateData). */
   private sourceHasUniqueIds = new Map<string, boolean>();
+  private railGeometryRequested = false;
+  private destroyed = false;
   /** `?nodiff` in the URL forces the old whole-collection path, for measurement. */
   private forceFullSetData = (() => { try { return /[?&]nodiff\b/.test(location.search); } catch { return false; } })();
   /** Sources where updateData failed once; they use setData from then on. */
@@ -260,7 +284,7 @@ export class MapController {
     if (this.styleFallbackTimer != null) clearTimeout(this.styleFallbackTimer);
     this.styleFallbackTimer = window.setTimeout(() => {
       this.styleFallbackTimer = null;
-      if (this.styleLoaded || this.fallbackStyleApplied) return;
+      if (this.destroyed || this.styleLoaded || this.fallbackStyleApplied) return;
       this.fallbackStyleApplied = true;
       console.warn(`[map] basemap style did not load after ${Math.round(performance.now())} ms; switching to the built-in fallback`);
       try { this.map.setStyle(FALLBACK_STYLE); } catch (err) { console.error('[map] fallback style failed', err); }
@@ -324,15 +348,17 @@ export class MapController {
   // for the inline style above is immediate, so the live data renders even
   // while basemap tiles are still streaming in or failing.
   this.map.once('style.load', async () => {
+    if (this.destroyed) return;
     await this.loadIcons();
+      if (this.destroyed) return;
       this.isReady = true;
       // The map can be looked at and moved from here on; nothing the user sees
       // should wait for the first telemetry round-trip.
       try { this.onReady?.(); } catch {}
-      // The rail geometry used to snap trains to the track is 800 KB and was
-      // compiled into the bundle. It is fetched here instead, after the map is
-      // up; until it lands, trains simply are not snapped.
-      loadRailTrackGeometry('/data/exact_rail_corridors.json').catch(() => {});
+      // The rail geometry used to snap trains to the track (800 KB) is fetched
+      // only once the first vehicles are on the map — see applyGeoJSONSource —
+      // so on a slow connection it does not compete with them. Until it
+      // lands, trains simply are not snapped.
 
       const addArrowCanvas = (id: string, color: string) => {
         const size = 32;
@@ -1867,10 +1893,7 @@ export class MapController {
         // Initial registration for vehicle
         let initHeading = rawHeading;
         if (isTrain && rawHeading > 0) {
-          const snapped = snapToRailTrack(newLon, newLat, 3000, rawHeading);
-          if (snapped.snapped && snapped.bearing != null) {
-            initHeading = snapped.bearing;
-          }
+          initHeading = alignHeadingToTrack(newLon, newLat, rawHeading);
         }
 
         motion = {
@@ -1912,17 +1935,30 @@ export class MapController {
         const distMeters = deltaFromTarget.distanceMeters;
 
         // 2. DEAD-BAND SUPPRESSION & TARGET RETENTION:
-        // If the new coordinate hasn't moved significantly from the previous target, DO NOT restart interpolation!
-        // This prevents the vehicle from jumping back to its render position and sliding back and forth.
-        if (distMeters < minJitterMeters && deltaFromRender.distanceMeters < minJitterMeters) {
+        // The feed repeats the same fix on every poll until the next one lands
+        // (a bus is re-served unchanged for 8-30 s, median 20 s). If the
+        // target has not moved, keep the glide that is already running towards
+        // it and do nothing else.
+        //
+        // This used to also require the *rendered* position to be within the
+        // dead-band, which a vehicle mid-glide never is. Every repeated poll
+        // therefore fell through to the motion branch and restarted the glide
+        // from wherever the icon was, with a duration of "time since the last
+        // restart" — two seconds. A 20-second leg was covered in about four
+        // seconds and the vehicle then stood still until the next fix: the
+        // lurching, mostly-stationary motion that made buses look frozen.
+        if (distMeters < minJitterMeters) {
           a.lon = motion.renderLon;
           a.lat = motion.renderLat;
           const h = Math.round((motion.renderHeading % 360 + 360) % 360);
           a.heading = h;
           a.hasHeading = true;
-          // The vehicle has not moved, so do not keep displaying whatever speed
-          // the feed last claimed for it.
-          a.speed = this.decayIdleSpeed(motion, now);
+          // Still on its way to the target: it is moving at the measured speed.
+          // Only once it has arrived and no new fix has come does the reading
+          // fade out (the vehicle has not been seen to move since).
+          a.speed = motion.isInterpolating
+            ? Math.round(motion.smoothedSpeedKmh ?? 0)
+            : this.decayIdleSpeed(motion, now);
           if (sourceId === 'aircraft') a.true_track = h;
           if (sourceId === 'freight_trains' || sourceId === 'freight_paths') a.bearing = h;
           continue;
@@ -1998,10 +2034,7 @@ export class MapController {
 
         // For trains, dynamically align the calculated heading vector with the railway track geometry
         if (isTrain && dynamicHeading != null) {
-          const snapped = snapToRailTrack(newLon, newLat, 3000, dynamicHeading);
-          if (snapped.snapped && snapped.bearing != null) {
-            dynamicHeading = snapped.bearing;
-          }
+          dynamicHeading = alignHeadingToTrack(newLon, newLat, dynamicHeading);
         }
 
         motion.fromLon = motion.renderLon;
@@ -2146,7 +2179,14 @@ export class MapController {
 
         const curLon = motion.fromLon + (motion.targetLon - motion.fromLon) * ease;
         const curLat = motion.fromLat + (motion.targetLat - motion.fromLat) * ease;
-        const curHeading = motion.fromHeading + (motion.targetHeading - motion.fromHeading) * ease;
+        // The position glides across the whole interval between fixes (up to
+        // 45 s), but the icon must not take that long to turn: the leg it is
+        // travelling is straight, so it points along the leg almost at once.
+        // Turned over the full glide, a bus that had rounded a corner spent
+        // half a minute pointing across the road it was driving down.
+        const turnProgress = Math.min(1.0, elapsed / Math.min(motion.duration, HEADING_TURN_MS));
+        const turnEase = turnProgress * turnProgress * (3.0 - 2.0 * turnProgress);
+        const curHeading = motion.fromHeading + (motion.targetHeading - motion.fromHeading) * turnEase;
 
         motion.renderLon = curLon;
         motion.renderLat = curLat;
@@ -2421,6 +2461,7 @@ export class MapController {
     this.pollDedicatedBrezAvtaBusLocations();
 
     const loop = (timestamp: number) => {
+      if (this.destroyed) return;
       // 1a) Dedicated High-Frequency Urban Bus Poller (BrezAvta IJPP: LPP, Nomago, Arriva, Marprom, AP MS):
       if (timestamp - this.lastBusFetchTime > this.BUS_POLL_INTERVAL_MS && !this.isBusPolling) {
         this.isBusPolling = true;
@@ -3201,6 +3242,10 @@ export class MapController {
 
       const isDynamic = DYNAMIC_MOVING_SOURCES.has(sourceId);
       if (isDynamic) {
+        if (!this.railGeometryRequested && data.length > 0) {
+          this.railGeometryRequested = true;
+          loadRailTrackGeometry('/data/exact_rail_corridors.json').catch(() => {});
+        }
         this.processVehicleDifferentialUpdates(sourceId, data);
       }
 
@@ -4382,6 +4427,15 @@ export class MapController {
     await Promise.all(iconPromises);
   }
   public destroy() {
+    // A controller destroyed before its style had loaded used to come back to
+    // life: the style-fallback timer fired on the removed map, 'style.load'
+    // followed, and startPolling() began a second polling loop and a second
+    // set of network requests that nothing could ever stop — a ghost
+    // controller doing all the work of the live one, on a phone's CPU and
+    // data plan, for the rest of the session.
+    this.destroyed = true;
+    this.isReady = false;
+    if (this.styleFallbackTimer != null) { clearTimeout(this.styleFallbackTimer); this.styleFallbackTimer = null; }
     if (this.pollingInterval) clearTimeout(this.pollingInterval);
     if (this.animationFrameId !== null) cancelAnimationFrame(this.animationFrameId);
     if (this.rafId) cancelAnimationFrame(this.rafId);
