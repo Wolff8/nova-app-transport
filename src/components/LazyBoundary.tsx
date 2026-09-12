@@ -1,4 +1,4 @@
-import React from 'react';
+import { Component, type ReactNode } from 'react';
 
 /**
  * Keeps one failing panel from taking the whole app down.
@@ -13,13 +13,17 @@ import React from 'react';
  * A stale-chunk error is answered with one reload, which picks up the new
  * version; any other error just hides the panel and leaves the map running.
  */
-type Props = { name: string; children: React.ReactNode };
+type Props = { name: string; children: ReactNode };
 type State = { failed: boolean };
 
 const STALE_CHUNK = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk|MIME type|module script/i;
 const RELOAD_KEY = 'nova:chunk-reload';
 
-export class LazyBoundary extends React.Component<Props, State> {
+export class LazyBoundary extends Component<Props, State> {
+  // React 19 ships no type declarations and @types/react is not installed, so
+  // `Component` is untyped here; declaring the field keeps `this.props` typed
+  // without changing anything at runtime.
+  declare readonly props: Readonly<Props>;
   state: State = { failed: false };
 
   static getDerivedStateFromError(): State { return { failed: true }; }

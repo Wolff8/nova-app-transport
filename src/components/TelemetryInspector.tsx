@@ -750,6 +750,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
           <button 
             onClick={onClose}
             title="Zapri"
+            aria-label="Zapri"
             className="text-text-dim hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X size={16} />
@@ -1001,6 +1002,31 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                       last published time at line speed, and the least far it
                       can be and still make the next one. */}
                   {(() => {
+                    // A published stop is the one moment the catalogue fixes the
+                    // train exactly: at the station, until the published departure.
+                    if (raw.phase === 'dwell') {
+                      const d: any = unpack(raw.dwell);
+                      if (!d) return null;
+                      return (
+                        <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/25 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-white/70">Lega</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              <span className="font-mono text-[12px] font-bold text-white">na postaji</span>
+                            </div>
+                          </div>
+                          <div className="mt-1.5 text-[12px] text-white/90 leading-snug">
+                            Stoji v <strong>{d.location}</strong>
+                            {d.arrival ? ` — prihod ${d.arrival}` : ''}{d.departure ? `, odhod ${d.departure}` : ''}
+                            {d.remainingMin != null ? ` (čez ${d.remainingMin} min)` : ''}
+                          </div>
+                          <p className="mt-1.5 text-[10px] leading-snug text-white/60">
+                            Objavljen postanek iz kataloga poti: v tem času je lega vlaka znana natančno — na postaji.
+                          </p>
+                        </div>
+                      );
+                    }
                     const pb: any = unpack(raw.positionBand);
                     if (!pb) return null;
                     const pct = pb.sharePercent ?? 0;

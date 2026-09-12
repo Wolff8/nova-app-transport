@@ -1,4 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
+import type { FeatureCollection as GeoJSONFeatureCollection } from 'geojson';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
@@ -204,7 +205,7 @@ export class MapController {
   private activeSources = new Map<string, any[]>();
   private rafId: number | null = null;
   private vehicleMotionMap = new Map<string, VehicleMotionEntity>();
-  private cachedSourceGeoJSON = new Map<string, GeoJSON.FeatureCollection>();
+  private cachedSourceGeoJSON = new Map<string, GeoJSONFeatureCollection>();
   private lastSourceAnimationTimestamp = new Map<string, number>();
   /** Whether a dynamic source's features all carry unique ids (required by updateData). */
   private sourceHasUniqueIds = new Map<string, boolean>();
@@ -217,10 +218,10 @@ export class MapController {
   private get busMotionMap(): Map<string, VehicleMotionEntity> {
     return this.vehicleMotionMap;
   }
-  private get cachedTransitGeoJSON(): GeoJSON.FeatureCollection | null {
+  private get cachedTransitGeoJSON(): GeoJSONFeatureCollection | null {
     return this.cachedSourceGeoJSON.get('transit') || null;
   }
-  private set cachedTransitGeoJSON(fc: GeoJSON.FeatureCollection | null) {
+  private set cachedTransitGeoJSON(fc: GeoJSONFeatureCollection | null) {
     if (fc) this.cachedSourceGeoJSON.set('transit', fc);
     else this.cachedSourceGeoJSON.delete('transit');
   }
@@ -1276,6 +1277,9 @@ export class MapController {
             // How far the position can be out. Without it the icon claims a
             // precision the catalogue does not have.
             ['case',
+              // Standing at a published stop: say so instead of a ± figure.
+              ['==', ['get', 'phase'], 'dwell'],
+              ['concat', ' · postanek ', ['coalesce', ['get', 'dwellLocation'], ''], ' do ', ['coalesce', ['get', 'dwellDeparture'], '']],
               ['has', 'bandHalfKm'],
               ['concat', ' · lega ±', ['get', 'bandHalfKm'], ' km'],
               '']
@@ -1711,7 +1715,8 @@ export class MapController {
     const src = this.map?.getSource('freight_band') as maplibregl.GeoJSONSource | undefined;
     if (!src) return;
     const coords = band?.coords;
-    if (!coords || coords.length < 2) {
+    const distinct = coords ? coords.some(c => c[0] !== coords[0][0] || c[1] !== coords[0][1]) : false;
+    if (!coords || coords.length < 2 || !distinct) {
       src.setData({ type: 'FeatureCollection', features: [] });
       return;
     }
@@ -1924,7 +1929,19 @@ export class MapController {
         }
 
         // 3. ABNORMAL TELEPORTATION
-        if (distMeters > maxTeleportMeters) {
+        //
+        // A fixed 5 km threshold let an impossible jump glide: a Croatian train
+        // was seen moving 2.9 km between fixes 20 s apart — 520 km/h — and was
+        // animated across it. The threshold is now what the plausible speed
+        // for this kind of vehicle allows in the time since the last fix (with
+        // slack), floored so a late fix does not read as a teleport. Anything
+        // beyond it is a data glitch and is snapped, never animated.
+        let dtForJump = 20;
+        if (fixTimeMs != null && motion.lastFixTimeMs != null && fixTimeMs > motion.lastFixTimeMs) dtForJump = (fixTimeMs - motion.lastFixTimeMs) / 1000;
+        else if (motion.lastTelemetryTime) dtForJump = Math.max(1, (now - motion.lastTelemetryTime) / 1000);
+        const plausibleKmh = MAX_PLAUSIBLE_SPEED_KMH[sourceId] ?? 200;
+        const maxJumpMeters = Math.max(1500, Math.min(maxTeleportMeters, (plausibleKmh / 3.6) * dtForJump * 1.5));
+        if (distMeters > maxJumpMeters) {
           motion.renderLon = newLon;
           motion.renderLat = newLat;
           motion.renderHeading = rawHeading;
@@ -4116,6 +4133,16 @@ export class MapController {
           value: `${next.location}${next.time ? ` ob ${next.time}` : ''}${next.inMin != null ? ` (čez ${next.inMin} min)` : ''}`,
           highlight: true
         });
+      }
+      if (data.phase === 'dwell') {
+        const d = unpack(data.dwell);
+        if (d?.location) {
+          metrics.push({
+            label: 'Stoji na postaji',
+            value: `${d.location}${d.arrival ? ` — prih. ${d.arrival}` : ''}${d.departure ? `, odh. ${d.departure}` : ''}${d.remainingMin != null ? ` (čez ${d.remainingMin} min)` : ''}`,
+            highlight: true
+          });
+        }
       }
       if (data.progressPercent != null) {
         metrics.push({ label: 'Opravljeno', value: `${data.progressPercent} % poti`, highlight: false });

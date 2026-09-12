@@ -10123,7 +10123,13 @@ app.post('/api/log', express.json(), (req, res) => {
     return bestD <= 3 ? best.name : `pri ${best.name}`;
   }
 
-  function corridorFreightPositions() {
+  /**
+   * @param atMin Optional local wall-clock minute-of-day to evaluate the
+   *   catalogue at instead of now (from `?at=HH:MM`). The catalogue is a
+   *   timetable, so "where is path 42020 at 13:30" is a legitimate question of
+   *   it; the response says when this was used so it cannot pass for live.
+   */
+  function corridorFreightPositions(atMin?: number) {
     if (!corridorPathData || !GEO_KOPER_ZALOG?.length) return null;
     const now = new Date();
     // Slovenian wall clock — the catalogue times are local.
@@ -10134,7 +10140,7 @@ app.post('/api/log', express.json(), (req, res) => {
     // hopping, with no movement in between. The timings are published to the
     // minute; interpolating between them is continuous, and should be read
     // continuously.
-    const nowMin = local.getHours() * 60 + local.getMinutes() + local.getSeconds() / 60;
+    const nowMin = atMin != null ? atMin : local.getHours() * 60 + local.getMinutes() + local.getSeconds() / 60;
     const isoDow = ((local.getDay() + 6) % 7) + 1; // 1 = Monday, as the catalogue numbers days
     const hm = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
 
@@ -10160,17 +10166,42 @@ app.post('/api/log', express.json(), (req, res) => {
       // path marked "forward" travels with that direction, "reverse" against.
       const forward = p.direction === 'forward';
 
-      // Absolute minutes from the path's own start, unwrapping midnight.
-      const legs: { km: number; min: number; loc: string }[] = [];
-      let prev = -1, dayRoll = 0;
-      for (const t of pts) {
-        let m = hm(t.arrival ?? t.departure);
-        if (prev >= 0 && m < prev) dayRoll += 1440;
-        prev = m; m += dayRoll;
-        legs.push({ km: geo.kmAt[t.location], min: m, loc: t.location });
+      // The catalogue publishes an arrival AND a departure at intermediate
+      // points — 42020 reaches Ljubljana Zalog 13:17 and leaves 13:54, 47911
+      // stands 78 minutes at Hodoš. The previous version kept one time per
+      // point, so that dwell was folded into the next leg: the train was drawn
+      // pulling away at its ARRIVAL time and every position on the leg was
+      // ahead of the truth by the length of the stop. Each published dwell is
+      // now its own segment during which the train is at the station.
+      type Seg = { kind: 'dwell' | 'run'; from: number; to: number; kmA: number; kmB: number; locA: string; locB: string; iA: number; iB: number };
+      const segs: Seg[] = [];
+      {
+        // Sequential unwrap across midnight: arrival, then departure, then the
+        // next arrival — a later time smaller than the previous one rolls over.
+        let prev = -1, dayRoll = 0;
+        const unwrap = (t: string) => { let m = hm(t); if (prev >= 0 && m < prev) dayRoll += 1440; prev = m; return m + dayRoll; };
+        const stamped = pts.map((t, idx) => {
+          const arr = t.arrival ? unwrap(t.arrival) : null;
+          const dep = t.departure ? unwrap(t.departure) : null;
+          return { idx, km: geo.kmAt[t.location], loc: t.location, arr, dep };
+        });
+        for (let k = 0; k < stamped.length; k++) {
+          const cur = stamped[k];
+          if (cur.arr != null && cur.dep != null && cur.dep > cur.arr) {
+            segs.push({ kind: 'dwell', from: cur.arr, to: cur.dep, kmA: cur.km, kmB: cur.km, locA: cur.loc, locB: cur.loc, iA: cur.idx, iB: cur.idx });
+          }
+          if (k < stamped.length - 1) {
+            const nxt = stamped[k + 1];
+            const leave = cur.dep ?? cur.arr, reach = nxt.arr ?? nxt.dep;
+            if (leave != null && reach != null && reach > leave) {
+              segs.push({ kind: 'run', from: leave, to: reach, kmA: cur.km, kmB: nxt.km, locA: cur.loc, locB: nxt.loc, iA: cur.idx, iB: nxt.idx });
+            }
+          }
+        }
       }
-      const startMin = legs[0].min;
-      const journeyMin = legs[legs.length - 1].min - startMin;
+      if (!segs.length) continue;
+      const startMin = segs[0].from;
+      const journeyMin = segs[segs.length - 1].to - startMin;
       if (journeyMin <= 0) continue;
 
       const runsToday = !p.daysOfWeek || p.daysOfWeek.includes(isoDow);
@@ -10182,35 +10213,49 @@ app.post('/api/log', express.json(), (req, res) => {
       // Interpolate km from the published timing points, then km -> position.
       // The leg the train is on also gives its speed: both ends are published,
       // so this is a real average over that leg, not a guessed cruising speed.
-      let km = legs[0].km;
+      let km = segs[0].kmA;
       let legSpeed: number | null = null;
       let bandLoKm: number | null = null, bandHiKm: number | null = null, bandLegKm = 0;
       let prevPoint: any = null, nextPoint: any = null;
-      for (let i = 0; i < legs.length - 1; i++) {
-        const a = legs[i], b = legs[i + 1];
-        const t0 = a.min - startMin, t1 = b.min - startMin;
-        if (elapsed >= t0 && elapsed <= t1 && t1 > t0) {
-          km = a.km + (b.km - a.km) * ((elapsed - t0) / (t1 - t0));
-          legSpeed = Math.abs(b.km - a.km) / ((t1 - t0) / 60);
+      let phase: 'dwell' | 'run' | null = null;
+      let dwell: any = null;
+      for (const sg of segs) {
+        const t0 = sg.from - startMin, t1 = sg.to - startMin;
+        if (elapsed < t0 || elapsed > t1 || t1 <= t0) { if (elapsed > t1) km = sg.kmB; continue; }
+        if (sg.kind === 'dwell') {
+          // Standing at a published stop: position is the station, exactly.
+          phase = 'dwell';
+          km = sg.kmA;
+          legSpeed = 0;
+          bandLoKm = bandHiKm = sg.kmA;
+          bandLegKm = 0;
+          const tpA = p.timingPoints[sg.iA];
+          dwell = { location: sg.locA, arrival: tpA?.arrival ?? null, departure: tpA?.departure ?? null, remainingMin: Math.max(0, Math.round(t1 - elapsed)) };
+          prevPoint = { location: sg.locA, time: tpA?.arrival ?? null };
+          nextPoint = { location: sg.locA, time: tpA?.departure ?? null, inMin: dwell.remainingMin };
+        } else {
+          phase = 'run';
+          km = sg.kmA + (sg.kmB - sg.kmA) * ((elapsed - t0) / (t1 - t0));
+          legSpeed = Math.abs(sg.kmB - sg.kmA) / ((t1 - t0) / 60);
           // Both edges of where the train can actually be, from the published
           // times and the permitted speed. Narrow near a timing point, wide in
-          // the middle of a long leg — which is the honest picture.
+          // the middle of a long leg — which is the honest picture. The clock
+          // starts at the published DEPARTURE, not the arrival.
           const sinceA = Math.max(0, elapsed - t0);
           const untilB = Math.max(0, t1 - elapsed);
-          const aheadKm = reachableKm(geo, a.km, sinceA, b.km);
-          const behindKm = reachableKm(geo, b.km, untilB, a.km);
+          const aheadKm = reachableKm(geo, sg.kmA, sinceA, sg.kmB);
+          const behindKm = reachableKm(geo, sg.kmB, untilB, sg.kmA);
           bandLoKm = Math.min(aheadKm, behindKm);
           bandHiKm = Math.max(aheadKm, behindKm);
-          bandLegKm = Math.abs(b.km - a.km);
-          prevPoint = { location: a.loc, time: p.timingPoints[i]?.departure ?? null };
+          bandLegKm = Math.abs(sg.kmB - sg.kmA);
+          prevPoint = { location: sg.locA, time: p.timingPoints[sg.iA]?.departure ?? p.timingPoints[sg.iA]?.arrival ?? null };
           nextPoint = {
-            location: b.loc,
-            time: p.timingPoints[i + 1]?.arrival ?? p.timingPoints[i + 1]?.departure ?? null,
+            location: sg.locB,
+            time: p.timingPoints[sg.iB]?.arrival ?? p.timingPoints[sg.iB]?.departure ?? null,
             inMin: Math.max(0, Math.round(t1 - elapsed))
           };
-          break;
         }
-        if (elapsed > t1) km = b.km;
+        break;
       }
       // kmAt is measured along the corridor polyline, so the interpolated km
       // is already the position on the track for both directions — a train
@@ -10262,6 +10307,8 @@ app.post('/api/log', express.json(), (req, res) => {
           coords: (() => {
             const out: [number, number][] = [];
             const span = hi - lo;
+            // Standing at a published stop: the band is a point, not a line.
+            if (span < 0.05) return out;
             const steps = Math.max(2, Math.min(160, Math.round(span / 2)));
             for (let i = 0; i <= steps; i++) {
               const at = lo + (span * i) / steps;
@@ -10293,6 +10340,9 @@ app.post('/api/log', express.json(), (req, res) => {
         lineSpeedSection: band?.section ?? null,
         lineSpeedBasis: 'Največja dovoljena progovna hitrost odseka (ERA RINF). Ni hitrost tega vlaka.',
         positionBand,
+        // 'dwell' while standing at a published stop, 'run' between points.
+        phase,
+        dwell,
         // Kept, but no longer presented as the train's speed.
         legAverageKmh,
         legAverageBasis: 'Povprečje med dvema objavljenima točkama kataloga, vključno s postanki vmes — ne trenutna hitrost.',
@@ -10324,6 +10374,7 @@ app.post('/api/log', express.json(), (req, res) => {
           heading: Math.round(heading), bearing: Math.round(heading),
           // Flat scalar so the map label can read it without parsing JSON.
           ...(positionBand ? { bandHalfKm: Math.round(positionBand.widthKm / 2) } : {}),
+          ...(dwell ? { dwellLocation: dwell.location, dwellDeparture: dwell.departure } : {}),
           kmAlong: Math.round(alongKm * 10) / 10, routeKm: Math.round(geo.totalKm * 10) / 10,
           isPublishedPath: true
         }
@@ -10350,7 +10401,12 @@ app.post('/api/log', express.json(), (req, res) => {
   }
 
   app.get('/api/freight/corridor-paths', (req, res) => {
-    const body = corridorFreightPositions();
+    let atMin: number | undefined;
+    const at = String(req.query.at || '');
+    const m = /^(\d{1,2}):(\d{2})$/.exec(at);
+    if (m) atMin = (Number(m[1]) % 24) * 60 + Math.min(59, Number(m[2]));
+    const body: any = corridorFreightPositions(atMin);
+    if (body && atMin != null) body.simulatedTime = at;
     if (!body) return res.status(503).json({ error: 'Katalog koridorskih poti ni na voljo' });
     res.json(body);
   });

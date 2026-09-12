@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "skipLibCheck": true, "incremental": false, "composite": false, "rootDir": ".", "jsx": "react-jsx" },
+  "include": ["server.ts", "server/**/*.ts"],
+  "exclude": ["node_modules", "dist", "build", "src"]
+}
