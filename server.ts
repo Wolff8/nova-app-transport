@@ -4731,15 +4731,17 @@ function getRealisticTrainComposition(
     const upperNum = String(trainNum || '').toUpperCase();
     const upperId = String(trainId || '').toUpperCase();
 
-    // Check if train matches a known authentic freight timetable slot
-    const matchingSlot = FREIGHT_TIMETABLE_SLOTS.find(s =>
-      (upperId && s.id.toUpperCase() === upperId) ||
-      (upperNum && (s.trainNumber.toUpperCase() === upperNum || s.trainNumber.toUpperCase().includes(upperNum) || upperNum.includes(s.trainNumber.toUpperCase()))) ||
-      (upperLine && s.trainNumber && (upperLine.includes(s.trainNumber.toUpperCase()) || s.name.toUpperCase().includes(upperLine)))
-    );
+    // The slot table is a hand-written list of invented train numbers, and it
+    // used to be matched by SUBSTRING: MÁV's regional "R 2310" (Budapest –
+    // Szob, an S-Bahn-type passenger service) hit the invented "TV 42310" and
+    // came back as a freight train with eighteen invented wagons. No live
+    // train is ever matched against that table.
+    const matchingSlot: (typeof FREIGHT_TIMETABLE_SLOTS)[number] | undefined = undefined;
+    void upperId;
 
-    // Check if train is a freight train
-    const freightDetected = isFreight || !!matchingSlot ||
+    // A train is freight only on real evidence: the caller said so, or the
+    // operator / line is explicitly a freight one.
+    const freightDetected = isFreight ||
       op.includes('CARGO') || op.includes('TOVOR') || op.includes('FREIGHT') || op.includes('ADRIA') || op.includes('METRANS') || op.includes('GATX') || op.includes('VTG') ||
       upperLine.includes('TOVOR') || upperLine.includes('CARGO') || upperLine.includes('FREIGHT') || upperLine.startsWith('TV') || upperLine.startsWith('TC');
 
@@ -4802,15 +4804,16 @@ function getRealisticTrainComposition(
         ];
       }
 
+      // The wagon lists above are illustrative catalogue entries, not this
+      // train's consist: nobody publishes the consist of a running freight
+      // train. They are no longer returned as a composition.
+      void wagons;
       return {
         operator: effOp,
-        trainType: matchingSlot ? `${matchingSlot.name.split(' (')[0]} (${enrichedLoco.series})` : `Tovorni vlak (${enrichedLoco.series})`,
+        trainType: enrichedLoco ? `Tovorni vlak (${enrichedLoco.series})` : 'Tovorni vlak',
         isFreight: true,
         locomotive: enrichedLoco,
-        composition: [
-          enrichedLoco.compositionLine,
-          ...wagons
-        ]
+        composition: []
       };
     }
 
@@ -6145,14 +6148,13 @@ app.get('/api/train/trip', async (req, res) => {
         const lineUpper = cleanLine.toUpperCase();
 
         // 0. High-priority resolution for official Freight Trains (SŽ / RFC Corridors)
+        // The slot table's numbers are invented, and this lookup matched them
+        // by substring ("TV_42310".includes("2310")), which handed a MÁV
+        // regional train an invented freight itinerary to Budapest. A live
+        // train's journey comes from HAFAS/MOTIS below, never from that table.
         const cleanDigits = extractedNum.replace(/[^0-9]/g, '');
-        const matchingFreightSlot = ALL_FREIGHT_TIMETABLE_SLOTS.find(s => 
-            s.id === tripId ||
-            (cleanDigits && (s.id === `TV_${cleanDigits}` || s.id.includes(cleanDigits))) ||
-            (cleanDigits && s.trainNumber.replace(/[^0-9]/g, '') === cleanDigits) ||
-            (cleanLine && s.name.toLowerCase().includes(cleanLine.toLowerCase())) ||
-            (cleanLine && cleanLine.toLowerCase().includes(s.trainNumber.toLowerCase()))
-        );
+        void cleanDigits;
+        const matchingFreightSlot: (typeof ALL_FREIGHT_TIMETABLE_SLOTS)[number] | undefined = undefined;
 
         if (matchingFreightSlot) {
             const stops: Array<{ name: string; km: number; lat: number; lon: number }> = [];
@@ -12452,50 +12454,34 @@ app.get("/api/era/track", async (req, res) => {
         const isFreightParam = rawFreight === 'true' || rawFreight === '1' || rawFreight === 'yes' || rawFreight === 'freight' || rawFreight === 'freight_train' || line.toUpperCase().includes('CARGO') || line.toUpperCase().includes('TOVOR') || operatorStr.toUpperCase().includes('CARGO') || operatorStr.toUpperCase().includes('TOVOR');
         const locomotiveParam = String(req.query.locomotive || req.query.traction || '').trim();
         const wagonTypeParam = String(req.query.wagonType || req.query.wagons || '').trim();
-        const cargoParam = String(req.query.cargoDescription || req.query.cargo || '').trim();
+        // `cargo` doubles as a freight flag ("true"/"false") on the client; a
+        // flag is not a cargo description, and "false" used to count as
+        // evidence of a freight consist for a MÁV regional train.
+        const cargoRaw = String(req.query.cargoDescription || req.query.cargo || '').trim();
+        const cargoParam = /^(true|false|1|0|yes|no)$/i.test(cargoRaw) ? '' : cargoRaw;
         const trainIdParam = String(req.query.trainId || req.query.id || '').trim();
 
         // Calculate realistic baseline composition for this train
         const realistic = getRealisticTrainComposition(num, line, operatorStr, origin, destination, qLat, qLon, isFreightParam, locomotiveParam, wagonTypeParam, cargoParam, trainIdParam);
         
-        const upperNum = String(num || '').toUpperCase();
-        const upperId = String(trainIdParam || '').toUpperCase();
-        const upperLine = String(line || '').toUpperCase();
-        const matchingSlot = FREIGHT_TIMETABLE_SLOTS.find(s =>
-          (upperId && s.id.toUpperCase() === upperId) ||
-          (upperNum && (s.trainNumber.toUpperCase() === upperNum || s.trainNumber.toUpperCase().includes(upperNum) || upperNum.includes(s.trainNumber.toUpperCase()))) ||
-          (upperLine && s.trainNumber && (upperLine.includes(s.trainNumber.toUpperCase()) || s.name.toUpperCase().includes(upperLine)))
-        );
-
-        const effWagon = wagonTypeParam || matchingSlot?.wagonType;
-        const effWeight = req.query.grossWeightTons ? parseFloat(String(req.query.grossWeightTons)) : matchingSlot?.grossWeightTons;
-        const effLength = req.query.lengthM ? parseFloat(String(req.query.lengthM)) : matchingSlot?.lengthM;
-        const effCargo = cargoParam || matchingSlot?.cargo;
-
+        // No lookup against the invented slot table (see
+        // getRealisticTrainComposition), and no synthesized cross-border
+        // status: generateCrossBorderFreightStatus invents a consist (eighteen
+        // wagons by default), keepers and a border ETA, none of which any
+        // source publishes for a running train.
         if (realistic.isFreight || !num) {
-            const resolvedLoco = realistic.locomotive || getEnrichedLocomotiveData(locomotiveParam, realistic.operator || operatorStr, num, effCargo);
-            const crossBorderFreight = (realistic.isFreight || isFreightParam)
-                ? generateCrossBorderFreightStatus(
-                    num,
-                    realistic.operator || operatorStr,
-                    realistic.trainType || line,
-                    effCargo,
-                    qLat,
-                    qLon,
-                    undefined,
-                    effWagon,
-                    effWeight,
-                    effLength
-                )
-                : null;
+            const resolvedLoco = realistic.locomotive || getEnrichedLocomotiveData(locomotiveParam, realistic.operator || operatorStr, num, cargoParam);
             return res.json({
-                composition: realistic.composition,
+                composition: [],
+                compositionNote: 'Sestava vlaka ni objavljena v nobenem javnem viru.',
                 operator: realistic.operator,
-                trainType: realistic.trainType,
+                // The per-operator "trainType" template is a guess at the
+                // stock, so it is not claimed when nothing was scraped.
+                trainType: realistic.isFreight ? realistic.trainType : null,
                 isFreight: !!realistic.isFreight,
                 locomotive: resolvedLoco,
-                crossBorderFreight,
-                source: 'realistic_fleet'
+                crossBorderFreight: null,
+                source: 'none'
             });
         }
         
@@ -12565,37 +12551,28 @@ app.get("/api/era/track", async (req, res) => {
 
         const resolvedLoco = realistic.locomotive || getEnrichedLocomotiveData(locomotiveParam, realistic.operator || operatorStr, num, cargoParam);
 
-        let crossBorderFreight = null;
-        if (isFreightParam || realistic.isFreight || rawFreight === 'true') {
-            crossBorderFreight = generateCrossBorderFreightStatus(
-                num,
-                realistic.operator || operatorStr,
-                realistic.trainType || line,
-                cargoParam,
-                qLat,
-                qLon
-            );
-        }
-
         if (validScraped && scrapedWagons.length > 0) {
             return res.json({
                 composition: scrapedWagons,
                 operator: realistic.operator,
                 trainType: realistic.trainType,
                 locomotive: resolvedLoco,
-                crossBorderFreight,
+                crossBorderFreight: null,
                 source: 'vagonweb_live'
             });
         }
 
-        // Use authentic, realistic composition
+        // Nothing scraped: the "realistic fleet" list that used to be returned
+        // here is a generic per-operator template, not this train's consist,
+        // so no composition is claimed.
         return res.json({
-            composition: realistic.composition,
+            composition: [],
+            compositionNote: 'VagonWEB nima sestave za ta vlak; sestava ni objavljena.',
             operator: realistic.operator,
-            trainType: realistic.trainType,
+            trainType: null,
             locomotive: resolvedLoco,
-            crossBorderFreight,
-            source: 'realistic_fleet'
+            crossBorderFreight: null,
+            source: 'none'
         });
     } catch (e: any) {
         return res.json({ composition: null, error: e?.message });
@@ -12615,10 +12592,9 @@ app.get("/api/era/track", async (req, res) => {
       const weight = req.query.grossWeightTons ? parseFloat(String(req.query.grossWeightTons)) : undefined;
       const length = req.query.lengthM ? parseFloat(String(req.query.lengthM)) : undefined;
 
-      const upperNum = train.replace(/[^0-9]/g, '');
-      const matchingSlot = FREIGHT_TIMETABLE_SLOTS.find(s =>
-        (upperNum && (s.trainNumber.includes(upperNum) || upperNum.includes(s.trainNumber.replace(/[^0-9]/g, ''))))
-      );
+      // Never matched against the invented slot table (substring matches put
+      // passenger numbers onto invented freight slots).
+      const matchingSlot: (typeof FREIGHT_TIMETABLE_SLOTS)[number] | undefined = undefined;
 
       const effWagon = wagonType || matchingSlot?.wagonType;
       const effWeight = weight || matchingSlot?.grossWeightTons;
