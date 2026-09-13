@@ -5913,23 +5913,23 @@ async function getOrFetchMotisTrip(
                             const tDigits = rShort.replace(/[^0-9]/g, '');
                             if (tDigits) MOTIS_INDEX_BY_TRAIN_NUM.set(tDigits, tId);
                             if (rShort) MOTIS_INDEX_BY_NAME.set(rShort.toLowerCase().trim(), tId);
+                            // A trip is this train only if its number or its
+                            // full name is the same. The nearest trip within
+                            // ~11 km used to be accepted as a fallback, which
+                            // handed an unknown train the itinerary of
+                            // whatever else was passing (LPV 2007 Maribor –
+                            // Ljubljana for a made-up "XY 99917"), and a
+                            // substring name match let "LP 20" claim "LP 2007".
                             if (cleanDigits && tDigits === cleanDigits) {
                                 bestMatch = tr;
                                 break;
                             }
-                            if (cleanName && rShort.toLowerCase().includes(cleanName)) {
+                            if (cleanName && rShort.toLowerCase().trim() === cleanName) {
                                 bestMatch = tr;
                                 break;
                             }
-                            if (queryLat && queryLon && seg.from?.lat && seg.from?.lon) {
-                                const dist = Math.hypot(seg.from.lat - queryLat, seg.from.lon - queryLon);
-                                if (dist < 0.1 && dist < bestDist) {
-                                    bestDist = dist;
-                                    bestMatch = tr;
-                                }
-                            }
                         }
-                        if (bestMatch && cleanDigits) break;
+                        if (bestMatch) break;
                     }
                     if (bestMatch) resolvedTripId = bestMatch.tripId;
                 }
