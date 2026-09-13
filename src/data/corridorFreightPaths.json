@@ -1,9 +1,10 @@
 {
- "source": "Katalogi vnaprej pripravljenih poti (PaP): RFC Mediterranean (RFC6) in RFC Alpine-Western Balkan (RFC10) za vozni red 2026, RFC Baltic-Adriatic (RFC5) za vozni red 2027",
+ "source": "Katalogi vnaprej pripravljenih poti (PaP): RFC Mediterranean (RFC6) in RFC Alpine-Western Balkan (RFC10) za vozni red 2026, RFC Baltic-Adriatic (RFC5) in RFC Alpine-Western Balkan (RFC10) za vozni red 2027",
  "sourceFiles": [
   "MED_TT2026_pap.xlsx",
   "Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx (rfc-awb.eu)",
-  "CATALOGUE_RFC_BA_DEF_PaPsTT27.xlsx (rfc5.eu / RNE CIP)"
+  "CATALOGUE_RFC_BA_DEF_PaPsTT27.xlsx (rfc5.eu / RNE CIP)",
+  "Pre-arranged-train-paths-for-Timetable-2026-2027.xlsx (rfc-awb.eu)"
  ],
  "sourceUrls": {
   "RFC6": "https://www.rfc-med.eu/",
@@ -245,7 +246,7 @@
    "retrieved": "2026-09-13"
   }
  ],
- "generated": "2026-09-13T19:56:54.051Z",
+ "generated": "2026-09-13T20:04:53.242Z",
  "paths": [
   {
    "papId": "C6NPPOZG02",
@@ -4800,6 +4801,578 @@
        "location": "Sladkovicovo",
        "times": [
         "23:05"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-NP7-LjRu4",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60127",
+   "relation": "Ljubljana Zalog to Ruma",
+   "relationLabel": "Ljubljana Zalog (SI) → Ruma (RS)",
+   "corridor": "opicina-dobova",
+   "daysOfWeek": [
+    3,
+    6
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "08:42"
+    },
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": "10:18",
+     "departure": "11:55"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70913",
+     "days": "3,6",
+     "points": [
+      {
+       "location": "SAVSKI MAROF",
+       "times": [
+        "12:04"
+       ]
+      },
+      {
+       "location": "ZAGREB RK",
+       "times": [
+        "12:45",
+        "13:34"
+       ]
+      },
+      {
+       "location": "TOVARNIK",
+       "times": [
+        "21:14",
+        "22:44"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "IZS",
+     "nationalId": "73001",
+     "days": "3,6",
+     "points": [
+      {
+       "location": "ŠID",
+       "times": [
+        "22:54",
+        "01:46"
+       ]
+      },
+      {
+       "location": "Ruma",
+       "times": [
+        "02:30"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-NP7-LjRu6",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60129",
+   "relation": "Ljubljana Zalog to Ruma",
+   "relationLabel": "Ljubljana Zalog (SI) → Ruma (RS)",
+   "corridor": "opicina-dobova",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "06:36"
+    },
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": "08:14",
+     "departure": "09:24"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70911",
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "SAVSKI MAROF",
+       "times": [
+        "09:33"
+       ]
+      },
+      {
+       "location": "ZAGREB RK",
+       "times": [
+        "10:14",
+        "10:44"
+       ]
+      },
+      {
+       "location": "TOVARNIK",
+       "times": [
+        "17:33",
+        "19:00"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "IZS",
+     "nationalId": "73003",
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "ŠID",
+       "times": [
+        "19:10",
+        "22:35"
+       ]
+      },
+      {
+       "location": "Ruma",
+       "times": [
+        "23:30"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-NP7-WeMa14",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60100",
+   "relation": "Wels to Maribor Tezno",
+   "relationLabel": "Wels CCT (AT) → Maribor Tezno (SI)",
+   "corridor": "pragersko-spielfeld",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": "06:22",
+     "departure": "06:51",
+     "infrastructureManager": "AUST"
+    },
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": null,
+     "departure": "07:22"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "AUST",
+     "nationalId": "41401",
+     "days": "1,2,3,4,5,6",
+     "points": [
+      {
+       "location": "WELS CCT",
+       "times": [
+        "01:33"
+       ]
+      },
+      {
+       "location": "SPIELFELD-STRASS",
+       "times": [
+        "06:22",
+        "06:51"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-RD-NP7-SaLj16",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60121",
+   "relation": "Salzburg Hbf. to Ljubljana Moste",
+   "relationLabel": "Salzburg Hbf (AT) → Ljubljana Moste (SI)",
+   "corridor": "ljubljana-jesenice",
+   "daysOfWeek": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Jesenice",
+     "lat": 46.4360452,
+     "lon": 14.0546156,
+     "arrival": "03:29",
+     "departure": "04:16"
+    },
+    {
+     "location": "Ljubljana Moste",
+     "lat": 46.058851,
+     "lon": 14.5505761,
+     "arrival": null,
+     "departure": "06:05"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "AUST",
+     "nationalId": "41821",
+     "days": "2,3,4,5,6",
+     "points": [
+      {
+       "location": "SALZBURG Hbf",
+       "times": [
+        "22:35"
+       ]
+      },
+      {
+       "location": "Salzburg Gnigl",
+       "times": [
+        "22:47"
+       ]
+      },
+      {
+       "location": "Rosenbach",
+       "times": [
+        "03:17"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-NP7-RuLj3",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60126",
+   "relation": "Ruma to Ljubljana Zalog",
+   "relationLabel": "Ruma (RS) → Ljubljana Zalog (SI)",
+   "corridor": "opicina-dobova",
+   "daysOfWeek": [
+    1,
+    4
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": "00:21",
+     "departure": "01:21"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "03:27"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "IZS",
+     "nationalId": "73000",
+     "days": "1,4",
+     "points": [
+      {
+       "location": "Ruma",
+       "times": [
+        "09:36"
+       ]
+      },
+      {
+       "location": "ŠID",
+       "times": [
+        "10:49",
+        "13:35"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70912",
+     "days": "1,4",
+     "points": [
+      {
+       "location": "TOVARNIK",
+       "times": [
+        "13:45",
+        "15:35"
+       ]
+      },
+      {
+       "location": "ZAGREB RK",
+       "times": [
+        "23:01",
+        "23:32"
+       ]
+      },
+      {
+       "location": "SAVSKI MAROF",
+       "times": [
+        "00:12"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-NP7-RuLj5",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60128",
+   "relation": "Ruma to Ljubljana Zalog",
+   "relationLabel": "Ruma (RS) → Ljubljana Zalog (SI)",
+   "corridor": "opicina-dobova",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": "04:20",
+     "departure": "06:25"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "08:03"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "IZS",
+     "nationalId": "73002",
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Ruma",
+       "times": [
+        "15:59"
+       ]
+      },
+      {
+       "location": "ŠID",
+       "times": [
+        "17:03",
+        "19:04"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": "70910",
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "TOVARNIK",
+       "times": [
+        "19:14",
+        "21:10"
+       ]
+      },
+      {
+       "location": "ZAGREB RK",
+       "times": [
+        "02:41",
+        "03:31"
+       ]
+      },
+      {
+       "location": "SAVSKI MAROF",
+       "times": [
+        "04:11"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-NP7-MaWe13",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60101",
+   "relation": "Maribor Tezno to Wels",
+   "relationLabel": "Maribor Tezno (SI) → Wels CCT (AT)",
+   "corridor": "pragersko-spielfeld",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": null,
+     "departure": "12:30"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": "13:05",
+     "departure": "13:30",
+     "infrastructureManager": "AUST"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "AUST",
+     "nationalId": "41404",
+     "days": "1,2,3,4,5",
+     "points": [
+      {
+       "location": "SPIELFELD-STRASS",
+       "times": [
+        "13:05",
+        "13:30"
+       ]
+      },
+      {
+       "location": "WELS CCT",
+       "times": [
+        "20:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-RD-NP7-LjSa15",
+   "catalogue": "RFC10",
+   "trainNumberSZ": "60120",
+   "relation": "Ljubljana Moste to Salzburg Hbf.",
+   "relationLabel": "Ljubljana Moste (SI) → Salzburg Hbf (AT)",
+   "corridor": "ljubljana-jesenice",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Ljubljana Moste",
+     "lat": 46.058851,
+     "lon": 14.5505761,
+     "arrival": null,
+     "departure": "20:27"
+    },
+    {
+     "location": "Jesenice",
+     "lat": 46.4360452,
+     "lon": 14.0546156,
+     "arrival": "21:47",
+     "departure": "22:14"
+    }
+   ],
+   "foreignSections": [
+    {
+     "infrastructureManager": "AUST",
+     "nationalId": "41820",
+     "days": "1,2,3,4,5",
+     "points": [
+      {
+       "location": "Rosenbach",
+       "times": [
+        "22:26"
+       ]
+      },
+      {
+       "location": "Salzburg Gnigl",
+       "times": [
+        "03:17",
+        "04:05"
+       ]
+      },
+      {
+       "location": "SALZBURG Hbf",
+       "times": [
+        "04:09"
        ]
       }
      ],
