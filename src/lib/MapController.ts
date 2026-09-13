@@ -2274,7 +2274,10 @@ export class MapController {
   private async pollDedicatedBrezAvtaBusLocations(): Promise<void> {
     if (!this.isReady || !this.map) return;
     try {
-      const freshBuses = await fetchWithTimeout(loadBrezAvtaBusLocations([]), 5000, []);
+      // Ten seconds, not five: the free-tier instance answers in one to two
+      // seconds when idle but several when something else is being served,
+      // and a poll that gives up is a bus that does not move.
+      const freshBuses = await fetchWithTimeout(loadBrezAvtaBusLocations([]), 10000, []);
       if (!freshBuses || !Array.isArray(freshBuses) || freshBuses.length === 0) return;
 
       const nowTime = Date.now();
@@ -2544,7 +2547,7 @@ export class MapController {
         fetchWithTimeout(loadAnalyticsDelays(errors), 5000, {type:'FeatureCollection',features:[]}),
         fetchWithTimeout(GtfsRealtimeIngestionService.getInstance().ingestFeeds(), 5000, []),
         fetchWithTimeout(loadFreightTrains(errors), 5000, []),
-        fetchWithTimeout(loadBrezAvtaBusLocations(errors), 5000, [])
+        fetchWithTimeout(loadBrezAvtaBusLocations(errors), 10000, [])
       ]);
 
       // Slow moving data (Fetched every 30s)

@@ -10081,6 +10081,40 @@ app.post('/api/log', express.json(), (req, res) => {
     }
   })();
 
+  /**
+   * The point `km` along a corridor, by binary search over the running totals
+   * measured when the corridor was built.
+   *
+   * This used to go through interpolatePolyline(), which walks the polyline
+   * from the start on every call. With 13,000 points per corridor and some
+   * 3,300 calls per response (a position, two band ends and up to 160 band
+   * samples for each of twenty paths) that was 1.6 s of CPU here and 13-15 s
+   * on the 0.1-CPU instance — synchronously, on every request, ten seconds
+   * apart. While it ran nothing else was served: the bus poll's five-second
+   * limit expired, so buses were never refreshed, and only these trains,
+   * whose responses did eventually arrive, were seen to move.
+   */
+  function pointAtKm(geo: CorridorTrack, km: number): { lon: number; lat: number; bearing: number } {
+    const pts = geo.track, cum = geo.cumulative, dists = geo.dists;
+    const n = pts.length;
+    if (n < 2) return { lon: pts[0]?.[0] ?? 0, lat: pts[0]?.[1] ?? 0, bearing: 0 };
+    const total = cum[n - 1];
+    const target = Math.max(0, Math.min(1, km / geo.totalKm)) * total;
+    let lo = 0, hi = n - 2;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (cum[mid] <= target) lo = mid; else hi = mid - 1;
+    }
+    const seg = dists[lo] || 0;
+    const t = seg > 0 ? Math.max(0, Math.min(1, (target - cum[lo]) / seg)) : 0;
+    const p1 = pts[lo], p2 = pts[lo + 1] || p1;
+    return {
+      lon: p1[0] + (p2[0] - p1[0]) * t,
+      lat: p1[1] + (p2[1] - p1[1]) * t,
+      bearing: calculateBearing(p1[1], p1[0], p2[1], p2[0])
+    };
+  }
+
   /** Permitted line speed where a train is, or null if no section covers it. */
   function lineSpeedAt(geo: CorridorTrack, km: number): CorridorSpeedBand | null {
     for (const b of geo.speedBands) if (km >= b.fromKm && km <= b.toKm) return b;
@@ -10146,6 +10180,11 @@ app.post('/api/log', express.json(), (req, res) => {
 
     const features: any[] = [];
     const board: any[] = [];
+
+    // The same answer for every path (the catalogue names no cargo and no
+    // operator), and not a cheap one: it walks the keeper register once per
+    // licensed undertaking. Computed once per response, not once per path.
+    const operatorCandidates = freightOperatorCandidates(null, 'pragersko_hodos');
 
     const pending = new Set<string>();
     for (const p of corridorPathData.paths) {
@@ -10263,7 +10302,7 @@ app.post('/api/log', express.json(), (req, res) => {
       // (totalKm - km) put trains approaching Koper at the Hungarian end
       // instead, which is what the first version did.
       const alongKm = km;
-      const pos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, alongKm / geo.totalKm)));
+      const pos = pointAtKm(geo, alongKm);
       // The polyline's own bearing is the direction of travel only for the
       // paths running with it. The others face the other way.
       const heading = forward ? pos.bearing : (pos.bearing + 180) % 360;
@@ -10287,8 +10326,8 @@ app.post('/api/log', express.json(), (req, res) => {
       if (bandLoKm != null && bandHiKm != null) {
         const lo = Math.max(0, Math.min(geo.totalKm, bandLoKm));
         const hi = Math.max(0, Math.min(geo.totalKm, bandHiKm));
-        const loPos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, lo / geo.totalKm)));
-        const hiPos = interpolatePolyline(geo.track, Math.max(0, Math.min(1, hi / geo.totalKm)));
+        const loPos = pointAtKm(geo, lo);
+        const hiPos = pointAtKm(geo, hi);
         const legKm = bandLegKm || Math.abs(hi - lo);
         positionBand = {
           fromKm: Math.round(lo * 10) / 10,
@@ -10312,7 +10351,7 @@ app.post('/api/log', express.json(), (req, res) => {
             const steps = Math.max(2, Math.min(160, Math.round(span / 2)));
             for (let i = 0; i <= steps; i++) {
               const at = lo + (span * i) / steps;
-              const q = interpolatePolyline(geo.track, Math.max(0, Math.min(1, at / geo.totalKm)));
+              const q = pointAtKm(geo, at);
               out.push([Math.round(q.lon * 1e5) / 1e5, Math.round(q.lat * 1e5) / 1e5]);
             }
             return out;
@@ -10357,7 +10396,7 @@ app.post('/api/log', express.json(), (req, res) => {
         elapsedMin: active ? Math.round(elapsed) : null,
         // The catalogue names no operator: a path is offered, and whoever books
         // it runs it. These are the companies the register says may.
-        operatorCandidates: freightOperatorCandidates(null, 'pragersko_hodos'),
+        operatorCandidates,
         timingPoints: p.timingPoints,
         // The honest line, carried on the train itself rather than a footnote.
         status: 'Objavljena pot iz kataloga koridorja. Ni potrjeno, da danes vozi.',
@@ -10400,14 +10439,26 @@ app.post('/api/log', express.json(), (req, res) => {
     };
   }
 
+  // The live answer is computed at most once every few seconds and shared by
+  // every client; at freight speeds five seconds is under 150 m, well inside
+  // the position band. A `?at=` query is a different question and is not
+  // cached.
+  let corridorPathsCache: { body: any; ts: number } | null = null;
+  const CORRIDOR_PATHS_TTL_MS = 5000;
   app.get('/api/freight/corridor-paths', (req, res) => {
     let atMin: number | undefined;
     const at = String(req.query.at || '');
     const m = /^(\d{1,2}):(\d{2})$/.exec(at);
     if (m) atMin = (Number(m[1]) % 24) * 60 + Math.min(59, Number(m[2]));
+    if (atMin == null && corridorPathsCache && Date.now() - corridorPathsCache.ts < CORRIDOR_PATHS_TTL_MS) {
+      return res.json(corridorPathsCache.body);
+    }
+    const t0 = Date.now();
     const body: any = corridorFreightPositions(atMin);
-    if (body && atMin != null) body.simulatedTime = at;
     if (!body) return res.status(503).json({ error: 'Katalog koridorskih poti ni na voljo' });
+    body.computeMs = Date.now() - t0;
+    if (atMin != null) body.simulatedTime = at;
+    else corridorPathsCache = { body, ts: Date.now() };
     res.json(body);
   });
 
