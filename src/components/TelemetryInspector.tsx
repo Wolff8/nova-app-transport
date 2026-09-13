@@ -1169,7 +1169,13 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         <p className="mt-1 text-[10.5px] leading-snug text-amber-100/85">
                           {raw.status || 'Objavljena pot iz kataloga koridorja.'}
                         </p>
-                        {raw.trainNumber && (
+                        {raw.estimated && (
+                          <p className="mt-1.5 text-[10.5px] leading-snug text-amber-100/85">
+                            <strong className="text-amber-200">Vlak po objavi prevoznika {raw.operator}.</strong> {raw.basis}
+                            {raw.sourceUrl && <span className="block text-[9.5px] font-mono text-amber-200/60 break-all">vir: {raw.sourceUrl}</span>}
+                          </p>
+                        )}
+                        {raw.trainNumber && !raw.estimated && (
                           <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
                             Številka {raw.trainNumber} je nacionalna številka poti iz stolpca „SZ-I" —
                             Core identifikatorja TAF TSI. Časi so objavljeni le na točkah kataloga

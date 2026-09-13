@@ -3689,10 +3689,11 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
         rows.push({
           id: `pap_${b.papId}`,
           papId: b.papId,
-          trainNumber: b.trainNumber,
-          name: `${b.trainNumber} · ${b.relationLabel ?? b.relation}`,
+          trainNumber: b.trainNumber ?? b.papId,
+          name: `${b.trainNumber ?? b.papId} · ${b.relationLabel ?? b.relation}`,
           relation: b.relationLabel ?? b.relation,
-          operator: svc ? `${svc.operator} (ujemanje relacije, ${svc.perDay}× na dan)` : 'prevoznik v katalogu ni objavljen',
+          operator: b.estimated ? `${b.operator} – lega je ocena po objavljeni uri odhoda` : (svc ? `${svc.operator} (ujemanje relacije, ${svc.frequency ?? 'pogostost objavljena'})` : 'prevoznik v katalogu ni objavljen'),
+          estimatedFromOperator: !!b.estimated,
           fromName: tps[0]?.location ?? null,
           toName: tps[tps.length - 1]?.location ?? null,
           depTime: tps[0]?.departure ?? tps[0]?.arrival ?? null,
@@ -3739,6 +3740,9 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
         basis: 'Objavljene poti iz katalogov koridorjev RFC6 in RFC10 za vozni red 2026 — iste, kot jih riše karta. Lega je interpolirana med objavljenimi časi; katalog ne pove, ali pot danes res vozi. Živih položajev tovornih vlakov noben javni vir ne objavlja.',
         source: paths?.source ?? null,
         operatorServices: paths?.operatorServices ?? [],
+        operatorTrainsNote: paths?.operatorTrainsNote ?? null,
+        portServices: paths?.portServices ?? [],
+        portServicesNote: paths?.portServicesNote ?? null,
         trains: [...runningTrains, ...terminalTrains],
         runningTrains,
         terminalTrains,
@@ -3869,11 +3873,12 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
         cards.push({
           id: `pap_${b.papId}`,
           papId: b.papId,
-          trainNumber: b.trainNumber,
-          name: `${b.trainNumber} · ${b.relationLabel ?? b.relation}`,
+          trainNumber: b.trainNumber ?? b.papId,
+          name: `${b.trainNumber ?? b.papId} · ${b.relationLabel ?? b.relation}`,
           title: `Objavljena pot ${b.papId} · ${b.catalogueLabel}`,
           catalogueLabel: b.catalogueLabel,
-          operator: svc ? `${svc.operator} (ujemanje relacije, ${svc.perDay}× na dan)` : 'prevoznik v katalogu ni objavljen',
+          operator: b.estimated ? `${b.operator} – lega je ocena po objavljeni uri odhoda` : (svc ? `${svc.operator} (ujemanje relacije, ${svc.frequency ?? 'pogostost objavljena'})` : 'prevoznik v katalogu ni objavljen'),
+          estimatedFromOperator: !!b.estimated,
           fromName: tps[0].location,
           toName: tps[tps.length - 1].location,
           relation: b.relation,
@@ -10096,8 +10101,15 @@ app.post('/api/log', express.json(), (req, res) => {
         corridorLabel: corridorMeta?.label ?? p.corridor,
         direction: forward ? (corridorMeta?.forwardLabel ?? 'naprej') : (corridorMeta?.reverseLabel ?? 'nazaj'),
         catalogue: (p as any).catalogue ?? 'RFC6',
-        catalogueLabel: ({ RFC5: 'RFC Baltic-Adriatic (RFC5), vozni red 2027', RFC10: 'RFC Alpine-Western Balkan (RFC10)', 'RFC10-RC': 'RFC Alpine-Western Balkan (RFC10) – rezervna zmogljivost', RFC6: 'RFC Mediterranean (RFC6)' } as Record<string, string>)[(p as any).catalogue ?? 'RFC6'] ?? String((p as any).catalogue),
-        offerType: (p as any).catalogue === 'RFC10-RC' ? 'rezervna zmogljivost (RC): zmogljivost, ki jo koridor drži za naročila v tekočem voznem redu, do 30 dni pred vožnjo' : 'vnaprej pripravljena pot (PaP)',
+        catalogueLabel: ({ RFC5: 'RFC Baltic-Adriatic (RFC5), vozni red 2027', RFC10: 'RFC Alpine-Western Balkan (RFC10)', 'RFC10-RC': 'RFC Alpine-Western Balkan (RFC10) – rezervna zmogljivost', RFC6: 'RFC Mediterranean (RFC6)', OPERATOR: `urnik prevoznika ${(p as any).operator ?? ''}`.trim() } as Record<string, string>)[(p as any).catalogue ?? 'RFC6'] ?? String((p as any).catalogue),
+        offerType: (p as any).catalogue === 'OPERATOR' ? 'vlak po objavi prevoznika – objavljena je ura odhoda, lega vmes je ocena'
+          : (p as any).catalogue === 'RFC10-RC' ? 'rezervna zmogljivost (RC): zmogljivost, ki jo koridor drži za naročila v tekočem voznem redu, do 30 dni pred vožnjo' : 'vnaprej pripravljena pot (PaP)',
+        // Operator-published trains (Tailwind, Adria Kombi ROLA): the clock
+        // time is theirs, the position is an estimate and says so.
+        estimated: !!(p as any).estimated,
+        operator: (p as any).operator ?? null,
+        basis: (p as any).basis ?? null,
+        sourceUrl: (p as any).sourceUrl ?? null,
         // Operator-published services on this relation. A relation match,
         // not a booking: it says who publishes trains on the relation this
         // path serves, not that this path is theirs.
@@ -10125,7 +10137,7 @@ app.post('/api/log', express.json(), (req, res) => {
         // The legs run outside Slovenia, so a train that only crosses the
         // country can be read end to end instead of appearing from nowhere.
         foreignSections: (p as any).foreignSections ?? null,
-        transitsOnly: !/kop|hodo|ljubljan|sežana|dobova/i.test(p.relation || ''),
+        transitsOnly: !/kop|hodo|ljubljan|sežana|dobova|maribor/i.test(p.relation || ''),
         progressPercent: active ? Math.round((elapsed / journeyMin) * 100) : null,
         journeyMin: Math.round(journeyMin),
         elapsedMin: active ? Math.round(elapsed) : null,
@@ -10136,9 +10148,11 @@ app.post('/api/log', express.json(), (req, res) => {
         pointsNotOnCorridor: (p as any).pointsNotOnCorridor ?? null,
         routeSpecification: (p as any).routeSpecification ?? null,
         // The honest line, carried on the train itself rather than a footnote.
-        status: 'Objavljena pot iz kataloga koridorja. Ni potrjeno, da danes vozi.',
-        source: corridorPathData.source,
-        timetableYear: corridorPathData.timetableYear
+        status: (p as any).estimated
+          ? `Vlak po objavljenem urniku prevoznika (${(p as any).operator}). Ura odhoda je objavljena, lega je ocena; prevoznik lahko odhod tedensko spremeni.`
+          : 'Objavljena pot iz kataloga koridorja. Ni potrjeno, da danes vozi.',
+        source: (p as any).estimated ? `${(p as any).operator}: ${(p as any).sourceUrl} (prebrano ${(p as any).sourceRetrieved ?? ''})` : corridorPathData.source,
+        timetableYear: (p as any).estimated ? null : corridorPathData.timetableYear
       };
       board.push(entry);
       if (!active) continue;
@@ -10169,6 +10183,9 @@ app.post('/api/log', express.json(), (req, res) => {
       trainNumberNote: corridorPathData.trainNumberNote,
       pathsTotal: board.length,
       operatorServices: corridorPathData.operatorServices ?? [],
+      operatorTrainsNote: corridorPathData.operatorTrainsNote ?? null,
+      portServices: corridorPathData.portServices ?? [],
+      portServicesNote: corridorPathData.portServicesNote ?? null,
       corridorsPending: pending.size ? [...pending] : null,
       ready: pending.size === 0,
       runningNow: features.length,

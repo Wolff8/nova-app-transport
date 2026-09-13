@@ -246,9 +246,627 @@
    "cargo": "zabojniki",
    "source": "https://adria-transport.com/en/services/",
    "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Rail Cargo Group (TransFER)",
+   "from": "Villach Süd CCT",
+   "to": "Koper",
+   "aliases": {
+    "from": [
+     "villach",
+     "beljak",
+     "fürnitz",
+     "furnitz"
+    ],
+    "to": [
+     "koper"
+    ]
+   },
+   "perWeek": "do 5",
+   "bothWays": true,
+   "route": "Jesenice – Ljubljana",
+   "transitHours": null,
+   "cargo": "zabojniki 20/40 ft, profil PR170/171, PC70/400; RID da",
+   "operatingDays": "pon–pet v obeh smereh (opcijski odhodi glede na obseg)",
+   "validUntil": "2026-12-31",
+   "schedule": [
+    "Koper Luka → Villach Süd CCT: zadnji sprejem enote 10:00 na dan odhoda, prevzem v Beljaku naslednji dan ob 08:00",
+    "Villach Süd CCT → Koper Luka: zadnji sprejem 18:00 dan pred odhodom, prevzem v Kopru naslednji dan ob 16:00",
+    "antene Dunaj, Linz, Salzburg, Wolfurt prek Beljaka: 2–3 dni"
+   ],
+   "source": "https://www.railcargo.com/en/dms/factsheets/factsheet-transfer-villach-koper-antennen-en.pdf",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Rail Cargo Group (TransFER)",
+   "from": "Bratislava",
+   "to": "Koper",
+   "aliases": {
+    "from": [
+     "bratislava"
+    ],
+    "to": [
+     "koper"
+    ]
+   },
+   "perWeek": "1–5",
+   "bothWays": true,
+   "route": null,
+   "transitHours": 23,
+   "cargo": "zabojniki; antene v Češko, Poljsko in Madžarsko",
+   "note": "Factsheet (september 2024) urnika ne objavlja – \"za podrobnosti se obrnite na ekipo\".",
+   "source": "https://www.railcargo.com/sl/dms/factsheets/factsheet-transfer-bratislava-koper-en.pdf",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Tailwind Intermodal (Panther Shuttle)",
+   "from": "Koper Luka",
+   "to": "Graz Süd CCT",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "graz",
+     "gradec",
+     "werndorf"
+    ]
+   },
+   "perWeek": "do 16 (krožnih)",
+   "bothWays": true,
+   "route": null,
+   "transitHours": 10,
+   "cargo": "zabojniki",
+   "operatingDays": "vsak dan",
+   "validFrom": "2026-01-14",
+   "schedule": [
+    "Koper → Graz: ned 3×, pon 2×, tor 2×, sre 3×, čet 2×, pet 2×, sob 2× (ure odhodov niso objavljene)",
+    "Graz → Koper: pon 06:00 in 21:00, tor 06:00, 10:00 in 21:00, sre 06:00 in 21:00, čet 06:00 in 21:00, pet 06:00, 10:00 in 21:00, sob 06:00 in 14:00, ned 06:00 in 14:00",
+    "čas vožnje pribl. 10 h; zaradi del na slovenski progi (predvidoma do 2027) do 24 h"
+   ],
+   "note": "Prevoznik: \"ure odhodov se tedensko prilagajajo glede na zmogljivost in infrastrukturo\" – tabela prikazuje redne tedenske zveze.",
+   "source": "https://tailwind-ahead.com/en/intermodal/rail-network",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Tailwind Intermodal",
+   "from": "Koper Luka",
+   "to": "Enns (prek Gradca)",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "enns"
+    ]
+   },
+   "perWeek": "do 4",
+   "bothWays": true,
+   "route": "prek Graz Süd CCT",
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://tailwind-ahead.com/en/intermodal/rail-network",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Baltic Rail",
+   "from": "Koper",
+   "to": "Wrocław (Oleśnica) – Katowice (Włosienica)",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "wroclaw",
+     "wrocław",
+     "olesnica",
+     "katowice",
+     "wlosienica"
+    ]
+   },
+   "perWeek": "3–4 (krožnih)",
+   "bothWays": true,
+   "route": "trikotnik Koper – Wrocław – Katowice – Koper, redni postanek Ostrava Paskov (izvoz)",
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://www.balticrail.com/",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Adria Kombi + Kombiverkehr (Adria Express)",
+   "from": "Ljubljana KT",
+   "to": "München Riem",
+   "aliases": {
+    "from": [
+     "ljubljana"
+    ],
+    "to": [
+     "munchen",
+     "münchen",
+     "munich",
+     "salzburg"
+    ]
+   },
+   "perWeek": "vsak drugi dan",
+   "bothWays": true,
+   "route": "prek Jesenic",
+   "transitHours": null,
+   "cargo": "kombinirani prevoz; naprej v mrežo Kombiverkehr (Nemčija, Benelux)",
+   "note": "Brošura brez datuma (arhiv web.archive.org, marec 2026).",
+   "source": "https://adriakombi.si/assets/adriakombi_Adria_Express_EN_2.pdf",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Adria Kombi (ROLA – potujoča avtocesta)",
+   "from": "Maribor Tezno",
+   "to": "Wels",
+   "aliases": {
+    "from": [
+     "maribor"
+    ],
+    "to": [
+     "wels"
+    ]
+   },
+   "perWeek": null,
+   "bothWays": true,
+   "route": "Šentilj – Spielfeld",
+   "transitHours": null,
+   "cargo": "tovornjaki s spremstvom voznikov",
+   "operatingDays": "Maribor → Wels: 41400 pon 03:21 · 41404 sre–pet 12:30 · 41406 sob 12:30 · 41408 ned–pet 22:36 (odhodi iz Maribora po strani za rezervacije, feb. in jun. 2026)",
+   "schedule": [
+    "Wels → Maribor: zadnji objavljeni vozni red je iz leta 2022 (41401 pon–sob prihod 07:04, 41407 pon–sob prihod 23:28, 41409 ned prihod 03:20, 41405 sob prihod 16:37) – za 2026 ni objave"
+   ],
+   "note": "Spletna stran adriakombi.si je bila ob branju nedosegljiva; podatki iz arhiviranih kopij (web.archive.org).",
+   "source": "https://www.adriakombi.si/products/rolling-motorway/trains",
+   "retrieved": "2026-09-13"
   }
  ],
- "generated": "2026-09-13T20:18:25.029Z",
+ "operatorTrainsNote": "Poti s katalogom OPERATOR so vlaki po objavljenih urnikih prevoznikov (Tailwind Graz → Koper, Adria Kombi ROLA Maribor → Wels). Ure odhoda so objavljene, lega vmes je ocena.",
+ "portServices": [
+  {
+   "country": "Slovenija",
+   "relation": "Koper – Ljubljana – Celje – Maribor (Adria Kombi)",
+   "operator": "Adria Kombi",
+   "frequencyRaw": "6 W",
+   "frequency": "6 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Nemčija",
+   "relation": "Koper – Munchen (AdriaKombi) with antennas to Ludwigshafen, Koln, Duisburg, Dorben, Hannover.",
+   "operator": "AdriaKombi",
+   "frequencyRaw": "3 – 5 W",
+   "frequency": "3–5 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Ostrava (PKP – Terminal Paskov) dedicated",
+   "operator": "PKP – Terminal Paskov",
+   "frequencyRaw": "2 W",
+   "frequency": "2 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Ostrava (Metrans – Terminal Senov) dedicated",
+   "operator": "Metrans – Terminal Senov",
+   "frequencyRaw": "5 W",
+   "frequency": "5 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Dobra – Koper (AdriaKombi dedicated)",
+   "operator": "AdriaKombi dedicated",
+   "frequencyRaw": "3 W",
+   "frequency": "3 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Brno / Mosnov / Melnik – Koper (Adria Kombi project trains)",
+   "operator": "Adria Kombi project trains",
+   "frequencyRaw": "project train",
+   "frequency": "projektni vlak (po potrebi)",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Mosnov – Koper (Budamar)",
+   "operator": "Budamar",
+   "frequencyRaw": "1 W",
+   "frequency": "1 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Dunajska Streda – Koper (Metrans) roundtrip trains with antennas to Ceska Trebova",
+   "operator": "Metrans",
+   "frequencyRaw": "7 W",
+   "frequency": "7 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Ostrava – Koper (Metrans)",
+   "operator": "Metrans",
+   "frequencyRaw": "5 W",
+   "frequency": "5 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Češka",
+   "relation": "Koper – Melnik – Koper (PKP)",
+   "operator": "PKP",
+   "frequencyRaw": "project train",
+   "frequency": "projektni vlak (po potrebi)",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Budapest BILK – Koper (RCO HU)",
+   "operator": "RCO HU",
+   "frequencyRaw": "6 W",
+   "frequency": "6 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Budapest Maharth – Koper (AdriaKombi dedicated / 2 or 3 open trains)",
+   "operator": "AdriaKombi dedicated / 2 or 3 open trains",
+   "frequencyRaw": "12 W",
+   "frequency": "12 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Debrecen – Koper (Start Q2) (AdriaKombi)",
+   "operator": "AdriaKombi",
+   "frequencyRaw": "3 W",
+   "frequency": "3 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Sopron – Koper (Adria Kombi dedicated)",
+   "operator": "Adria Kombi dedicated",
+   "frequencyRaw": "project train",
+   "frequency": "projektni vlak (po potrebi)",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Szged – Koper (Adria Kombi dedicated)",
+   "operator": "Adria Kombi dedicated",
+   "frequencyRaw": "project train",
+   "frequency": "projektni vlak (po potrebi)",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Sekesfehervar – Koper (Baltic)",
+   "operator": "Baltic",
+   "frequencyRaw": "1 W",
+   "frequency": "1 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Budapest – Koper (PKP)",
+   "operator": "PKP",
+   "frequencyRaw": "project train",
+   "frequency": "projektni vlak (po potrebi)",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Budapest – Koper roundtrip trains (Metrans)",
+   "operator": "Metrans",
+   "frequencyRaw": "2 – 4 D",
+   "frequency": "2–4 na dan",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Madžarska",
+   "relation": "Koper – Budapest – Koper (SETG)",
+   "operator": "SETG",
+   "frequencyRaw": "",
+   "frequency": "pogostost ni navedena",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Slovaška",
+   "relation": "Koper – Žilina (Adria Kombi/RCO) dedicated",
+   "operator": "Adria Kombi/RCO",
+   "frequencyRaw": "7 W",
+   "frequency": "7 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Slovaška",
+   "relation": "Koper – Bratislava SPAP Terminal – Koper (AdriaKombi dedicated)",
+   "operator": "AdriaKombi dedicated",
+   "frequencyRaw": "2 W",
+   "frequency": "2 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Slovaška",
+   "relation": "Koper – Kosice – Koper (Adria Kombi dedicated / project)",
+   "operator": "Adria Kombi dedicated / project",
+   "frequencyRaw": "project train",
+   "frequency": "projektni vlak (po potrebi)",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Slovaška",
+   "relation": "Koper – Žilina (Metrans) dedicated",
+   "operator": "Metrans",
+   "frequencyRaw": "3 W",
+   "frequency": "3 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Slovaška",
+   "relation": "Koper – Sladkovicovo – Koper (RCO CSKD dedicated)",
+   "operator": "RCO CSKD dedicated",
+   "frequencyRaw": "6 W",
+   "frequency": "6 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Slovaška",
+   "relation": "Koper – Dunajska Streda – Koper (Metrans) roundtrip trains with antennas to Kosice, TIPP Žilina",
+   "operator": "Metrans",
+   "frequencyRaw": "2 – 4 D",
+   "frequency": "2–4 na dan",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Srbija",
+   "relation": "Koper – NELT/ Žit / Pančevo – Koper (AdriaKombi)",
+   "operator": "AdriaKombi",
+   "frequencyRaw": "6 W",
+   "frequency": "6 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Srbija",
+   "relation": "Koper – Inđija – Koper (Metrans)",
+   "operator": "Metrans",
+   "frequencyRaw": "1 W",
+   "frequency": "1 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Koper – Graz – Koper (ADT / Tailwind Intermodal)",
+   "operator": "ADT / Tailwind Intermodal",
+   "frequencyRaw": "10 W",
+   "frequency": "10 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Koper – Graz – Koper (SETG = S Rail)",
+   "operator": "SETG = S Rail",
+   "frequencyRaw": "3 W",
+   "frequency": "3 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Koper – Enns – Koper (Adria Kombi)",
+   "operator": "Adria Kombi",
+   "frequencyRaw": "1 W",
+   "frequency": "1 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Koper – Villach – antenna to Vienna, Linz, Salzburg, Wolfurt (CAPRIS \"RCO AT\")",
+   "operator": "CAPRIS \"RCO AT\"",
+   "frequencyRaw": "7 W",
+   "frequency": "7 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Vienna – Koper (RCO CSKD/ HU dedicated)",
+   "operator": "RCO CSKD/ HU dedicated",
+   "frequencyRaw": "2 W",
+   "frequency": "2 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Koper – Enns – Salzburg – Koper (SETG) with antena to Wolfurt",
+   "operator": "SETG",
+   "frequencyRaw": "",
+   "frequency": "pogostost ni navedena",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Ybbs, Krems – Koper (Metrans) – export trains",
+   "operator": "Metrans",
+   "frequencyRaw": "2 W",
+   "frequency": "2 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Linz – Koper (Metrans) Export only",
+   "operator": "Metrans",
+   "frequencyRaw": "4 W",
+   "frequency": "4 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Koper – Dunajska Streda – Koper (Metrans) roundtrip trains (With antennas to Krems an der Donau)",
+   "operator": "Metrans",
+   "frequencyRaw": "7 W",
+   "frequency": "7 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Avstrija",
+   "relation": "Koper – Graz – Enns – Koper (TFG)",
+   "operator": "TFG",
+   "frequencyRaw": "3 W",
+   "frequency": "3 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Poljska",
+   "relation": "Koper – Wroclav (Olesnica) – Ostrava – Koper (Baltic Rail)",
+   "operator": "Baltic Rail",
+   "frequencyRaw": "2 W",
+   "frequency": "2 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Poljska",
+   "relation": "Koper – Wroclav (Olesnica) – Katowice (Terminal Wlosienica) – Koper (Baltic Rail)",
+   "operator": "Baltic Rail",
+   "frequencyRaw": "2 W",
+   "frequency": "2 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Poljska",
+   "relation": "Koper – Warsaw – Koper (Metrans)",
+   "operator": "Metrans",
+   "frequencyRaw": "1 W",
+   "frequency": "1 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Poljska",
+   "relation": "Koper – via Ostrava (CZ Terminal Senov) – South Poland roundtrip trains (Metrans)",
+   "operator": "Metrans",
+   "frequencyRaw": "7 W",
+   "frequency": "7 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Romunija",
+   "relation": "Koper – Arad – Koper (Metrans)",
+   "operator": "Metrans",
+   "frequencyRaw": "1 W",
+   "frequency": "1 na teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Romunija",
+   "relation": "Koper – Bukarest – Koper (AdriaKombi)",
+   "operator": "AdriaKombi",
+   "frequencyRaw": "project train",
+   "frequency": "projektni vlak (po potrebi)",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "country": "Italija",
+   "relation": "Koper – Bologna – Koper (Adria Kombi)",
+   "operator": "Adria Kombi",
+   "frequencyRaw": "biweekly",
+   "frequency": "vsak drugi teden",
+   "source": "https://www.luka-kp.si/en/services-terminals/port-connections/railway-connections/",
+   "pageUpdated": "2025-07-31",
+   "retrieved": "2026-09-13"
+  }
+ ],
+ "portServicesNote": "Seznam rednih vlakov, ki ga objavlja Luka Koper (D = na dan, W = na teden). Brez ur odhodov in brez navedbe poti po Sloveniji; projektni vlaki vozijo po potrebi.",
+ "generated": "2026-09-13T20:39:40.750Z",
  "paths": [
   {
    "papId": "C6NPPOZG02",
@@ -5627,6 +6245,297 @@
      "note": null
     }
    ]
+  },
+  {
+   "papId": "TAILWIND-0600",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": null,
+   "relation": "Graz Sued CCT to Koper",
+   "relationLabel": "Graz Süd CCT (AT) → Koper Luka (SI)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-01-14",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "06:45"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": "16:00",
+     "departure": null
+    }
+   ],
+   "operator": "Tailwind Intermodal (Panther Shuttle)",
+   "estimated": true,
+   "basis": "OCENA po urniku prevoznika: odhod Graz Süd CCT 06:00, objavljen čas vožnje pribl. 10 h (zaradi del do 24 h). Meja Spielfeld je predpostavljena 45 min po odhodu, pot po Sloveniji prek Maribora – Zidanega Mosta – Ljubljane – Divače. Prevoznik ure odhodov tedensko prilagaja.",
+   "sourceUrl": "https://tailwind-ahead.com/en/intermodal/rail-network",
+   "sourceRetrieved": "2026-09-13"
+  },
+  {
+   "papId": "TAILWIND-2100",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": null,
+   "relation": "Graz Sued CCT to Koper",
+   "relationLabel": "Graz Süd CCT (AT) → Koper Luka (SI)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "validFrom": "2026-01-14",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "21:45"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": "07:00",
+     "departure": null
+    }
+   ],
+   "operator": "Tailwind Intermodal (Panther Shuttle)",
+   "estimated": true,
+   "basis": "OCENA po urniku prevoznika: odhod Graz Süd CCT 21:00, objavljen čas vožnje pribl. 10 h (zaradi del do 24 h). Meja Spielfeld je predpostavljena 45 min po odhodu, pot po Sloveniji prek Maribora – Zidanega Mosta – Ljubljane – Divače. Prevoznik ure odhodov tedensko prilagaja.",
+   "sourceUrl": "https://tailwind-ahead.com/en/intermodal/rail-network",
+   "sourceRetrieved": "2026-09-13"
+  },
+  {
+   "papId": "TAILWIND-1000",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": null,
+   "relation": "Graz Sued CCT to Koper",
+   "relationLabel": "Graz Süd CCT (AT) → Koper Luka (SI)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    2,
+    5
+   ],
+   "validFrom": "2026-01-14",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "10:45"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": "20:00",
+     "departure": null
+    }
+   ],
+   "operator": "Tailwind Intermodal (Panther Shuttle)",
+   "estimated": true,
+   "basis": "OCENA po urniku prevoznika: odhod Graz Süd CCT 10:00, objavljen čas vožnje pribl. 10 h (zaradi del do 24 h). Meja Spielfeld je predpostavljena 45 min po odhodu, pot po Sloveniji prek Maribora – Zidanega Mosta – Ljubljane – Divače. Prevoznik ure odhodov tedensko prilagaja.",
+   "sourceUrl": "https://tailwind-ahead.com/en/intermodal/rail-network",
+   "sourceRetrieved": "2026-09-13"
+  },
+  {
+   "papId": "TAILWIND-1400",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": null,
+   "relation": "Graz Sued CCT to Koper",
+   "relationLabel": "Graz Süd CCT (AT) → Koper Luka (SI)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    6,
+    7
+   ],
+   "validFrom": "2026-01-14",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "14:45"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": "00:00",
+     "departure": null
+    }
+   ],
+   "operator": "Tailwind Intermodal (Panther Shuttle)",
+   "estimated": true,
+   "basis": "OCENA po urniku prevoznika: odhod Graz Süd CCT 14:00, objavljen čas vožnje pribl. 10 h (zaradi del do 24 h). Meja Spielfeld je predpostavljena 45 min po odhodu, pot po Sloveniji prek Maribora – Zidanega Mosta – Ljubljane – Divače. Prevoznik ure odhodov tedensko prilagaja.",
+   "sourceUrl": "https://tailwind-ahead.com/en/intermodal/rail-network",
+   "sourceRetrieved": "2026-09-13"
+  },
+  {
+   "papId": "ROLA-41400",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": "41400",
+   "relation": "Maribor Tezno to Wels",
+   "relationLabel": "Maribor Tezno (SI) → Wels (AT), potujoča avtocesta",
+   "corridor": "pragersko-spielfeld",
+   "daysOfWeek": [
+    1
+   ],
+   "validFrom": "2026-02-12",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": null,
+     "departure": "03:21"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": "04:05",
+     "departure": null
+    }
+   ],
+   "operator": "Adria Kombi (ROLA)",
+   "estimated": true,
+   "basis": "OCENA po objavi prevoznika: vlak 41400 odpelje iz Maribora Tezno ob 03:21 (pon); vožnja do Spielfelda (44 min) je iz zadnjega objavljenega voznega reda 2022. Številka vlaka je številka, ki jo objavlja prevoznik.",
+   "sourceUrl": "https://www.adriakombi.si/products/rolling-motorway/trains",
+   "sourceRetrieved": "2026-09-13"
+  },
+  {
+   "papId": "ROLA-41404",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": "41404",
+   "relation": "Maribor Tezno to Wels",
+   "relationLabel": "Maribor Tezno (SI) → Wels (AT), potujoča avtocesta",
+   "corridor": "pragersko-spielfeld",
+   "daysOfWeek": [
+    3,
+    4,
+    5
+   ],
+   "validFrom": "2026-02-12",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": null,
+     "departure": "12:30"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": "13:14",
+     "departure": null
+    }
+   ],
+   "operator": "Adria Kombi (ROLA)",
+   "estimated": true,
+   "basis": "OCENA po objavi prevoznika: vlak 41404 odpelje iz Maribora Tezno ob 12:30 (sre–pet (dnevi po objavah feb. in jun. 2026)); vožnja do Spielfelda (44 min) je iz zadnjega objavljenega voznega reda 2022. Številka vlaka je številka, ki jo objavlja prevoznik.",
+   "sourceUrl": "https://www.adriakombi.si/products/rolling-motorway/trains",
+   "sourceRetrieved": "2026-09-13"
+  },
+  {
+   "papId": "ROLA-41406",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": "41406",
+   "relation": "Maribor Tezno to Wels",
+   "relationLabel": "Maribor Tezno (SI) → Wels (AT), potujoča avtocesta",
+   "corridor": "pragersko-spielfeld",
+   "daysOfWeek": [
+    6
+   ],
+   "validFrom": "2026-02-12",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": null,
+     "departure": "12:30"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": "13:14",
+     "departure": null
+    }
+   ],
+   "operator": "Adria Kombi (ROLA)",
+   "estimated": true,
+   "basis": "OCENA po objavi prevoznika: vlak 41406 odpelje iz Maribora Tezno ob 12:30 (sob); vožnja do Spielfelda (44 min) je iz zadnjega objavljenega voznega reda 2022. Številka vlaka je številka, ki jo objavlja prevoznik.",
+   "sourceUrl": "https://www.adriakombi.si/products/rolling-motorway/trains",
+   "sourceRetrieved": "2026-09-13"
+  },
+  {
+   "papId": "ROLA-41408",
+   "catalogue": "OPERATOR",
+   "trainNumberSZ": "41408",
+   "relation": "Maribor Tezno to Wels",
+   "relationLabel": "Maribor Tezno (SI) → Wels (AT), potujoča avtocesta",
+   "corridor": "pragersko-spielfeld",
+   "daysOfWeek": [
+    7,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "validFrom": "2026-02-12",
+   "validTo": null,
+   "timingPoints": [
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": null,
+     "departure": "22:36"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": "23:20",
+     "departure": null
+    }
+   ],
+   "operator": "Adria Kombi (ROLA)",
+   "estimated": true,
+   "basis": "OCENA po objavi prevoznika: vlak 41408 odpelje iz Maribora Tezno ob 22:36 (ned–pet); vožnja do Spielfelda (44 min) je iz zadnjega objavljenega voznega reda 2022. Številka vlaka je številka, ki jo objavlja prevoznik.",
+   "sourceUrl": "https://www.adriakombi.si/products/rolling-motorway/trains",
+   "sourceRetrieved": "2026-09-13"
   }
  ]
 }

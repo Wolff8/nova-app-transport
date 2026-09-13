@@ -452,9 +452,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   <p className="text-slate-300 leading-relaxed text-[11px]">
                     Za tovorni promet ni javnega vira pozicij: MÁV vonatinfo vrača samo potniške vlake, ViaggiaTreno ne pozna
                     tovornih številk, SŽ in HŽ pa jih ne objavljata. Spodaj so zato <strong className="text-amber-300">objavljene poti
-                    iz katalogov koridorjev RFC6 in RFC10 (vozni red 2026)</strong> — iste, kot jih riše karta. Lega med objavljenimi
+                    iz katalogov koridorjev RFC5, RFC6 in RFC10 (vozna reda 2026 in 2027)</strong> — iste, kot jih riše karta. Lega med objavljenimi
                     časi je interpolirana; katalog ne pove, ali pot danes res vozi. Kjer prevoznik objavlja urnik na isti relaciji
-                    (METRANS), je to navedeno kot ujemanje relacije, ne kot potrditev.
+                    (METRANS, RCG, Tailwind …), je to navedeno kot ujemanje relacije, ne kot potrditev. Vlaki z oznako
+                    <strong className="text-amber-300"> URNIK PREVOZNIKA</strong> so iz objavljenih ur odhoda prevoznika (Tailwind Graz → Koper,
+                    Adria Kombi ROLA Maribor → Wels); lega je ocena iz ure odhoda in objavljenega časa vožnje.
                   </p>
                 </div>
               </div>
@@ -485,6 +487,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                               <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${badge[1]}`}>{badge[0]}</span>
                               <span className="font-bold text-white font-mono text-xs">{t.trainNumber}</span>
                               <span className="text-[10px] font-mono text-slate-400">{t.direction}</span>
+                              {t.estimatedFromOperator && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border bg-amber-500/15 text-amber-300 border-amber-500/40">URNIK PREVOZNIKA · OCENA LEGE</span>
+                              )}
                             </div>
                             <div className="text-xs text-slate-200 font-semibold mt-0.5 truncate">{t.relation}</div>
                             <div className="text-[11px] text-slate-400 mt-0.5">
@@ -523,21 +528,67 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                         <div className="text-xs font-semibold text-slate-100">{s.operator}</div>
                         <div className="text-[11px] text-slate-300 mt-0.5">{s.from} {s.bothWays ? '⇄' : '→'} {s.to}</div>
                         <div className="text-[11px] text-emerald-300 mt-0.5">
-                          {s.perDay != null ? `${s.perDay}× na dan` : (s.perWeek != null ? `${s.perWeek}× na teden` : 'pogostost ni objavljena')}
+                          {s.perDay != null ? `${s.perDay}× na dan` : (s.perWeek != null ? `${s.perWeek}× na teden` : (s.operatingDays ? 'objavljeni odhodi' : 'pogostost ni objavljena'))}
                           {Array.isArray(s.days) && s.days.length === 7 ? ' · vsak dan' : ''}
                           {s.transitHours ? ` · čas vožnje do ${s.transitHours} h` : ''}
+                          {s.validFrom ? ` · velja od ${String(s.validFrom).split('-').reverse().join('. ')}` : ''}
+                          {s.validUntil ? ` · velja do ${String(s.validUntil).split('-').reverse().join('. ')}` : ''}
                         </div>
+                        {s.operatingDays && <div className="text-[10px] text-slate-300 mt-0.5">dnevi: {s.operatingDays}</div>}
                         {s.route && <div className="text-[10px] text-slate-400 mt-0.5">pot: {s.route}</div>}
                         {s.cargo && <div className="text-[10px] text-slate-400">{s.cargo}</div>}
+                        {Array.isArray(s.schedule) && s.schedule.length > 0 && (
+                          <ul className="mt-1 space-y-0.5">
+                            {s.schedule.map((line: string, j: number) => <li key={j} className="text-[10px] text-slate-300 leading-snug">· {line}</li>)}
+                          </ul>
+                        )}
+                        {s.note && <div className="text-[10px] text-slate-500 mt-1 leading-snug">{s.note}</div>}
                         <a href={s.source} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-sky-300/80 hover:text-sky-200 break-all block mt-1">
                           vir: {s.source}{s.retrieved ? ` · prebrano ${s.retrieved}` : ''}
                         </a>
                       </div>
                     ))}
                   </div>
-                  <p className="text-[10px] text-slate-500">Prevozniki objavljajo pogostost, ne ur odhodov; zato teh vlakov ni mogoče postaviti na karto. Kjer relacija ustreza objavljeni poti kataloga, je to pri poti navedeno kot ujemanje.</p>
+                  <p className="text-[10px] text-slate-500">Večina prevoznikov objavlja pogostost, ne ur odhodov; teh vlakov ni mogoče postaviti na karto. Kjer je ura odhoda objavljena (Tailwind Graz → Koper, Adria Kombi ROLA Maribor → Wels), je vlak na karti in v seznamu zgoraj označen kot ocena lege po urniku prevoznika. Kjer relacija ustreza objavljeni poti kataloga, je to pri poti navedeno kot ujemanje.</p>
                 </div>
               )}
+
+              {/* The port's own list of every regular block train — the fullest
+                  public answer to "which freight trains run through Slovenia".
+                  Frequencies only: no times and no route, so nothing here is on
+                  the map. */}
+              {Array.isArray(freightPayload?.portServices) && freightPayload.portServices.length > 0 && (() => {
+                const byCountry = new Map<string, any[]>();
+                for (const s of freightPayload.portServices as any[]) { const k = s.country || '—'; if (!byCountry.has(k)) byCountry.set(k, []); byCountry.get(k)!.push(s); }
+                const first = freightPayload.portServices[0];
+                return (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-bold text-white">Redni vlaki iz Luke Koper in vanjo – seznam pristanišča ({freightPayload.portServices.length} zvez)</h4>
+                    <p className="text-[10px] text-slate-400 leading-snug">
+                      {freightPayload.portServicesNote || 'Seznam rednih vlakov, ki ga objavlja Luka Koper.'}
+                      {first?.pageUpdated ? ` Stran posodobljena ${String(first.pageUpdated).split('-').reverse().join('. ')}.` : ''}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {[...byCountry.entries()].map(([country, list]) => (
+                        <div key={country} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+                          <div className="text-xs font-semibold text-slate-100 mb-1">{country} <span className="text-slate-500 font-normal">({list.length})</span></div>
+                          <ul className="space-y-1">
+                            {list.map((s: any, i: number) => (
+                              <li key={i} className="text-[10.5px] leading-snug text-slate-300">
+                                <span className="text-slate-100">{s.relation}</span>
+                                <span className="text-emerald-300"> · {s.frequency}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                    <a href={first?.source} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-sky-300/80 hover:text-sky-200 break-all block">
+                      vir: {first?.source}{first?.retrieved ? ` · prebrano ${first.retrieved}` : ''}
+                    </a>
+                  </div>
+                );
+              })()}
 
               {/* Murska Sobota & Prekmurje Spotlight Banner */}
               <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-amber-950/40 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
