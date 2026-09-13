@@ -3867,6 +3867,16 @@ export class MapController {
               } catch (e) {
                   console.error('Failed to parse nextStopovers', e);
               }
+              // What kind of train the timetable says this is, from the HAFAS
+              // product class. Answers "is this freight?" at a glance: the
+              // feed has no freight class, so every entry here is passenger.
+              if (data.trainClassLabel) {
+                  metrics.push({
+                      label: 'Vrsta vlaka (razred produkta HAFAS)',
+                      value: data.trainClassName ? `${data.trainClassLabel} · ${data.trainClassName}` : data.trainClassLabel,
+                      highlight: true
+                  });
+              }
               metrics.push({
                   label: 'Vir lokacije',
                   value: data.source || 'HAFAS (ÖBB/SŽ Vozni red)',

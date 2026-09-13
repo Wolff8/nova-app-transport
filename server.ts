@@ -7293,7 +7293,28 @@ const trains = combinedMovements
              arrivalPlatform: s.arrivalPlatform || s.plannedArrivalPlatform,
              stop: { name: s.stop?.name || s.stop?.station?.name || '' }
            })) : [],
-           hasPolyline: Boolean(t.polyline)
+           hasPolyline: Boolean(t.polyline),
+           // The HAFAS product class, as the operator's timetable files it.
+           // Real data from the feed: an S-Bahn is filed as suburban, a
+           // RailJet as nationalExpress. There is no freight class at all in
+           // the ÖBB or DB profiles, which is why a GKB "S 6" is a passenger
+           // service even though GKB also hauls freight.
+           trainClass: t.line?.product ?? null,
+           trainClassName: t.line?.productName ?? null,
+           trainClassLabel: ({
+             nationalExpress: 'ICE / RailJet (hitri vlak)',
+             national: 'IC / EC (mednarodni)',
+             interregional: 'D / EN (medregijski, nočni)',
+             regionalExpress: 'RE / REX (regionalni ekspres)',
+             regional: 'R / REX (regionalni)',
+             suburban: 'S-Bahn (primestni potniški)',
+             bus: 'avtobus',
+             ferry: 'trajekt',
+             subway: 'podzemna',
+             tram: 'tramvaj',
+             onCall: 'na klic',
+             taxi: 'taksi / na klic'
+           } as Record<string, string>)[String(t.line?.product ?? '')] ?? null
          }
       
       }).filter((t) => {
