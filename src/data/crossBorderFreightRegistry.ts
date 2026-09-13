@@ -255,7 +255,10 @@ export function generateCrossBorderFreightStatus(
     { vkm: 'D-GATXD', name: 'GATX Rail Europe', country: 'Nemčija', code: 'DE', flag: '🇩🇪' }
   ];
 
-  const enrichedLoco = getEnrichedLocomotiveData('', opClean, trainNum, cargoInput);
+  // Freight context: a locomotive is legitimately assumed, so pass a cargo
+  // hint to keep the lookup evidence-backed (it returns null only when there
+  // is no evidence at all).
+  const enrichedLoco = getEnrichedLocomotiveData('', opClean, trainNum, cargoInput || 'tovorni vlak')!;
   const locoWeight = enrichedLoco.weightTons || 86;
   const locoLength = enrichedLoco.lengthMeters || 19.5;
 

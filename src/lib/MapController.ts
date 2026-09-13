@@ -3714,17 +3714,24 @@ export class MapController {
            vUpper.includes('CARGO') || vUpper.includes('TOVOR') || opUpper.includes('CARGO') || opUpper.includes('TOVOR')
          );
 
+         // Only name a specific locomotive when there is real evidence for one.
+         // A live HAFAS/MOTIS train carries a line number and an operator, not
+         // a vehicle, so an ÖBB passenger service must not be handed a Rail
+         // Cargo freight Taurus. Freight context supplies a cargo hint, which
+         // is evidence; a plain passenger train gets none and stays unknown.
          const enrichedLoco = getEnrichedLocomotiveData(
              data.locomotive,
              op,
              vname,
-             data.cargoDescription || data.cargo
+             data.cargoDescription || data.cargo || (isFreight ? 'tovorni vlak' : '')
          );
-         data.enrichedLocomotive = enrichedLoco;
-         data.locomotive = enrichedLoco.name;
+         if (enrichedLoco) {
+             data.enrichedLocomotive = enrichedLoco;
+             data.locomotive = enrichedLoco.name;
+         }
 
          if (isFreight) {
-             trainType = data.trainType || `Tovorni vlak (${enrichedLoco.series})`;
+             trainType = data.trainType || (enrichedLoco ? `Tovorni vlak (${enrichedLoco.series})` : 'Tovorni vlak');
              capacity = "Tovor: 1.450 - 2.100 ton";
              metrics.push({ label: 'Kategorija prometa', value: 'Tovorni železniški promet (Freight)', highlight: true });
              if (data.currentSection) {
@@ -3865,18 +3872,6 @@ export class MapController {
                   value: data.source || 'HAFAS (ÖBB/SŽ Vozni red)',
                   highlight: false
               });
-              if (data.eradis_status) {
-                  metrics.push({
-                      label: 'ERADIS Certifikat',
-                      value: data.eradis_id || 'SI1120220000',
-                      highlight: true
-                  });
-                  metrics.push({
-                      label: 'TSI Status',
-                      value: data.eradis_status,
-                      highlight: false
-                  });
-              }
           }
       }
     } else {

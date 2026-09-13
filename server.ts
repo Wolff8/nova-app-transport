@@ -7276,8 +7276,11 @@ const trains = combinedMovements
            destination: t.direction || 'Neznano',
            delay: delay,
            source: source,
-           eradis_status: "Active (TAF TSI)",
-           eradis_id: (region === 'austria' ? 'AT11' : (region === 'hungary' ? 'HU11' : 'SI11')) + "20220" + (trainNum ? trainNum.padStart(3, '0') : "000"),
+           // No ERADIS/TAF-TSI feed exists for a live running train: ERADIS is
+           // the ERA safety-certificate database and TAF TSI is freight
+           // telematics, neither certifies an individual train in motion.
+           // Stamping "Active (TAF TSI)" on every HAFAS train (passenger S-Bahn
+           // included) was fabricated provenance, so it is not emitted.
            timestamp: new Date().toISOString(),
            type: (function(){ 
                let mode = t.line?.mode || 'train'; 

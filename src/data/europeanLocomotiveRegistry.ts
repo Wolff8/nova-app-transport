@@ -465,11 +465,26 @@ export function getEnrichedLocomotiveData(
   operatorHint?: string,
   trainNum?: string,
   cargoHint?: string
-): EnrichedLocomotive {
+): EnrichedLocomotive | null {
   const locoStr = String(locomotiveHint || '').toLowerCase();
   const opStr = String(operatorHint || '').toLowerCase();
   const numStr = String(trainNum || '').toUpperCase();
   const cargoStr = String(cargoHint || '').toLowerCase();
+
+  // We do not know which locomotive hauls a given live train: HAFAS/MOTIS
+  // carry a line number and an operator, never a vehicle. Guessing one from
+  // the operator alone put a Rail Cargo freight Taurus (with a fabricated EVN
+  // and TAF-TSI freight provenance) under ÖBB S-Bahn passenger services. So a
+  // specific machine is only named when there is real evidence: an explicit
+  // locomotive string, a cargo description (freight context), or a train
+  // number that matches a known vehicle series. Otherwise: unknown (null),
+  // and the inspector shows no locomotive rather than an invented one.
+  const KNOWN_SERIES_NUMS = ['43810', '47201', '42312', '50640', '48401', '48402'];
+  const hasLocoHint = locoStr.trim() !== '' && !['neznano', 'vlak', 'n/a', '-'].includes(locoStr.trim());
+  const hasCargo = cargoStr.trim() !== '';
+  const hasNumEvidence = KNOWN_SERIES_NUMS.some(n => numStr.includes(n)) ||
+    /\b(313|510|610|541|363|664|1216|1116|1293|480|4746|383|193)\b/.test(numStr);
+  if (!hasLocoHint && !hasCargo && !hasNumEvidence) return null;
 
   // 1. Specific GySEV Vectron
   if (
