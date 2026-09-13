@@ -1491,8 +1491,6 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
    * which is the binding limit on every one of these lines except Koper–Divača.
    */
   /** Recently built freight payloads, keyed by the corridor/operator filters. */
-  const freightCache = new Map<string, { body: any; ts: number }>();
-  const FREIGHT_FRESH_MS = 5000;
 
   const FREIGHT_BRAKE_REGIME_MAX_KMH = 100;
   const KOPER_DIVACA_MAX_KMH = 75;
@@ -3668,357 +3666,83 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   );
   const ALL_FREIGHT_TIMETABLE_SLOTS = [...FREIGHT_TIMETABLE_SLOTS, ...EUROPEAN_FREIGHT_SLOTS];
 
-  // Active freight trains API: synchronized with real-world time in Slovenia & Europe, and official European TEN-T & SŽ network slots
-  app.get('/api/freight/active-trains', (req, res) => {
-    // This endpoint resolves positions along corridor geometries thousands of
-    // points long for every slot, so like /api/transit it is built at most once
-    // every few seconds and shared, rather than recomputed for each poll.
-    const freightKey = `${req.query.corridor || ''}|${req.query.operator || ''}`;
-    const freightHit = freightCache.get(freightKey);
-    if (freightHit && Date.now() - freightHit.ts < FREIGHT_FRESH_MS) {
-      return res.json(freightHit.body);
-    }
+  /**
+   * The freight panel's train list. It used to be computed from the same
+   * hand-written slot table as the old radar (invented numbers, locomotives
+   * and loads, "confidence 0.98"), so the panel counted twenty trains the map
+   * did not show. It is now the published corridor paths the map draws:
+   * running now, standing at a published stop, and the rest of today's
+   * offer, all from the catalogues and labelled as such.
+   */
+  app.get('/api/freight/active-trains', (_req, res) => {
     try {
       const timeObj = getSloveniaTime();
-      const nowMin = timeObj.totalMinutes; // minutes into current day in Slovenia [0, 1440)
-      const corridorFilter = req.query.corridor ? String(req.query.corridor).toLowerCase() : null;
-      const operatorFilter = req.query.operator ? String(req.query.operator).toLowerCase() : null;
-      // Gathered once per request, not once per train.
-      const delayedNearby = delayedTrainSample();
-
-      const runningTrains: any[] = [];
-      const terminalTrains: any[] = [];
-      const allSlots: any[] = [];
-
-      let targetSlots = ALL_FREIGHT_TIMETABLE_SLOTS;
-      if (corridorFilter && corridorFilter !== 'all') {
-        targetSlots = targetSlots.filter(s =>
-          ((s as any).corridorId && (s as any).corridorId.toLowerCase() === corridorFilter) ||
-          (s.corridor && s.corridor.toLowerCase().includes(corridorFilter))
-        );
-      }
-      if (operatorFilter && operatorFilter !== 'all') {
-        targetSlots = targetSlots.filter(s =>
-          s.operator && s.operator.toLowerCase().includes(operatorFilter)
-        );
-      }
-
-      for (const slot of targetSlots) {
-        const depM = parseTimeToMinutes(slot.depTime);
-        const arrM = parseTimeToMinutes(slot.arrTime);
-        const crossesMidnight = arrM < depM;
-        const durationMin = crossesMidnight ? (arrM + 1440 - depM) : (arrM - depM);
-
-        // Check if train is running right now in real time
-        const isRunning = crossesMidnight
-          ? (nowMin >= depM || nowMin < arrM)
-          : (nowMin >= depM && nowMin < arrM);
-
-        // Siding distributor to prevent multiple stationary trains stacking on the exact same coordinate
-        const getTerminalCoords = (stationName: string, baseCoords: [number, number], seed: number): [number, number] => {
-          const sLower = stationName.toLowerCase();
-          if (sLower.includes('koper')) {
-            const sidings: [number, number][] = [
-              [13.7395, 45.5492], // Tir 1 (Kontejnerski terminal)
-              [13.7435, 45.5510], // Tir 4 (Avtomobilski terminal)
-              [13.7360, 45.5460], // Tir 7 (Žitni silosi)
-              [13.7460, 45.5535], // Tir 10 (Ruda in premog)
-              [13.7410, 45.5475]  // Tir 12 (Generalni tovori)
-            ];
-            return sidings[seed % sidings.length];
-          }
-          if (sLower.includes('zalog')) {
-            const sidings: [number, number][] = [
-              [14.6050, 46.0600],
-              [14.6090, 46.0615],
-              [14.6010, 46.0585]
-            ];
-            return sidings[seed % sidings.length];
-          }
-          if (sLower.includes('maribor') || sLower.includes('tezno')) {
-            const sidings: [number, number][] = [
-              [15.6580, 46.5310],
-              [15.6620, 46.5330]
-            ];
-            return sidings[seed % sidings.length];
-          }
-          return baseCoords;
-        };
-
-        // Check if train is preparing at terminal (within 15 min before scheduled departure)
-        const diffToDep = (depM - nowMin + 1440) % 1440;
-        const isPreparing = !isRunning && (diffToDep <= 15);
-
-        // Check if train recently arrived at destination (within 10 min after arrival)
-        const diffFromArr = (nowMin - arrM + 1440) % 1440;
-        const isArrived = !isRunning && !isPreparing && (diffFromArr <= 10);
-
-        let progress = 0;
-        let elapsedMin = 0;
-        let remainingMin = durationMin;
-        let speedKmh = 0;
-        let lat = slot.fromCoords[1];
-        let lon = slot.fromCoords[0];
-        let bearing = 90;
-        let segmentIndex = 0;
-        let currentKm = 0;
-        let status = 'Po voznem redu';
-        let isAtTerminal = false;
-        let positionEstimate: any = null;
-
-        const slotSeed = Math.abs(slot.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
-
-        if (isRunning) {
-          elapsedMin = crossesMidnight
-            ? (nowMin >= depM ? (nowMin - depM) : (nowMin + 1440 - depM))
-            : (nowMin - depM);
-          
-          remainingMin = Math.max(0, Math.round(durationMin - elapsedMin));
-
-          // Position and speed both come from the same motion model, so the
-          // marker and the figure beside it always describe the same train.
-          const motion = freightMotion(slot, elapsedMin, durationMin);
-          progress = Math.max(0.001, Math.min(0.999, motion.progress));
-          currentKm = Math.round(motion.km);
-
-          // Interpolate exact position along real railway track geometry
-          const inter = interpolatePolyline(slot.routeGeometry, progress);
-          lon = Number(inter.lon.toFixed(5));
-          lat = Number(inter.lat.toFixed(5));
-          bearing = inter.bearing || 90;
-          segmentIndex = inter.segmentIndex;
-
-          // Published line speed and the train's brake regime both cap the
-          // result; the profile only shapes it within those limits.
-          const [minSpd, maxSpd] = slot.speedRange;
-          const lineCapKmh = sloFreightLineSpeedCap(slot, currentKm);
-          speedKmh = Math.round(Math.max(5, Math.min(maxSpd, lineCapKmh, motion.speedKmh)));
-          void minSpd;
-
-          // Where the train may be, not merely where the timetable says it is.
-          const corridor = corridorDelayNear(lat, lon, delayedNearby);
-          const unc = freightUncertainty(elapsedMin, currentKm, slot.routeKm, speedKmh, corridor.delayMin);
-          const earlyPt = interpolatePolyline(slot.routeGeometry, unc.earliestKm / Math.max(1, slot.routeKm));
-          const latePt = interpolatePolyline(slot.routeGeometry, unc.latestKm / Math.max(1, slot.routeKm));
-          positionEstimate = {
-            // The single most likely point, which is what gets drawn.
-            likelyKm: currentKm,
-            // …and the stretch it could actually be on.
-            earliestKm: unc.earliestKm,
-            latestKm: unc.latestKm,
-            spanKm: unc.spanKm,
-            windowMinutes: unc.sigmaMin,
-            confidence: unc.confidence,
-            earliest: [Number(earlyPt.lon.toFixed(5)), Number(earlyPt.lat.toFixed(5))],
-            latest: [Number(latePt.lon.toFixed(5)), Number(latePt.lat.toFixed(5))],
-            // Inferred from passenger services on the same stretch of line,
-            // since freight publishes no live position of its own.
-            corridorDelayMin: corridor.delayMin,
-            corridorSampleSize: corridor.sampleSize,
-            corridorWorstDelayMin: corridor.worstMin,
-            basis: corridor.sampleSize > 0
-              ? `Voznoredna ocena + zamude ${corridor.sampleSize} potniških vlakov v radiju ${CORRIDOR_RADIUS_KM} km`
-              : 'Voznoredna ocena (v bližini ni potniških vlakov z zamudo)'
-          };
-
-          if (slot.fromName.includes('Koper') && currentKm < 35) {
-            status = 'V vožnji: strmi vzpon 26‰ na Kraški rob (Divača)';
-          } else if (slot.toName.includes('Koper') && currentKm > slot.routeKm - 35) {
-            status = 'V vožnji: spust 26‰ proti Kopru (elektrodinamično zaviranje)';
-          } else if (currentKm >= slot.routeKm - 10) {
-            status = 'Približevanje ciljni postaji / vstop v ranžirni tir';
-          } else {
-            status = (slot as any).isTransit ? 'Mednarodni tranzit v vožnji po TEN-T koridorju' : 'V vožnji po koridorju';
-          }
-        } else if (isPreparing) {
-          isAtTerminal = true;
-          progress = 0;
-          currentKm = 0;
-          speedKmh = 0;
-          const termCoords = getTerminalCoords(slot.fromName, slot.fromCoords, slotSeed);
-          lat = termCoords[1];
-          lon = termCoords[0];
-          bearing = 90;
-          remainingMin = durationMin + Math.round(diffToDep);
-          status = `Priprava kompozicije / Ranžiranje (Odhod ob ${slot.depTime})`;
-        } else if (isArrived) {
-          isAtTerminal = true;
-          progress = 1;
-          currentKm = slot.routeKm;
-          speedKmh = 0;
-          const termCoords = getTerminalCoords(slot.toName, slot.toCoords, slotSeed);
-          lat = termCoords[1];
-          lon = termCoords[0];
-          bearing = 90;
-          remainingMin = 0;
-          status = `Prispel na terminal / Raztovor (Prihod ob ${slot.arrTime})`;
-        } else {
-          progress = 0;
-          currentKm = 0;
-          speedKmh = 0;
-          lat = slot.fromCoords[1];
-          lon = slot.fromCoords[0];
-          bearing = 90;
-          remainingMin = durationMin;
-          status = `Voznoredna trasa: Odhod ob ${slot.depTime}`;
-        }
-
-        // Snap coordinates strictly to high-density railway track centerline when within Slovenia
-        let snappedToRailTrack = false;
-        let snapDistanceMeters = 0;
-        const isOutsideSlo = lon < 13.35 || lon > 16.60 || lat < 45.42 || lat > 46.88;
-        if (!isOutsideSlo) {
-          const snapped = snapToRailTrack(lon, lat, 3500, bearing);
-          if (snapped.snapped) {
-            lon = snapped.lon;
-            lat = snapped.lat;
-            snappedToRailTrack = true;
-            snapDistanceMeters = snapped.distanceMeters || 0;
-            if (isRunning && snapped.bearing != null) {
-              bearing = snapped.bearing;
-            }
-          }
-        }
-
-        // Multi-Source Freight Telemetry & Physics Estimation Synthesis
-        // Sourced from:
-        // 1. SŽ-Infrastruktura Working Timetables / TEN-T RFC Allocations
-        // 2. ERA ERATV / EVR Locomotive Registry
-        // 3. Dynamic Physics & Track Incline Analysis (Kraški rob 26‰, ruling grade resistance)
-        // 4. Live ARSO Railway Meteorological Stations (wind gusts & ambient track temperatures)
-        // 5. High-resolution MOTIS / OpenRailwayMap Centerline Track Geometry
-        const isKraskiRob = (slot.fromName.includes('Koper') || slot.toName.includes('Koper')) && (currentKm <= 40);
-        const isElectric = !slot.locomotive.includes('Reagan') && !slot.locomotive.includes('664');
-        const locoPowerKw = isElectric ? 6400 : 1620; // Taurus/Vectron 6.4 MW vs Reagan 1.62 MW
-        const powerToWeightRatio = Number((locoPowerKw / Math.max(1, slot.grossWeightTons)).toFixed(2));
-        
-        // Check live ARSO weather observations for Kraški rob / Primorska corridor wind conditions
-        let weatherAdvisory: string | null = null;
-        if (isKraskiRob && CACHE.arso.data && CACHE.arso.data.length > 0) {
-          const windStation = (CACHE.arso.data as any[]).find((s: any) => 
-            s.name && (s.name.toLowerCase().includes('kozina') || s.name.toLowerCase().includes('koper') || s.name.toLowerCase().includes('podpeč'))
-          );
-          if (windStation && (windStation.wind_gust > 16 || windStation.wind > 12)) {
-            weatherAdvisory = `Močan veter / Burja (${Math.round((windStation.wind_gust || windStation.wind) * 3.6)} km/h): hitrostna omejitev za kontejnerske vagone`;
-            if (isRunning && speedKmh > 40) speedKmh = 40;
-          }
-        }
-
-        const dataSources = [
-          'SŽ-Infrastruktura Omrežni Načrt & Dodeljene Voznoredne Trase',
-          'ERA (Evropska železniška agencija) – ERATV / EVR Register Vlečnih Vozil',
-          'TEN-T RFC 6 / RFC 5 / RFC 9 Evropski Tovorni Koridorji',
-          'ARSO Samodejna Meteorološka Mreža Ob Progi',
-          'OJPP / MOTIS Visokoločljivostne Tirne Vektorske Osi'
-        ];
-
-        const currentSection = determineTrackSection(slot.checkpoints, currentKm, slot.routeKm);
-
-        const trainObj = {
-          id: slot.id,
-          trainId: slot.trainNumber,
-          trainNumber: slot.trainNumber,
-          name: slot.name,
-          title: slot.name,
-          lat,
-          lon,
-          bearing,
-          speedKmh,
-          progressPercent: Math.round(progress * 100),
-          remainingMinutes: remainingMin,
-          from: slot.fromName,
-          to: slot.toName,
-          departureTime: slot.depTime,
-          arrivalTime: slot.arrTime,
-          operator: slot.operator,
-          // Resolve the free-text operator against the ERA/UIC register so the
-          // train carries a licensed entity with an official code, not a label.
-          operatorRegistration: lookupOrganisation(slot.operator),
-          // Route, operator and charging class as the public registers give
-          // them, kept apart from the scheduled figures above so the client can
-          // show which half of a train's description is actually sourced.
-          registerData: verifyFreightSlot(slot),
-          // Null for trains standing at a terminal, where the position is known.
-          positionEstimate,
-          locomotive: slot.locomotive,
-          wagonType: slot.wagonType,
-          cargo: slot.cargo,
-          grossWeightTons: slot.grossWeightTons,
-          lengthM: slot.lengthM,
-          totalKm: slot.routeKm,
-          currentKm: currentKm,
-          currentSection: currentSection,
-          corridor: slot.corridor,
-          corridorId: (slot as any).corridorId || 'rfc_6',
-          isTransit: !!(slot as any).isTransit,
-          countryFrom: (slot as any).countryFrom || 'SI',
-          countryTo: (slot as any).countryTo || 'SI',
-          axleLoadClass: slot.axleLoadClass,
-          brakePercentage: slot.brakePercentage,
-          trucksEquivalent: slot.trucksEquivalent,
-          co2SavedKg: slot.co2SavedKg,
-          ridHazard: slot.ridHazard,
-          segmentIndex: segmentIndex,
-          type: 'freight_train',
-          status: status,
-          isRunning: isRunning,
-          isAtTerminal: isAtTerminal,
-          isApproximation: false,
-          isOfficialTimetableSlot: true,
-          isSimulated: false,
+      const paths = currentCorridorPaths();
+      const rows: any[] = [];
+      for (const b of (paths?.board ?? []) as any[]) {
+        const feat = (paths.features as any[]).find(f => f.properties?.id === `pap_${b.papId}`);
+        const cur: [number, number] | null = feat ? feat.geometry.coordinates : null;
+        const tps = b.timingPoints as any[];
+        const svc = b.publishedServices?.[0];
+        const isRunning = !!b.active && b.phase !== 'dwell';
+        const isAtTerminal = !!b.active && b.phase === 'dwell';
+        rows.push({
+          id: `pap_${b.papId}`,
+          papId: b.papId,
+          trainNumber: b.trainNumber,
+          name: `${b.trainNumber} · ${b.relation}`,
+          relation: b.relation,
+          operator: svc ? `${svc.operator} (ujemanje relacije, ${svc.perDay}× na dan)` : 'prevoznik v katalogu ni objavljen',
+          fromName: tps[0]?.location ?? null,
+          toName: tps[tps.length - 1]?.location ?? null,
+          depTime: tps[0]?.departure ?? tps[0]?.arrival ?? null,
+          arrTime: tps[tps.length - 1]?.arrival ?? tps[tps.length - 1]?.departure ?? null,
+          timingPoints: tps,
+          daysOfWeek: b.daysOfWeek,
+          runsToday: b.runsToday,
+          corridor: b.corridorLabel,
+          corridorId: b.corridor,
+          direction: b.direction,
+          catalogueLabel: b.catalogueLabel,
+          type: 'corridor_freight_path',
+          status: isRunning ? 'running' : (isAtTerminal ? 'dwell' : (b.runsToday ? 'scheduled' : 'not_today')),
+          isRunning,
+          isAtTerminal,
+          dwell: b.dwell ?? null,
+          progressPercent: b.progressPercent ?? null,
+          currentSection: b.positionBand ? `${b.positionBand.fromName} – ${b.positionBand.toName}` : null,
+          bandHalfKm: b.positionBand ? Math.round(b.positionBand.widthKm / 2) : null,
+          currentLat: cur ? cur[1] : null,
+          currentLon: cur ? cur[0] : null,
+          lineSpeedKmh: isRunning ? (b.lineSpeedKmh ?? null) : null,
           isEstimated: true,
-          estimationMethod: 'Multi-Source Fuzija: Uradne dodeljene trase + fizikalna vlečna mehanika + ARSO vremenski senzorji + visoko-ločljivostna tirna os',
-          dataSources: dataSources,
-          weatherAdvisory: weatherAdvisory,
-          multiSourceEstimation: {
-            isSimulated: false,
-            confidenceScore: 0.98,
-            trackGradientPermille: isKraskiRob ? 26 : 4,
-            locomotivePowerKw: locoPowerKw,
-            powerToWeightRatioKwPerTon: powerToWeightRatio,
-            snappedToRailTrack: snappedToRailTrack,
-            snapDistanceMeters: snapDistanceMeters,
-            regenerativeBraking: isRunning && slot.toName.includes('Koper') && isKraskiRob,
-            sourcesCount: dataSources.length
-          },
-          modelDescription: 'Uradna voznoredna trasa TEN-T evropskih koridorjev in SŽ-Infrastrukture sinhronizirana z realnim časom'
-        };
-
-        allSlots.push(trainObj);
-
-        if (isRunning) {
-          runningTrains.push(trainObj);
-        } else if (isPreparing || isArrived) {
-          terminalTrains.push(trainObj);
-        }
+          basis: b.status,
+          dataSources: [paths.source]
+        });
       }
-
-      // If during a quiet transition period runningTrains has few, guarantee that all active trains on the map represent the true current operations
-      const mapDisplayTrains = [...runningTrains, ...terminalTrains];
-
-      const freightPayload = {
+      const order = { running: 0, dwell: 1, scheduled: 2, not_today: 3 } as Record<string, number>;
+      rows.sort((a, b) => (order[a.status] - order[b.status]) || String(a.depTime).localeCompare(String(b.depTime)));
+      const runningTrains = rows.filter(r => r.isRunning);
+      const terminalTrains = rows.filter(r => r.isAtTerminal);
+      res.json({
         timestamp: new Date().toISOString(),
         currentTimeInSlovenia: timeObj.timeStr,
+        ready: paths?.ready === true,
         totalActiveOnTracks: runningTrains.length,
         totalAtTerminals: terminalTrains.length,
-        totalScheduledSlots: targetSlots.length,
-        totalTrains: mapDisplayTrains.length,
-        isApproximation: false,
-        isOfficialTimetable: true,
-        isSimulated: false,
+        totalScheduledSlots: rows.filter(r => r.runsToday).length,
+        totalTrains: runningTrains.length + terminalTrains.length,
         isEstimated: true,
-        dataIntegrity: 'Brez simuliranih/sintetičnih podatkov: ocena temelji na fuziji več uradnih virov (SŽ-Infrastruktura, ERA, TEN-T, ARSO in MOTIS)',
-        methodology: 'Uradne voznoredne trase tovornih vlakov TEN-T evropskih koridorjev (RFC 1, 3, 5, 6, 10) in SŽ-Infrastrukture sinhronizirane z realnim lokalnim časom.',
-        trains: mapDisplayTrains,
-        runningTrains: runningTrains,
-        terminalTrains: terminalTrains,
-        allSlots: allSlots
-      };
-      freightCache.set(freightKey, { body: freightPayload, ts: Date.now() });
-      res.json(freightPayload);
+        basis: 'Objavljene poti iz katalogov koridorjev RFC6 in RFC10 za vozni red 2026 — iste, kot jih riše karta. Lega je interpolirana med objavljenimi časi; katalog ne pove, ali pot danes res vozi. Živih položajev tovornih vlakov noben javni vir ne objavlja.',
+        source: paths?.source ?? null,
+        trains: [...runningTrains, ...terminalTrains],
+        runningTrains,
+        terminalTrains,
+        allSlots: rows
+      });
     } catch (err: any) {
-      console.error('Freight trains timetable computation error:', err);
-      res.status(500).json({ error: 'Failed to compute freight trains data' });
+      console.error('Freight paths list error:', err);
+      res.status(500).json({ error: 'Failed to compute freight paths list' });
     }
   });
 

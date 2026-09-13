@@ -290,7 +290,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
             }`}
           >
             <Train size={14} className="text-amber-400" />
-            <span>Živi Tovorni Vlaki ({activeTrains.length})</span>
+            <span>Objavljene tovorne poti ({freightPayload?.totalActiveOnTracks ?? 0} v vožnji)</span>
           </button>
 
           <button
@@ -450,15 +450,64 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                     Tovorni vlaki tu niso v živo — pozicij ne objavlja nihče
                   </p>
                   <p className="text-slate-300 leading-relaxed text-[11px]">
-                    Za tovorni promet na tem koridorju ni javnega vira pozicij: MÁV vonatinfo vrača samo potniške vlake,
-                    ViaggiaTreno ne pozna tovornih številk, SŽ in HŽ pa jih ne objavljata. Številke vlakov, časi, lokomotive
-                    in tovor spodaj so <strong className="text-amber-300">predloga te aplikacije, ne vozni red</strong>, in jih ne gre brati kot
-                    dejanski promet. Preverljivo je omrežje pod njimi: pri vsakem vlaku je z oznako
-                    <strong className="text-emerald-300"> „Iz uradnih registrov“</strong> prikazano, kar potrjujejo ERA RINF (službena mesta in
-                    dolžine odsekov), register organizacij ERA/UIC (licencirani prevozniki) in Program omrežja SŽ-Infrastruktura
-                    (razredi mase, dolžine in hitrosti).
+                    Za tovorni promet ni javnega vira pozicij: MÁV vonatinfo vrača samo potniške vlake, ViaggiaTreno ne pozna
+                    tovornih številk, SŽ in HŽ pa jih ne objavljata. Spodaj so zato <strong className="text-amber-300">objavljene poti
+                    iz katalogov koridorjev RFC6 in RFC10 (vozni red 2026)</strong> — iste, kot jih riše karta. Lega med objavljenimi
+                    časi je interpolirana; katalog ne pove, ali pot danes res vozi. Kjer prevoznik objavlja urnik na isti relaciji
+                    (METRANS), je to navedeno kot ujemanje relacije, ne kot potrditev.
                   </p>
                 </div>
+              </div>
+
+              {/* The published paths themselves, so the panel and the map agree. */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-white">Objavljene poti skozi Slovenijo</h4>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {freightPayload?.totalActiveOnTracks ?? 0} v vožnji · {freightPayload?.totalAtTerminals ?? 0} na postanku · {freightPayload?.totalScheduledSlots ?? 0} danes · {allSlotsList.length} v katalogu
+                  </span>
+                </div>
+                {allSlotsList.length === 0 ? (
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400">Katalog se nalaga.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {allSlotsList.map((t: any, idx: number) => {
+                      const badge = t.status === 'running' ? ['V VOŽNJI', 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40']
+                        : t.status === 'dwell' ? ['POSTANEK', 'bg-sky-500/20 text-sky-300 border-sky-500/40']
+                        : t.status === 'scheduled' ? ['DANES', 'bg-slate-800 text-slate-300 border-slate-700']
+                        : ['NE VOZI DANES', 'bg-slate-900 text-slate-500 border-slate-800'];
+                      return (
+                        <div key={`${t.id}_${idx}`} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${t.isRunning ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-slate-900/70 border-slate-800'}`}>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border ${badge[1]}`}>{badge[0]}</span>
+                              <span className="font-bold text-white font-mono text-xs">{t.trainNumber}</span>
+                              <span className="text-[10px] font-mono text-slate-400">{t.direction}</span>
+                            </div>
+                            <div className="text-xs text-slate-200 font-semibold mt-0.5 truncate">{t.relation}</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              {t.fromName} {t.depTime} → {t.toName} {t.arrTime} · {t.corridor}
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5">
+                              {t.catalogueLabel} · {t.operator}
+                              {t.isRunning && t.currentSection ? ` · med ${t.currentSection}${t.bandHalfKm != null ? ` (±${t.bandHalfKm} km)` : ''}` : ''}
+                              {t.status === 'dwell' && t.dwell ? ` · stoji v ${t.dwell.location} do ${t.dwell.departure}` : ''}
+                            </div>
+                          </div>
+                          {t.currentLon != null && t.currentLat != null && (
+                            <button
+                              onClick={() => { if (onFlyTo) { onFlyTo([t.currentLon, t.currentLat], 12.5); onClose(); } }}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-medium text-xs border border-emerald-500/30 transition-all flex items-center gap-1 cursor-pointer shrink-0"
+                            >
+                              <Navigation size={12} />
+                              <span>Na karti</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Murska Sobota & Prekmurje Spotlight Banner */}
