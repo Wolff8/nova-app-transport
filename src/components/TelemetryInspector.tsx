@@ -1192,6 +1192,17 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                             {raw.offerType ? ` · ${raw.offerType}` : ''}
                           </p>
                         )}
+                        {raw.refinedBy && (
+                          <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
+                            Vmesni časi dopolnjeni iz drugega kataloga: <strong className="text-amber-200">{raw.refinedBy}</strong>. Prevzeti so
+                            le tam, kjer se objavljena časa na obeh koncih odseka v obeh katalogih ujemata.
+                          </p>
+                        )}
+                        {(() => { const c: any[] = unpack(raw.sourceConflicts) || []; return c.length ? (
+                          <p className="mt-1.5 text-[10px] leading-snug text-rose-200/85">
+                            Vira se na tem odseku ne ujemata, zato vmesni časi niso prevzeti: {c.join('; ')}.
+                          </p>
+                        ) : null; })()}
                         {(() => { const d: any[] = unpack(raw.pointsNotOnCorridor) || []; return d.length ? (
                           <p className="mt-1.5 text-[10px] leading-snug text-amber-100/60">
                             Katalog pri tej poti navaja še točke zunaj koridorja (varianta poti), ki niso narisane: {d.join('; ')}.

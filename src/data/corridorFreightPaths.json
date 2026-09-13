@@ -6,12 +6,14 @@
   "CATALOGUE_RFC_BA_DEF_PaPsTT27.xlsx (rfc5.eu / RNE CIP)",
   "Pre-arranged-train-paths-for-Timetable-2026-2027.xlsx (rfc-awb.eu)",
   "Catalogue-of-Reserved-Capacity-for-Timetable-2026.xlsx (rfc-awb.eu)",
-  "RFC_RD_PaP-Catalogue_TT2027_final.xlsx (Rhine-Danube, samo nemški del skupnih poti)"
+  "RFC_RD_PaP-Catalogue_TT2027_final.xlsx (Rhine-Danube, samo nemški del skupnih poti)",
+  "DigiCat TT2026_Amber.xlsx (rfc-amber.eu, slovenska odseka Hodoš–Ljubljana in Ljubljana–Koper)"
  ],
  "sourceUrls": {
   "RFC6": "https://www.rfc-med.eu/",
   "RFC10": "https://www.rfc-awb.eu/wp-content/uploads/2019/02/Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx",
-  "RFC5": "https://www.rfc5.eu/our-offer/"
+  "RFC5": "https://www.rfc5.eu/our-offer/",
+  "RFC11": "https://www.rfc-amber.eu/assets/downloads/capacity_allocation/DigiCat%20TT2026_Amber.xlsx"
  },
  "locationCodesSource": "ERA RINF (operational points)",
  "timetableYear": 2026,
@@ -866,7 +868,7 @@
   }
  ],
  "portServicesNote": "Seznam rednih vlakov, ki ga objavlja Luka Koper (D = na dan, W = na teden). Brez ur odhodov in brez navedbe poti po Sloveniji; projektni vlaki vozijo po potrebi.",
- "generated": "2026-09-13T20:39:40.750Z",
+ "generated": "2026-09-13T22:54:58.891Z",
  "paths": [
   {
    "papId": "C6NPPOZG02",
@@ -2226,11 +2228,25 @@
      "departure": "04:43"
     },
     {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "06:51",
+     "departure": "07:21"
+    },
+    {
      "location": "Ljubljana Zalog",
      "lat": 46.0594448,
      "lon": 14.6151972,
      "arrival": "09:15",
      "departure": "11:02"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "13:00",
+     "departure": "13:16"
     },
     {
      "location": "Koper tovorna",
@@ -2240,7 +2256,8 @@
      "departure": "14:00"
     }
    ],
-   "foreignSections": []
+   "foreignSections": [],
+   "refinedBy": "RFC Amber (RFC11), digitalni katalog PaP za vozni red 2026"
   },
   {
    "papId": "C116NPZIKO01",
@@ -2269,6 +2286,13 @@
      "departure": "07:57"
     },
     {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "10:17",
+     "departure": "10:45"
+    },
+    {
      "location": "Ljubljana Zalog",
      "lat": 46.0594448,
      "lon": 14.6151972,
@@ -2283,7 +2307,11 @@
      "departure": "18:42"
     }
    ],
-   "foreignSections": []
+   "foreignSections": [],
+   "refinedBy": "RFC Amber (RFC11), digitalni katalog PaP za vozni red 2026",
+   "sourceConflicts": [
+    "Ljubljana Zalog – Koper tovorna: RFC Amber objavlja 14:58 → 18:21, ta katalog 14:44 → 18:42"
+   ]
   },
   {
    "papId": "C10NP6SvMa5",
@@ -6245,6 +6273,63 @@
      "note": null
     }
    ]
+  },
+  {
+   "papId": "C611NPKOZI02",
+   "catalogue": "RFC11",
+   "trainNumberSZ": null,
+   "relation": "Koper to Zilina zr.st.",
+   "relationLabel": "Koper tovorna (SI) → Žilina (SK)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "19:17"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "20:47",
+     "departure": "21:19"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "23:11",
+     "departure": "23:42"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "02:58",
+     "departure": "03:07"
+    },
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": "05:49",
+     "departure": "07:18"
+    }
+   ],
+   "foreignSections": []
   },
   {
    "papId": "TAILWIND-0600",

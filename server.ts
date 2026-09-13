@@ -10104,7 +10104,7 @@ app.post('/api/log', express.json(), (req, res) => {
         corridorLabel: corridorMeta?.label ?? p.corridor,
         direction: forward ? (corridorMeta?.forwardLabel ?? 'naprej') : (corridorMeta?.reverseLabel ?? 'nazaj'),
         catalogue: (p as any).catalogue ?? 'RFC6',
-        catalogueLabel: ({ RFC5: 'RFC Baltic-Adriatic (RFC5), vozni red 2027', RFC10: 'RFC Alpine-Western Balkan (RFC10)', 'RFC10-RC': 'RFC Alpine-Western Balkan (RFC10) – rezervna zmogljivost', RFC6: 'RFC Mediterranean (RFC6)', OPERATOR: `urnik prevoznika ${(p as any).operator ?? ''}`.trim() } as Record<string, string>)[(p as any).catalogue ?? 'RFC6'] ?? String((p as any).catalogue),
+        catalogueLabel: ({ RFC5: 'RFC Baltic-Adriatic (RFC5), vozni red 2027', RFC10: 'RFC Alpine-Western Balkan (RFC10)', 'RFC10-RC': 'RFC Alpine-Western Balkan (RFC10) – rezervna zmogljivost', RFC6: 'RFC Mediterranean (RFC6)', RFC11: 'RFC Amber (RFC11), digitalni katalog PaP', OPERATOR: `urnik prevoznika ${(p as any).operator ?? ''}`.trim() } as Record<string, string>)[(p as any).catalogue ?? 'RFC6'] ?? String((p as any).catalogue),
         offerType: (p as any).catalogue === 'OPERATOR' ? 'vlak po objavi prevoznika – objavljena je ura odhoda, lega vmes je ocena'
           : (p as any).catalogue === 'RFC10-RC' ? 'rezervna zmogljivost (RC): zmogljivost, ki jo koridor drži za naročila v tekočem voznem redu, do 30 dni pred vožnjo' : 'vnaprej pripravljena pot (PaP)',
         // Operator-published trains (Tailwind, Adria Kombi ROLA): the clock
@@ -10149,6 +10149,11 @@ app.post('/api/log', express.json(), (req, res) => {
         operatorCandidates: operatorCandidatesFor(p.corridor),
         timingPoints: p.timingPoints,
         pointsNotOnCorridor: (p as any).pointsNotOnCorridor ?? null,
+        // Extra timing points taken from a second corridor catalogue that
+        // publishes the same joint path in more detail, and any place the two
+        // catalogues disagree (kept visible rather than silently resolved).
+        refinedBy: (p as any).refinedBy ?? null,
+        sourceConflicts: (p as any).sourceConflicts ?? null,
         routeSpecification: (p as any).routeSpecification ?? null,
         // The honest line, carried on the train itself rather than a footnote.
         status: (p as any).estimated
