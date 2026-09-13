@@ -1,17 +1,20 @@
 {
- "source": "Katalogi vnaprej pripravljenih poti (PaP) za vozni red 2026: RFC Mediterranean (RFC6, listi \"East W-E\"/\"East E-W\") in RFC Alpine-Western Balkan (RFC10)",
+ "source": "Katalogi vnaprej pripravljenih poti (PaP): RFC Mediterranean (RFC6) in RFC Alpine-Western Balkan (RFC10) za vozni red 2026, RFC Baltic-Adriatic (RFC5) za vozni red 2027",
  "sourceFiles": [
   "MED_TT2026_pap.xlsx",
-  "Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx (rfc-awb.eu)"
+  "Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx (rfc-awb.eu)",
+  "CATALOGUE_RFC_BA_DEF_PaPsTT27.xlsx (rfc5.eu / RNE CIP)"
  ],
  "sourceUrls": {
   "RFC6": "https://www.rfc-med.eu/",
-  "RFC10": "https://www.rfc-awb.eu/wp-content/uploads/2019/02/Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx"
+  "RFC10": "https://www.rfc-awb.eu/wp-content/uploads/2019/02/Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx",
+  "RFC5": "https://www.rfc5.eu/our-offer/"
  },
  "locationCodesSource": "ERA RINF (operational points)",
  "timetableYear": 2026,
  "validFrom": "2025-12-14",
- "validTo": "2026-12-12",
+ "validTo": "2027-12-11",
+ "validityNote": "Vsaka pot nosi svoje obdobje veljavnosti (validFrom/validTo); poti iz voznega reda 2027 se rišejo šele od 13. 12. 2026.",
  "note": "Objavljena ponujena zmogljivost (pre-arranged paths), ne žive pozicije. Katalog ne pove, ali je prevoznik pot rezerviral niti ali danes kaj vozi po njej.",
  "trainNumberNote": "Številka vlaka je nacionalna številka poti iz kataloga, ne številka dejanskega vlaka.",
  "operatorServices": [
@@ -242,19 +245,22 @@
    "retrieved": "2026-09-13"
   }
  ],
- "generated": "2026-09-13T19:41:08.052Z",
+ "generated": "2026-09-13T19:56:54.051Z",
  "paths": [
   {
    "papId": "C6NPPOZG02",
    "catalogue": "RFC6",
    "trainNumberSZ": "60601",
    "relation": "Portogruaro to Zagreb",
+   "relationLabel": "Portogruaro (IT) → Zagreb (HR)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     3,
     5,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Villa Opicina",
@@ -339,12 +345,15 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60603",
    "relation": "Portogruaro to Zagreb",
+   "relationLabel": "Portogruaro (IT) → Zagreb (HR)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     2,
     4,
     6
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Villa Opicina",
@@ -429,6 +438,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60605",
    "relation": "Portogruaro to Zagreb",
+   "relationLabel": "Portogruaro (IT) → Zagreb (HR)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     1,
@@ -436,6 +446,8 @@
     5,
     6
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Villa Opicina",
@@ -520,11 +532,14 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60607",
    "relation": "Venezia to Belgrad",
+   "relationLabel": "Venezia Marghera (IT) → Beograd (RS)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     3,
     5
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Villa Opicina",
@@ -616,6 +631,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42000",
    "relation": "Koper to Frencvaros",
+   "relationLabel": "Koper tovorna (SI) → Budapest-Ferencváros (HU)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -626,6 +642,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Koper tovorna",
@@ -664,6 +682,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42004",
    "relation": "Koper to Frencvaros",
+   "relationLabel": "Koper tovorna (SI) → Budapest-Ferencváros (HU)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -674,6 +693,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Koper tovorna",
@@ -704,6 +725,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42020",
    "relation": "Koper to Frencvaros",
+   "relationLabel": "Koper tovorna (SI) → Budapest-Ferencváros (HU)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -714,6 +736,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Koper tovorna",
@@ -744,6 +768,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42006",
    "relation": "Koper to Frencvaros",
+   "relationLabel": "Koper tovorna (SI) → Budapest-Ferencváros (HU)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -754,6 +779,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Koper tovorna",
@@ -784,6 +811,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42002",
    "relation": "Koper to Frencvaros",
+   "relationLabel": "Koper tovorna (SI) → Budapest-Ferencváros (HU)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -794,6 +822,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Koper tovorna",
@@ -824,6 +854,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "47910",
    "relation": "Koper to Zilina",
+   "relationLabel": "Koper tovorna (SI) → Žilina (SK)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -834,6 +865,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Koper tovorna",
@@ -864,12 +897,15 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60604",
    "relation": "Gyekenyes to Portogruaro",
+   "relationLabel": "Gyékényes (HU) → Portogruaro (IT)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     1,
     3,
     5
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Dobova",
@@ -975,12 +1011,15 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60604",
    "relation": "Zagreb to Portogruaro",
+   "relationLabel": "Zagreb (HR) → Portogruaro (IT)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     2,
     4,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Dobova",
@@ -1079,6 +1118,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60600",
    "relation": "Gyekenyes to Portogruaro",
+   "relationLabel": "Gyékényes (HU) → Portogruaro (IT)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     1,
@@ -1086,6 +1126,8 @@
     5,
     6
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Dobova",
@@ -1191,12 +1233,15 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60602",
    "relation": "Gyekenyes to Portogruaro",
+   "relationLabel": "Gyékényes (HU) → Portogruaro (IT)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     2,
     4,
     6
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Dobova",
@@ -1302,11 +1347,14 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "60606",
    "relation": "Belgrad to Venezia",
+   "relationLabel": "Beograd (RS) → Venezia Marghera (IT)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     3,
     6
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Dobova",
@@ -1398,6 +1446,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42003",
    "relation": "Ferencvaros to Koper",
+   "relationLabel": "Budapest-Ferencváros (HU) → Koper tovorna (SI)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -1408,6 +1457,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Hodoš",
@@ -1446,6 +1497,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42005",
    "relation": "Ferencvaros to Koper",
+   "relationLabel": "Budapest-Ferencváros (HU) → Koper tovorna (SI)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -1456,6 +1508,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Hodoš",
@@ -1486,6 +1540,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "42001",
    "relation": "Ferencvaros to Koper",
+   "relationLabel": "Budapest-Ferencváros (HU) → Koper tovorna (SI)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -1496,6 +1551,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Hodoš",
@@ -1526,6 +1583,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "41915",
    "relation": "Dunajska to Koper",
+   "relationLabel": "Dunajská Streda (SK) → Koper tovorna (SI)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -1536,6 +1594,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Hodoš",
@@ -1566,6 +1626,7 @@
    "catalogue": "RFC6",
    "trainNumberSZ": "47911",
    "relation": "Zilina to Koper",
+   "relationLabel": "Žilina (SK) → Koper tovorna (SI)",
    "corridor": "koper-hodos",
    "daysOfWeek": [
     1,
@@ -1576,6 +1637,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Hodoš",
@@ -1606,10 +1669,13 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60113",
    "relation": "Svilengrad to Maribor Tezno",
+   "relationLabel": "Svilengrad (BG) → Maribor Tezno (SI)",
    "corridor": "dobova-maribor",
    "daysOfWeek": [
     3
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Dobova",
@@ -1798,6 +1864,7 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60100",
    "relation": "Zagreb Žitnjak to Ljubljana zalog",
+   "relationLabel": "Zagreb Žitnjak (HR) → Ljubljana Zalog (SI)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     1,
@@ -1808,6 +1875,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Dobova",
@@ -1873,6 +1942,7 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60108",
    "relation": "Maribor Tezno to Wels CCT",
+   "relationLabel": "Maribor Tezno (SI) → Wels CCT (AT)",
    "corridor": "pragersko-spielfeld",
    "daysOfWeek": [
     1,
@@ -1881,6 +1951,8 @@
     4,
     5
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Maribor Tezno",
@@ -1941,6 +2013,7 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60106",
    "relation": "Ljubljana Moste to Salzburg Hbf - (Munchen)",
+   "relationLabel": "Ljubljana Moste (SI) → Salzburg Hbf (AT), naprej München (DE)",
    "corridor": "ljubljana-jesenice",
    "daysOfWeek": [
     1,
@@ -1949,6 +2022,8 @@
     4,
     5
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Ljubljana Moste",
@@ -2021,10 +2096,13 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60112",
    "relation": "Maribor Tezno to Svilengrad",
+   "relationLabel": "Maribor Tezno (SI) → Svilengrad (BG)",
    "corridor": "dobova-maribor",
    "daysOfWeek": [
     4
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Maribor Tezno",
@@ -2214,6 +2292,7 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60103",
    "relation": "Ljubljana Zalog to Zagreb Žitnjak",
+   "relationLabel": "Ljubljana Zalog (SI) → Zagreb Žitnjak (HR)",
    "corridor": "opicina-dobova",
    "daysOfWeek": [
     1,
@@ -2224,6 +2303,8 @@
     6,
     7
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Ljubljana Zalog",
@@ -2289,6 +2370,7 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60109",
    "relation": "Wels CCT to Maribor Tezno",
+   "relationLabel": "Wels CCT (AT) → Maribor Tezno (SI)",
    "corridor": "pragersko-spielfeld",
    "daysOfWeek": [
     1,
@@ -2298,6 +2380,8 @@
     5,
     6
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Spielfeld-Straß",
@@ -2358,6 +2442,7 @@
    "catalogue": "RFC10",
    "trainNumberSZ": "60110",
    "relation": "(Munchen) - Salzburg Hbf to Ljubljana Moste",
+   "relationLabel": "Salzburg Hbf (AT), iz Münchna (DE) → Ljubljana Moste (SI)",
    "corridor": "ljubljana-jesenice",
    "daysOfWeek": [
     2,
@@ -2366,6 +2451,8 @@
     5,
     6
    ],
+   "validFrom": "2025-12-14",
+   "validTo": "2026-12-12",
    "timingPoints": [
     {
      "location": "Jesenice",
@@ -2426,6 +2513,2293 @@
        "location": "Villach Westbf",
        "times": [
         "02:21"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP023",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Bohumin Vrbice to Koper",
+   "relationLabel": "Bohumín-Vrbice (CZ) → Koper tovorna (SI)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    2,
+    3
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "15:49"
+    },
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": "16:11",
+     "departure": "18:01"
+    },
+    {
+     "location": "Ljubljana Severna (umeščena na Zalog)",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "21:48"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "23:41",
+     "departure": "00:13"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "00:57"
+    }
+   ],
+   "routeSpecification": "Breclav-Spielfeld Strass",
+   "foreignSections": [
+    {
+     "infrastructureManager": "SZCZ",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Bohumin-Vbrice",
+       "times": [
+        "03:33"
+       ]
+      },
+      {
+       "location": "Prerov",
+       "times": [
+        "05:23",
+        "05:36"
+       ]
+      },
+      {
+       "location": "Breclav st.hr",
+       "times": [
+        "07:41"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "OBB-I",
+     "nationalId": null,
+     "days": "2,3",
+     "points": [
+      {
+       "location": "Staatsgrenze nächst Bernhardsthal Fbf",
+       "times": [
+        "07:41"
+       ]
+      },
+      {
+       "location": "Wien",
+       "times": [
+        "09:18",
+        "09:23"
+       ]
+      },
+      {
+       "location": "Gloggnitz",
+       "times": [
+        "11:18",
+        "11:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP025",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Dobra (Ostrava) to Koper",
+   "relationLabel": "Dobrá u Frýdku-Místku (CZ) → Koper tovorna (SI)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "05:35"
+    },
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": "06:04",
+     "departure": "08:10"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "10:29",
+     "departure": "11:50"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "13:48",
+     "departure": "14:04"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "15:17"
+    }
+   ],
+   "routeSpecification": "Breclav - Spielfeld-Strass - Maribor Tezno- Koper",
+   "foreignSections": [
+    {
+     "infrastructureManager": "SZCZ",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Prerov",
+       "times": [
+        "20:15",
+        "20:30"
+       ]
+      },
+      {
+       "location": "Breclav st.hr",
+       "times": [
+        "23:22"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "OBB-I",
+     "nationalId": null,
+     "days": "1,3,5,7",
+     "points": [
+      {
+       "location": "Staatsgrenze nächst Bernhardsthal Fbf",
+       "times": [
+        "23:22"
+       ]
+      },
+      {
+       "location": "Wien",
+       "times": [
+        "00:51",
+        "01:04"
+       ]
+      },
+      {
+       "location": "Gloggnitz",
+       "times": [
+        "01:58",
+        "01:58"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP027",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Dunajská Streda to Koper",
+   "relationLabel": "Dunajská Streda (SK) → Koper tovorna (SI)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "21:00"
+    },
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": "21:30",
+     "departure": "22:31"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "00:48",
+     "departure": "01:28"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "03:25",
+     "departure": "03:39"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "04:24"
+    }
+   ],
+   "pointsNotOnCorridor": [
+    "Villa Opicina 02:27"
+   ],
+   "routeSpecification": "Dunajská Streda - Bratislava Petrzalka -Gloggnitz - Spielfeld-Strass - Maribor Tezno- Koper -",
+   "foreignSections": [
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Dunajská Streda",
+       "times": [
+        "11:39"
+       ]
+      },
+      {
+       "location": "Bratislava-Petrža",
+       "times": [
+        "14:03",
+        "14:30"
+       ]
+      },
+      {
+       "location": "Bratislava-Petržalka st.hr",
+       "times": [
+        "14:33"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "OBB-I",
+     "nationalId": null,
+     "days": "1,2,5,6,7",
+     "points": [
+      {
+       "location": "Wien",
+       "times": [
+        "15:45"
+       ]
+      },
+      {
+       "location": "Gloggnitz",
+       "times": [
+        "17:16",
+        "17:49"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "BA-MED-NP7-ZiKo",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Žilina to Koper",
+   "relationLabel": "Žilina (SK) → Koper tovorna (SI)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "07:46"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "10:17",
+     "departure": "10:45"
+    },
+    {
+     "location": "Celje",
+     "lat": 46.2283581,
+     "lon": 15.2682305,
+     "arrival": "11:28",
+     "departure": "12:04"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "13:24",
+     "departure": "14:14"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "16:10",
+     "departure": "16:23"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "17:51"
+    }
+   ],
+   "routeSpecification": "Zilina-Őriszentpéter- Hodos-Pragersko-Celje-Ljubljana-Koper",
+   "foreignSections": [
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Zilina Teplicka",
+       "times": [
+        "19:03"
+       ]
+      },
+      {
+       "location": "Leopoldov",
+       "times": [
+        "22:02"
+       ]
+      },
+      {
+       "location": "Bratislava-Rača",
+       "times": [
+        "22:38",
+        "22:48"
+       ]
+      },
+      {
+       "location": "Rusovce",
+       "times": [
+        "23:27",
+        "23:49"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Rajka OH.",
+       "times": [
+        "23:53"
+       ]
+      },
+      {
+       "location": "Rajka",
+       "times": [
+        "23:57",
+        "00:37"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "03:50",
+        "05:07"
+       ]
+      },
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "06:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "BA-MED-NP7-DuKo",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Dunajska Streda to Koper",
+   "relationLabel": "Dunajská Streda (SK) → Koper tovorna (SI)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "04:21"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "06:51",
+     "departure": "07:08"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "09:12",
+     "departure": "10:58"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "12:57",
+     "departure": "13:13"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "13:58"
+    }
+   ],
+   "routeSpecification": "Komarom- Őriszentpéter- Hodos-Pragersko-Ljubljana-Koper",
+   "foreignSections": [
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Dunajská Streda",
+       "times": [
+        "13:23"
+       ]
+      },
+      {
+       "location": "Komarno",
+       "times": [
+        "15:37",
+        "16:23"
+       ]
+      },
+      {
+       "location": "Komarno st.hr",
+       "times": [
+        "16:32"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Komárom oh.",
+       "times": [
+        "16:32"
+       ]
+      },
+      {
+       "location": "Komárom-Rendező",
+       "times": [
+        "16:48",
+        "17:44"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "00:45",
+        "01:50"
+       ]
+      },
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "03:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "BA-MED-NP7-DuKo1",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Dunajska Streda to Koper",
+   "relationLabel": "Dunajská Streda (SK) → Koper tovorna (SI)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "13:33"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "16:14",
+     "departure": "16:22"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "18:40",
+     "departure": "19:38"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "21:33",
+     "departure": "22:00"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "23:15"
+    }
+   ],
+   "routeSpecification": "Komarom- Őriszentpéter- Hodos-Pragersko-Ljubljana-Koper",
+   "foreignSections": [
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Dunajská Streda",
+       "times": [
+        "01:19"
+       ]
+      },
+      {
+       "location": "Komarno",
+       "times": [
+        "02:17",
+        "02:39"
+       ]
+      },
+      {
+       "location": "Komarno st.hr",
+       "times": [
+        "02:49"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Komárom oh.",
+       "times": [
+        "02:49"
+       ]
+      },
+      {
+       "location": "Komárom-Rendező",
+       "times": [
+        "02:55",
+        "05:00"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "09:50",
+        "10:31"
+       ]
+      },
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "12:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBA-MED-NP031",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Dunajska Streda to Koper",
+   "relationLabel": "Dunajská Streda (SK) → Koper tovorna (SI)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "00:21"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "02:10",
+     "departure": "02:43"
+    },
+    {
+     "location": "Ljubljana Severna (umeščena na Zalog)",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "06:14"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "07:59",
+     "departure": "08:24"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "10:08"
+    }
+   ],
+   "routeSpecification": "via Komárom/Komarno",
+   "foreignSections": [
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Dunajská Streda",
+       "times": [
+        "11:30"
+       ]
+      },
+      {
+       "location": "Komarno",
+       "times": [
+        "12:42",
+        "14:30"
+       ]
+      },
+      {
+       "location": "Komarno st.hr",
+       "times": [
+        "14:39"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Komárom oh.",
+       "times": [
+        "14:40"
+       ]
+      },
+      {
+       "location": "Komárom-Rendező",
+       "times": [
+        "14:50",
+        "15:29"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "21:51",
+        "22:37"
+       ]
+      },
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "23:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBA-MED-NP033",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Dunajska Streda to Koper",
+   "relationLabel": "Dunajská Streda (SK) → Koper tovorna (SI)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "11:20"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "13:09",
+     "departure": "13:27"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "16:32",
+     "departure": "18:04"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "19:59",
+     "departure": "20:11"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "21:43"
+    }
+   ],
+   "routeSpecification": "via Rajka/Rusovce",
+   "foreignSections": [
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Dunajská Streda",
+       "times": [
+        "21:40"
+       ]
+      },
+      {
+       "location": "Rusovce",
+       "times": [
+        "23:56",
+        "00:45"
+       ]
+      },
+      {
+       "location": "Rusovce st.hr",
+       "times": [
+        "00:53"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Rajka OH.",
+       "times": [
+        "00:53"
+       ]
+      },
+      {
+       "location": "Rajka",
+       "times": [
+        "00:58",
+        "03:20"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "07:50",
+        "08:36"
+       ]
+      },
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "10:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-BA-MED-NP7-LjZg",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Ljubljana Zalog to Zagreb r.k.",
+   "relationLabel": "Ljubljana Zalog (SI) → Zagreb Ranžirni kolodvor (HR)",
+   "corridor": "opicina-dobova",
+   "daysOfWeek": [
+    5
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "14:17"
+    },
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": "16:02",
+     "departure": "17:40"
+    }
+   ],
+   "routeSpecification": "Dobova- Savski Marof",
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": null,
+     "days": "5",
+     "points": [
+      {
+       "location": "Zagreb RK OS",
+       "times": [
+        "18:22"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "17:49"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-BA-MED-NP7-ZgKo",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Zagreb to Koper",
+   "relationLabel": "Zagreb (HR) → Koper tovorna (SI)",
+   "corridor": "koper-dobova",
+   "daysOfWeek": [
+    1,
+    3,
+    5
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "08:03"
+    },
+    {
+     "location": "Ljubljana Severna (umeščena na Zalog)",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "13:10"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "14:59",
+     "departure": "15:09"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "16:42"
+    }
+   ],
+   "routeSpecification": "Savski Marof-Dobova",
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": null,
+     "days": "1,3,5",
+     "points": [
+      {
+       "location": "Zagreb RK OS",
+       "times": [
+        "05:47"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "06:27"
+       ]
+      },
+      {
+       "location": "Dobova",
+       "times": [
+        "06:36"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP035",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Sladkovicovo to Koper",
+   "relationLabel": "Sládkovičovo (SK) → Koper tovorna (SI)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    4,
+    6
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "16:47"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "19:18",
+     "departure": "19:31"
+    },
+    {
+     "location": "Ljubljana Severna (umeščena na Zalog)",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "21:48"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "23:41",
+     "departure": "00:13"
+    },
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "00:57"
+    }
+   ],
+   "routeSpecification": "Rajka-Hodos-Pragersko-Divaca-Koper",
+   "foreignSections": [
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Sladkovicovo",
+       "times": [
+        "15:00"
+       ]
+      },
+      {
+       "location": "Rusovce",
+       "times": [
+        "16:10",
+        "16:45"
+       ]
+      },
+      {
+       "location": "Rusovce st.hr",
+       "times": [
+        "16:49"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Rajka OH.",
+       "times": [
+        "05:40"
+       ]
+      },
+      {
+       "location": "Rajka",
+       "times": [
+        "02:45",
+        "06:50"
+       ]
+      },
+      {
+       "location": "Porpac",
+       "times": [
+        "09:50",
+        "11:20"
+       ]
+      },
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "16:15"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP024",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Bohumin Vrbice",
+   "relationLabel": "Koper tovorna (SI) → Bohumín-Vrbice (CZ)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    3,
+    4
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "20:21"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "21:16",
+     "departure": "21:40"
+    },
+    {
+     "location": "Ljubljana Severna (umeščena na Zalog)",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "23:24"
+    },
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": "01:33",
+     "departure": "03:21"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "03:45"
+    }
+   ],
+   "routeSpecification": "Spielfeld -Breclav",
+   "foreignSections": [
+    {
+     "infrastructureManager": "OBB-I",
+     "nationalId": null,
+     "days": "4,5",
+     "points": [
+      {
+       "location": "Spielfeld",
+       "times": [
+        "04:15"
+       ]
+      },
+      {
+       "location": "Gloggnitz",
+       "times": [
+        "07:37",
+        "08:29"
+       ]
+      },
+      {
+       "location": "Wien",
+       "times": [
+        "09:49",
+        "09:56"
+       ]
+      },
+      {
+       "location": "Staatsgrenze nächst Bernhardsthal Fbf",
+       "times": [
+        "12:43"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "SZCZ",
+     "nationalId": null,
+     "days": "4,5",
+     "points": [
+      {
+       "location": "Breclav st.hr",
+       "times": [
+        "12:43"
+       ]
+      },
+      {
+       "location": "Breclav",
+       "times": [
+        "12:52",
+        "14:28"
+       ]
+      },
+      {
+       "location": "Prerov",
+       "times": [
+        "15:48"
+       ]
+      },
+      {
+       "location": "Hranice na Morave",
+       "times": [
+        "16:46",
+        "16:49"
+       ]
+      },
+      {
+       "location": "Ostrava",
+       "times": [
+        "17:33"
+       ]
+      },
+      {
+       "location": "Bohumin-Vbrice",
+       "times": [
+        "17:39"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP026",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Dobra (Ostrava)",
+   "relationLabel": "Koper tovorna (SI) → Dobrá u Frýdku-Místku (CZ)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    2,
+    3,
+    5,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "12:29"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "13:40",
+     "departure": "14:10"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "16:11",
+     "departure": "17:48"
+    },
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": "20:20",
+     "departure": "21:20"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "21:43"
+    }
+   ],
+   "routeSpecification": "Spielfeld -Breclav",
+   "foreignSections": [
+    {
+     "infrastructureManager": "OBB-I",
+     "nationalId": null,
+     "days": "2,3,5,7",
+     "points": [
+      {
+       "location": "Spielfeld",
+       "times": [
+        "22:09"
+       ]
+      },
+      {
+       "location": "Gloggnitz",
+       "times": [
+        "01:22",
+        "01:22"
+       ]
+      },
+      {
+       "location": "Wien",
+       "times": [
+        "02:52",
+        "02:52"
+       ]
+      },
+      {
+       "location": "Staatsgrenze nächst Bernhardsthal Fbf",
+       "times": [
+        "03:55"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "SZCZ",
+     "nationalId": null,
+     "days": "1,3,4,6",
+     "points": [
+      {
+       "location": "Breclav st.hr",
+       "times": [
+        "03:55"
+       ]
+      },
+      {
+       "location": "Breclav",
+       "times": [
+        "04:04",
+        "05:12"
+       ]
+      },
+      {
+       "location": "Prerov",
+       "times": [
+        "06:27",
+        "06:55"
+       ]
+      },
+      {
+       "location": "Hranice na Morave",
+       "times": [
+        "07:22"
+       ]
+      },
+      {
+       "location": "Ostrava Kuncice",
+       "times": [
+        "08:28"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP028",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Dunajská Streda",
+   "relationLabel": "Koper tovorna (SI) → Dunajská Streda (SK)",
+   "corridor": "koper-spielfeld",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "11:40"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "12:40",
+     "departure": "13:06"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "16:39",
+     "departure": "17:16"
+    },
+    {
+     "location": "Maribor Tezno",
+     "lat": 46.5258803,
+     "lon": 15.6570218,
+     "arrival": "19:38",
+     "departure": "19:52"
+    },
+    {
+     "location": "Spielfeld-Straß",
+     "lat": 46.7115,
+     "lon": 15.6301,
+     "arrival": null,
+     "departure": "20:37"
+    }
+   ],
+   "pointsNotOnCorridor": [
+    "Villa Opicina 14:15",
+    "Sežana 14:27/14:50"
+   ],
+   "routeSpecification": "Koper/Divaca-Ljubljana Zalog-Maribor-Spielfeld- Bratislava Petralzka-Dunajská Streda",
+   "foreignSections": [
+    {
+     "infrastructureManager": "OBB-I",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Spielfeld",
+       "times": [
+        "21:15"
+       ]
+      },
+      {
+       "location": "Gloggnitz",
+       "times": [
+        "00:26",
+        "00:40"
+       ]
+      },
+      {
+       "location": "Wien",
+       "times": [
+        "02:30"
+       ]
+      },
+      {
+       "location": "Bratislava Petrzalka",
+       "times": [
+        "03:31"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Bratislava-Petrža",
+       "times": [
+        "03:51"
+       ]
+      },
+      {
+       "location": "Dunajská Streda",
+       "times": [
+        "05:38"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "BA-MED-NP7-KoZi",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Zilina",
+   "relationLabel": "Koper tovorna (SI) → Žilina (SK)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "19:08"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "20:48",
+     "departure": "21:27"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "23:24",
+     "departure": "23:43"
+    },
+    {
+     "location": "Celje",
+     "lat": 46.2283581,
+     "lon": 15.2682305,
+     "arrival": "01:02",
+     "departure": "02:00"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "02:41",
+     "departure": "03:09"
+    },
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "05:40"
+    }
+   ],
+   "routeSpecification": "Koper--Ljubljana-Pragersko-Hodos-Őriszentpéter-Rajka-Zilina",
+   "foreignSections": [
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "07:20"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "09:30",
+        "10:06"
+       ]
+      },
+      {
+       "location": "Rajka",
+       "times": [
+        "17:05",
+        "21:27"
+       ]
+      },
+      {
+       "location": "Rajka oh.",
+       "times": [
+        "21:31"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Rusovce",
+       "times": [
+        "22:08"
+       ]
+      },
+      {
+       "location": "Bratislava-Petrža",
+       "times": [
+        "22:19"
+       ]
+      },
+      {
+       "location": "Bratislava-Rača",
+       "times": [
+        "23:02",
+        "23:22"
+       ]
+      },
+      {
+       "location": "Zilina Predmestie",
+       "times": [
+        "01:42",
+        "01:45"
+       ]
+      },
+      {
+       "location": "Zilina Teplicka",
+       "times": [
+        "01:56"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "BA-MED-NP7-KoDu",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Dunajská Streda",
+   "relationLabel": "Koper tovorna (SI) → Dunajská Streda (SK)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "02:44"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": null,
+     "departure": "03:56"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "05:59",
+     "departure": "06:46"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "09:05",
+     "departure": "09:14"
+    },
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "11:19"
+    }
+   ],
+   "routeSpecification": "Koper--Ljubljana-Pragersko-Hodos-Őriszentpéter-Komarom-Dunajska Streda",
+   "foreignSections": [
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "12:20"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "14:20",
+        "14:55"
+       ]
+      },
+      {
+       "location": "Komárom-Rendező",
+       "times": [
+        "20:10",
+        "21:06"
+       ]
+      },
+      {
+       "location": "Komárom oh.",
+       "times": [
+        "21:10"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Komarno st.hr",
+       "times": [
+        "21:12"
+       ]
+      },
+      {
+       "location": "Komarno",
+       "times": [
+        "21:20",
+        "22:50"
+       ]
+      },
+      {
+       "location": "Dunajska Streda",
+       "times": [
+        "23:56"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBA-MED-NP030",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Dunajská Streda",
+   "relationLabel": "Koper tovorna (SI) → Dunajská Streda (SK)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    3
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "02:11"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "03:26",
+     "departure": "03:41"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "05:44",
+     "departure": "05:52"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "08:41",
+     "departure": "09:21"
+    },
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "12:55"
+    }
+   ],
+   "routeSpecification": "via Komarom/Komarno",
+   "foreignSections": [
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "13:42"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "15:00",
+        "15:30"
+       ]
+      },
+      {
+       "location": "Komárom-Rendező",
+       "times": [
+        "21:10",
+        "21:52"
+       ]
+      },
+      {
+       "location": "Komárom oh.",
+       "times": [
+        "21:58"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Komarno st.hr",
+       "times": [
+        "21:59"
+       ]
+      },
+      {
+       "location": "Komarno",
+       "times": [
+        "22:06",
+        "00:47"
+       ]
+      },
+      {
+       "location": "Dunajska Streda",
+       "times": [
+        "02:37"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBA-MED-NP032",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Dunajská Streda",
+   "relationLabel": "Koper tovorna (SI) → Dunajská Streda (SK)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "21:47"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "22:32",
+     "departure": "23:23"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "01:18",
+     "departure": "02:16"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": "04:08",
+     "departure": "04:30"
+    },
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "08:18"
+    }
+   ],
+   "routeSpecification": "via Rajka/Rusovce",
+   "foreignSections": [
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "09:20"
+       ]
+      },
+      {
+       "location": "Zalaszentiván",
+       "times": [
+        "11:36",
+        "12:06"
+       ]
+      },
+      {
+       "location": "Rajka",
+       "times": [
+        "18:12",
+        "20:18"
+       ]
+      },
+      {
+       "location": "Rajka oh.",
+       "times": [
+        "20:22"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Rusovce",
+       "times": [
+        "20:30"
+       ]
+      },
+      {
+       "location": "Bratislava-Petrža",
+       "times": [
+        "20:41"
+       ]
+      },
+      {
+       "location": "Dunajska Streda",
+       "times": [
+        "22:51"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-BA-MED-NP7-ZgLj",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Zagreb to Ljubljana",
+   "relationLabel": "Zagreb (HR) → Ljubljana (SI)",
+   "corridor": "opicina-dobova",
+   "daysOfWeek": null,
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "10:36"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "12:17"
+    }
+   ],
+   "routeSpecification": "Savski Marof-Dobova",
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": null,
+     "days": "6",
+     "points": [
+      {
+       "location": "Dobova",
+       "times": [
+        "09:17"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "09:08"
+       ]
+      },
+      {
+       "location": "Zagreb RK PS",
+       "times": [
+        "08:27"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "AWB-BA-MED-NP7-KoZg",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Zagreb",
+   "relationLabel": "Koper tovorna (SI) → Zagreb (HR)",
+   "corridor": "koper-dobova",
+   "daysOfWeek": [
+    2,
+    4,
+    6
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "15:35"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "16:52",
+     "departure": "17:18"
+    },
+    {
+     "location": "Ljubljana Zalog",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": "19:19",
+     "departure": "19:48"
+    },
+    {
+     "location": "Dobova",
+     "lat": 45.8982323,
+     "lon": 15.6561357,
+     "arrival": null,
+     "departure": "21:24"
+    }
+   ],
+   "routeSpecification": "Dobova-Savski Marof",
+   "foreignSections": [
+    {
+     "infrastructureManager": "HZ-I",
+     "nationalId": null,
+     "days": "2,4,6",
+     "points": [
+      {
+       "location": "Dobova",
+       "times": [
+        "22:20"
+       ]
+      },
+      {
+       "location": "Savski Marof",
+       "times": [
+        "22:29"
+       ]
+      },
+      {
+       "location": "Zagreb RK PS",
+       "times": [
+        "23:00"
+       ]
+      }
+     ],
+     "note": null
+    }
+   ]
+  },
+  {
+   "papId": "CBANP036",
+   "catalogue": "RFC5",
+   "trainNumberSZ": null,
+   "relation": "Koper to Sladkovicovo",
+   "relationLabel": "Koper tovorna (SI) → Sládkovičovo (SK)",
+   "corridor": "koper-hodos",
+   "daysOfWeek": [
+    2,
+    5,
+    7
+   ],
+   "validFrom": "2026-12-13",
+   "validTo": "2027-12-11",
+   "timingPoints": [
+    {
+     "location": "Koper tovorna",
+     "lat": 45.5546716,
+     "lon": 13.7659224,
+     "arrival": null,
+     "departure": "20:21"
+    },
+    {
+     "location": "Divača",
+     "lat": 45.6815127,
+     "lon": 13.9651535,
+     "arrival": "21:16",
+     "departure": "21:40"
+    },
+    {
+     "location": "Ljubljana Severna (umeščena na Zalog)",
+     "lat": 46.0594448,
+     "lon": 14.6151972,
+     "arrival": null,
+     "departure": "23:24"
+    },
+    {
+     "location": "Pragersko",
+     "lat": 46.3954119,
+     "lon": 15.6621676,
+     "arrival": null,
+     "departure": "01:19"
+    },
+    {
+     "location": "Hodoš",
+     "lat": 46.8200896,
+     "lon": 16.329218,
+     "arrival": null,
+     "departure": "03:12"
+    }
+   ],
+   "routeSpecification": "Koper-Divaca-Pragersko-Hodos-Rajka",
+   "foreignSections": [
+    {
+     "infrastructureManager": "KTI",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Őriszentpéter oh.",
+       "times": [
+        "04:42"
+       ]
+      },
+      {
+       "location": "Porpác",
+       "times": [
+        "08:49",
+        "10:00"
+       ]
+      },
+      {
+       "location": "Rajka",
+       "times": [
+        "14:00",
+        "16:15"
+       ]
+      },
+      {
+       "location": "Rajka oh.",
+       "times": [
+        "16:20"
+       ]
+      }
+     ],
+     "note": null
+    },
+    {
+     "infrastructureManager": "ZSR",
+     "nationalId": null,
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Rusovce",
+       "times": [
+        "21:48"
+       ]
+      },
+      {
+       "location": "Sladkovicovo",
+       "times": [
+        "23:05"
        ]
       }
      ],

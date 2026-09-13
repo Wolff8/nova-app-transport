@@ -3690,8 +3690,8 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           id: `pap_${b.papId}`,
           papId: b.papId,
           trainNumber: b.trainNumber,
-          name: `${b.trainNumber} · ${b.relation}`,
-          relation: b.relation,
+          name: `${b.trainNumber} · ${b.relationLabel ?? b.relation}`,
+          relation: b.relationLabel ?? b.relation,
           operator: svc ? `${svc.operator} (ujemanje relacije, ${svc.perDay}× na dan)` : 'prevoznik v katalogu ni objavljen',
           fromName: tps[0]?.location ?? null,
           toName: tps[tps.length - 1]?.location ?? null,
@@ -3705,7 +3705,10 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           direction: b.direction,
           catalogueLabel: b.catalogueLabel,
           type: 'corridor_freight_path',
-          status: isRunning ? 'running' : (isAtTerminal ? 'dwell' : (b.runsToday ? 'scheduled' : 'not_today')),
+          status: isRunning ? 'running' : (isAtTerminal ? 'dwell' : (b.runsToday ? 'scheduled' : (b.inForce === false ? 'future' : 'not_today'))),
+          validFrom: b.validFrom ?? null,
+          validTo: b.validTo ?? null,
+          daysKnown: b.daysKnown !== false,
           isRunning,
           isAtTerminal,
           dwell: b.dwell ?? null,
@@ -3720,7 +3723,7 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           dataSources: [paths.source]
         });
       }
-      const order = { running: 0, dwell: 1, scheduled: 2, not_today: 3 } as Record<string, number>;
+      const order = { running: 0, dwell: 1, scheduled: 2, not_today: 3, future: 4 } as Record<string, number>;
       rows.sort((a, b) => (order[a.status] - order[b.status]) || String(a.depTime).localeCompare(String(b.depTime)));
       const runningTrains = rows.filter(r => r.isRunning);
       const terminalTrains = rows.filter(r => r.isAtTerminal);
@@ -3867,7 +3870,7 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           id: `pap_${b.papId}`,
           papId: b.papId,
           trainNumber: b.trainNumber,
-          name: `${b.trainNumber} · ${b.relation}`,
+          name: `${b.trainNumber} · ${b.relationLabel ?? b.relation}`,
           title: `Objavljena pot ${b.papId} · ${b.catalogueLabel}`,
           catalogueLabel: b.catalogueLabel,
           operator: svc ? `${svc.operator} (ujemanje relacije, ${svc.perDay}× na dan)` : 'prevoznik v katalogu ni objavljen',
@@ -9666,6 +9669,18 @@ app.post('/api/log', express.json(), (req, res) => {
         ? [...GEO_PRAGERSKO_MARIBOR, ...GEO_MARIBOR_SPILJE.slice(1), [15.6404, 46.692], [15.6301, 46.7115]] as [number, number][]
         : null
     },
+    'koper-spielfeld': {
+      label: 'Koper – Ljubljana – Pragersko – Maribor – Šentilj – Spielfeld', forwardLabel: 'proti Avstriji', reverseLabel: 'proti Kopru',
+      build: () => (GEO_KOPER_ZALOG?.length && GEO_MARIBOR_SPILJE?.length)
+        ? [...GEO_KOPER_ZALOG, ...GEO_ZALOG_PRAGERSKO.slice(1), ...GEO_PRAGERSKO_MARIBOR.slice(1), ...GEO_MARIBOR_SPILJE.slice(1), [15.6404, 46.692], [15.6301, 46.7115]] as [number, number][]
+        : null
+    },
+    'koper-dobova': {
+      label: 'Koper – Ljubljana – Zidani Most – Dobova', forwardLabel: 'proti Hrvaški', reverseLabel: 'proti Kopru',
+      build: () => (GEO_KOPER_ZALOG?.length && GEO_ZIDANI_MOST_DOBOVA?.length)
+        ? [...GEO_KOPER_ZALOG, ...GEO_ZALOG_PRAGERSKO.slice(1, 2229), ...GEO_ZIDANI_MOST_DOBOVA] as [number, number][]
+        : null
+    },
     'ljubljana-jesenice': {
       label: 'Ljubljana – Kranj – Jesenice', forwardLabel: 'proti Avstriji (Jesenice)', reverseLabel: 'proti Ljubljani',
       // The stored geometry ends at Jesenice station; the border point
@@ -9949,7 +9964,13 @@ app.post('/api/log', express.json(), (req, res) => {
       const journeyMin = segs[segs.length - 1].to - startMin;
       if (journeyMin <= 0) continue;
 
-      const runsToday = !p.daysOfWeek || p.daysOfWeek.includes(isoDow);
+      // A path is only offered inside its timetable period; one from the
+      // next timetable is listed now but not drawn until it is in force. A
+      // catalogue row without running days is not assumed to run every day.
+      const todayIso = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+      const inForce = (!(p as any).validFrom || (p as any).validFrom <= todayIso) && (!(p as any).validTo || (p as any).validTo >= todayIso);
+      const daysKnown = Array.isArray(p.daysOfWeek) && p.daysOfWeek.length > 0;
+      const runsToday = inForce && daysKnown && p.daysOfWeek!.includes(isoDow);
       // How far into its journey would this path be right now?
       let elapsed = nowMin - (startMin % 1440);
       if (elapsed < 0) elapsed += 1440;
@@ -10070,16 +10091,21 @@ app.post('/api/log', express.json(), (req, res) => {
         papId: p.papId,
         trainNumber: p.trainNumberSZ,
         relation: p.relation,
+        relationLabel: (p as any).relationLabel ?? p.relation,
         corridor: p.corridor,
         corridorLabel: corridorMeta?.label ?? p.corridor,
         direction: forward ? (corridorMeta?.forwardLabel ?? 'naprej') : (corridorMeta?.reverseLabel ?? 'nazaj'),
         catalogue: (p as any).catalogue ?? 'RFC6',
-        catalogueLabel: (p as any).catalogue === 'RFC10' ? 'RFC Alpine-Western Balkan (RFC10)' : 'RFC Mediterranean (RFC6)',
+        catalogueLabel: ({ RFC5: 'RFC Baltic-Adriatic (RFC5), vozni red 2027', RFC10: 'RFC Alpine-Western Balkan (RFC10)', RFC6: 'RFC Mediterranean (RFC6)' } as Record<string, string>)[(p as any).catalogue ?? 'RFC6'] ?? String((p as any).catalogue),
         // Operator-published services on this relation. A relation match,
         // not a booking: it says who publishes trains on the relation this
         // path serves, not that this path is theirs.
         publishedServices: publishedServicesFor(p.relation),
         daysOfWeek: p.daysOfWeek,
+        daysKnown,
+        validFrom: (p as any).validFrom ?? null,
+        validTo: (p as any).validTo ?? null,
+        inForce,
         runsToday, active,
         // Permitted line speed here — the figure that matches what is visible
         // from the lineside, and what the map now shows.
@@ -10106,6 +10132,8 @@ app.post('/api/log', express.json(), (req, res) => {
         // it runs it. These are the companies the register says may.
         operatorCandidates: operatorCandidatesFor(p.corridor),
         timingPoints: p.timingPoints,
+        pointsNotOnCorridor: (p as any).pointsNotOnCorridor ?? null,
+        routeSpecification: (p as any).routeSpecification ?? null,
         // The honest line, carried on the train itself rather than a footnote.
         status: 'Objavljena pot iz kataloga koridorja. Ni potrjeno, da danes vozi.',
         source: corridorPathData.source,

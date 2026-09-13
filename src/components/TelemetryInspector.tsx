@@ -947,8 +947,14 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         <span className="text-[10.5px] font-mono uppercase text-orange-300/80">{raw.direction}</span>
                       )}
                     </div>
-                    {raw.relation && (
-                      <div className="mt-2 text-[15px] font-bold text-white leading-tight">{raw.relation}</div>
+                    {(raw.relationLabel || raw.relation) && (
+                      <div className="mt-2">
+                        <div className="text-[15px] font-bold text-white leading-tight">{raw.relationLabel || raw.relation}</div>
+                        <div className="mt-0.5 text-[10px] leading-snug text-text-dim">
+                          Izhodišče in cilj ponujene poti iz kataloga koridorja, ne opazovanega vlaka. Od kod vlak dejansko
+                          pride in kdo ga vozi, noben javni vir ne objavlja.
+                        </div>
+                      </div>
                     )}
                     {pct != null && (
                       <div className="mt-3">
@@ -956,7 +962,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                           <div className="h-full rounded-full bg-orange-400" style={{ width: `${pct}%` }} />
                         </div>
                         <div className="mt-1 flex justify-between text-[10px] font-mono text-text-dim">
-                          <span>{pct} % poti</span>
+                          <span>{pct} % slovenskega dela{(() => { const tp = unpack(raw.timingPoints) || []; return tp.length ? ` (${tp[0].location} → ${tp[tp.length - 1].location})` : ''; })()}</span>
                           {raw.kmAlong != null && raw.routeKm != null && <span>{raw.kmAlong} / {raw.routeKm} km</span>}
                         </div>
                       </div>
@@ -1175,8 +1181,15 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                           <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
                             Katalog: <strong className="text-amber-200">{raw.catalogueLabel}</strong>
                             {raw.corridorLabel ? ` · koridor ${raw.corridorLabel}` : ''}
+                            {raw.validFrom && raw.validTo ? ` · velja ${String(raw.validFrom).split('-').reverse().join('. ')} – ${String(raw.validTo).split('-').reverse().join('. ')}` : ''}
+                            {raw.inForce === false ? ' · ta pot še ne velja' : ''}
                           </p>
                         )}
+                        {(() => { const d: any[] = unpack(raw.pointsNotOnCorridor) || []; return d.length ? (
+                          <p className="mt-1.5 text-[10px] leading-snug text-amber-100/60">
+                            Katalog pri tej poti navaja še točke zunaj koridorja (varianta poti), ki niso narisane: {d.join('; ')}.
+                          </p>
+                        ) : null; })()}
                         {(() => {
                           const ps: any[] = unpack(raw.publishedServices) || [];
                           if (!ps.length) return null;

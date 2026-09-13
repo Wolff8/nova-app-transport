@@ -464,7 +464,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-white">Objavljene poti skozi Slovenijo</h4>
                   <span className="text-[11px] font-mono text-slate-400">
-                    {freightPayload?.totalActiveOnTracks ?? 0} v vožnji · {freightPayload?.totalAtTerminals ?? 0} na postanku · {freightPayload?.totalScheduledSlots ?? 0} danes · {allSlotsList.length} v katalogu
+                    {freightPayload?.totalActiveOnTracks ?? 0} v vožnji · {freightPayload?.totalAtTerminals ?? 0} na postanku · {freightPayload?.totalScheduledSlots ?? 0} danes · {allSlotsList.length} v katalogih (od tega {allSlotsList.filter((t: any) => t.status === 'future').length} iz voznega reda 2027)
                   </span>
                 </div>
                 {allSlotsList.length === 0 ? (
@@ -475,6 +475,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       const badge = t.status === 'running' ? ['V VOŽNJI', 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40']
                         : t.status === 'dwell' ? ['POSTANEK', 'bg-sky-500/20 text-sky-300 border-sky-500/40']
                         : t.status === 'scheduled' ? ['DANES', 'bg-slate-800 text-slate-300 border-slate-700']
+                        : t.status === 'future' ? [`OD ${String(t.validFrom || '').split('-').reverse().join('. ')}`, 'bg-violet-500/15 text-violet-300 border-violet-500/40']
+                        : t.daysKnown === false ? ['DNEVI NISO OBJAVLJENI', 'bg-slate-900 text-slate-500 border-slate-800']
                         : ['NE VOZI DANES', 'bg-slate-900 text-slate-500 border-slate-800'];
                       return (
                         <div key={`${t.id}_${idx}`} className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${t.isRunning ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-slate-900/70 border-slate-800'}`}>
