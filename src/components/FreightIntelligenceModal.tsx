@@ -510,6 +510,33 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 )}
               </div>
 
+              {/* What the operators themselves publish: relations and frequencies,
+                  never times. Kept apart from the catalogue paths above. */}
+              {Array.isArray(freightPayload?.operatorServices) && freightPayload.operatorServices.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-sm font-bold text-white">Objavljeni urniki prevoznikov (relacije in pogostost, brez ur)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {freightPayload.operatorServices.map((s: any, i: number) => (
+                      <div key={i} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+                        <div className="text-xs font-semibold text-slate-100">{s.operator}</div>
+                        <div className="text-[11px] text-slate-300 mt-0.5">{s.from} {s.bothWays ? '⇄' : '→'} {s.to}</div>
+                        <div className="text-[11px] text-emerald-300 mt-0.5">
+                          {s.perDay != null ? `${s.perDay}× na dan` : (s.perWeek != null ? `${s.perWeek}× na teden` : 'pogostost ni objavljena')}
+                          {Array.isArray(s.days) && s.days.length === 7 ? ' · vsak dan' : ''}
+                          {s.transitHours ? ` · čas vožnje do ${s.transitHours} h` : ''}
+                        </div>
+                        {s.route && <div className="text-[10px] text-slate-400 mt-0.5">pot: {s.route}</div>}
+                        {s.cargo && <div className="text-[10px] text-slate-400">{s.cargo}</div>}
+                        <a href={s.source} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-sky-300/80 hover:text-sky-200 break-all block mt-1">
+                          vir: {s.source}{s.retrieved ? ` · prebrano ${s.retrieved}` : ''}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-slate-500">Prevozniki objavljajo pogostost, ne ur odhodov; zato teh vlakov ni mogoče postaviti na karto. Kjer relacija ustreza objavljeni poti kataloga, je to pri poti navedeno kot ujemanje.</p>
+                </div>
+              )}
+
               {/* Murska Sobota & Prekmurje Spotlight Banner */}
               <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-amber-950/40 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
                 <div className="flex items-center gap-3">

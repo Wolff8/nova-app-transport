@@ -19,6 +19,15 @@
    "operator": "METRANS",
    "from": "Koper",
    "to": "Dunajská Streda",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "dunajska",
+     "dunajská"
+    ]
+   },
    "perDay": 3,
    "days": [
     1,
@@ -29,13 +38,25 @@
     6,
     7
    ],
-   "source": "https://metrans.eu/solutions/metrans-rail-solutions/ (Timetable, \"Trains for Koper\")",
-   "retrieved": "2026-09-11"
+   "route": null,
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://metrans.eu/solutions/metrans-rail-solutions/timetable/",
+   "retrieved": "2026-09-13"
   },
   {
    "operator": "METRANS",
    "from": "Dunajská Streda",
    "to": "Koper",
+   "aliases": {
+    "from": [
+     "dunajska",
+     "dunajská"
+    ],
+    "to": [
+     "koper"
+    ]
+   },
    "perDay": 3,
    "days": [
     1,
@@ -46,13 +67,27 @@
     6,
     7
    ],
-   "source": "https://metrans.eu/solutions/metrans-rail-solutions/ (Timetable, \"Trains for Koper\")",
-   "retrieved": "2026-09-11"
+   "route": null,
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://metrans.eu/solutions/metrans-rail-solutions/timetable/",
+   "retrieved": "2026-09-13"
   },
   {
    "operator": "METRANS",
    "from": "Koper",
    "to": "Budapest Csepel",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "budapest",
+     "csepel",
+     "ferencvaros",
+     "frencvaros"
+    ]
+   },
    "perDay": 3,
    "days": [
     1,
@@ -63,13 +98,27 @@
     6,
     7
    ],
-   "source": "https://metrans.eu/solutions/metrans-rail-solutions/ (Timetable, \"Trains for Koper\")",
-   "retrieved": "2026-09-11"
+   "route": null,
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://metrans.eu/solutions/metrans-rail-solutions/timetable/",
+   "retrieved": "2026-09-13"
   },
   {
    "operator": "METRANS",
    "from": "Budapest Csepel",
    "to": "Koper",
+   "aliases": {
+    "from": [
+     "budapest",
+     "csepel",
+     "ferencvaros",
+     "frencvaros"
+    ],
+    "to": [
+     "koper"
+    ]
+   },
    "perDay": 3,
    "days": [
     1,
@@ -80,11 +129,120 @@
     6,
     7
    ],
-   "source": "https://metrans.eu/solutions/metrans-rail-solutions/ (Timetable, \"Trains for Koper\")",
-   "retrieved": "2026-09-11"
+   "route": null,
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://metrans.eu/solutions/metrans-rail-solutions/timetable/",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Rail Cargo Group (TransFER)",
+   "from": "Budapest",
+   "to": "Koper",
+   "aliases": {
+    "from": [
+     "budapest",
+     "ferencvaros",
+     "frencvaros"
+    ],
+    "to": [
+     "koper"
+    ]
+   },
+   "perWeek": 5,
+   "bothWays": true,
+   "route": "Hodoš – Ljubljana",
+   "transitHours": null,
+   "cargo": "zabojniki 20/40/45 ft",
+   "source": "https://www.railcargo.com/en/network/transfer/budapest-koper",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Rail Cargo Group (TransFER)",
+   "from": "Sládkovičovo",
+   "to": "Koper",
+   "aliases": {
+    "from": [
+     "sladkovicovo",
+     "sládkovičovo"
+    ],
+    "to": [
+     "koper"
+    ]
+   },
+   "perWeek": "1–5",
+   "bothWays": true,
+   "route": "Kittsee – Dunaj – Gloggnitz – Kapfenberg – Gradec – Spielfeld – Maribor – Ljubljana",
+   "transitHours": 23,
+   "cargo": "zabojniki 20/40 ft",
+   "source": "https://www.railcargo.com/en/network/transfer/sladkovicovo-koper",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Adria Transport",
+   "from": "Koper",
+   "to": "Cargo Center Graz",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "graz",
+     "gradec",
+     "werndorf"
+    ]
+   },
+   "perWeek": 7,
+   "bothWays": true,
+   "route": null,
+   "transitHours": 10,
+   "cargo": "zabojniki",
+   "source": "https://adria-transport.com/en/services/",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Adria Transport",
+   "from": "Koper",
+   "to": "Enns – Salzburg",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "enns",
+     "salzburg"
+    ]
+   },
+   "perWeek": 2,
+   "bothWays": true,
+   "route": null,
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://adria-transport.com/en/services/",
+   "retrieved": "2026-09-13"
+  },
+  {
+   "operator": "Adria Transport",
+   "from": "Koper",
+   "to": "Enns",
+   "aliases": {
+    "from": [
+     "koper"
+    ],
+    "to": [
+     "enns"
+    ]
+   },
+   "perWeek": 2,
+   "bothWays": true,
+   "route": null,
+   "transitHours": null,
+   "cargo": "zabojniki",
+   "source": "https://adria-transport.com/en/services/",
+   "retrieved": "2026-09-13"
   }
  ],
- "generated": "2026-09-13T19:03:39.808Z",
+ "generated": "2026-09-13T19:41:08.052Z",
  "paths": [
   {
    "papId": "C6NPPOZG02",

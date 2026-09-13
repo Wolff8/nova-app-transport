@@ -3735,6 +3735,7 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
         isEstimated: true,
         basis: 'Objavljene poti iz katalogov koridorjev RFC6 in RFC10 za vozni red 2026 — iste, kot jih riše karta. Lega je interpolirana med objavljenimi časi; katalog ne pove, ali pot danes res vozi. Živih položajev tovornih vlakov noben javni vir ne objavlja.',
         source: paths?.source ?? null,
+        operatorServices: paths?.operatorServices ?? [],
         trains: [...runningTrains, ...terminalTrains],
         runningTrains,
         terminalTrains,
@@ -9872,12 +9873,20 @@ app.post('/api/log', express.json(), (req, res) => {
     const publishedServicesFor = (relation: string) => {
       const rel = normRel(relation);
       const out: any[] = [];
+      // "Koper to Frencvaros" matches Budapest -> Koper's return leg: each end
+      // has aliases (Ferencváros is Budapest's freight yard, the catalogue
+      // spells it three ways), and a service marked bothWays matches either
+      // order.
+      const firstIndex = (names: string[]) => { let best = -1; for (const n of names) { const i = rel.indexOf(normRel(n)); if (i >= 0 && (best < 0 || i < best)) best = i; } return best; };
       for (const s of (corridorPathData?.operatorServices ?? []) as any[]) {
-        // "Dunajska to Koper" matches Dunajská Streda -> Koper by the first
-        // word of each end, in order.
-        const a = normRel(s.from).split(' ')[0], b = normRel(s.to).split(' ')[0];
-        const ia = rel.indexOf(a), ib = rel.indexOf(b);
-        if (ia >= 0 && ib > ia) out.push({ ...s, basis: 'Ujemanje relacije z urnikom, ki ga objavlja prevoznik (število vlakov na dan, brez ur). Ni potrdilo, da ta prevoznik vozi po tej poti.' });
+        const fromNames: string[] = s.aliases?.from ?? [s.from], toNames: string[] = s.aliases?.to ?? [s.to];
+        const ia = firstIndex(fromNames), ib = firstIndex(toNames);
+        const forward = ia >= 0 && ib > ia;
+        const backward = s.bothWays && ib >= 0 && ia > ib;
+        if (!forward && !backward) continue;
+        const freq = s.perDay != null ? `${s.perDay}× na dan` : (s.perWeek != null ? `${s.perWeek}× na teden` : 'pogostost ni objavljena');
+        out.push({ ...s, matchedDirection: forward ? `${s.from} → ${s.to}` : `${s.to} → ${s.from}`, frequency: freq,
+          basis: 'Ujemanje relacije z urnikom, ki ga objavlja prevoznik (pogostost, brez ur). Ni potrdilo, da ta prevoznik vozi po tej poti.' });
       }
       return out.length ? out : null;
     };
@@ -10130,6 +10139,7 @@ app.post('/api/log', express.json(), (req, res) => {
       note: corridorPathData.note,
       trainNumberNote: corridorPathData.trainNumberNote,
       pathsTotal: board.length,
+      operatorServices: corridorPathData.operatorServices ?? [],
       corridorsPending: pending.size ? [...pending] : null,
       ready: pending.size === 0,
       runningNow: features.length,

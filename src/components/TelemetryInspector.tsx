@@ -1185,8 +1185,10 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                               <div className="text-[10px] uppercase font-mono tracking-wider text-white/70">Objavljeni urniki prevoznikov na tej relaciji</div>
                               {ps.map((s: any, i: number) => (
                                 <p key={i} className="mt-1 text-[10.5px] leading-snug text-amber-100/85">
-                                  <strong className="text-amber-200">{s.operator}</strong>: {s.from} → {s.to}, {s.perDay}× na dan
+                                  <strong className="text-amber-200">{s.operator}</strong>: {s.matchedDirection || `${s.from} → ${s.to}`}, {s.frequency || (s.perDay != null ? `${s.perDay}× na dan` : '')}
                                   {Array.isArray(s.days) && s.days.length === 7 ? ' (vsak dan)' : ''}
+                                  {s.transitHours ? ` · čas vožnje do ${s.transitHours} h` : ''}
+                                  {s.route ? ` · pot ${s.route}` : ''}
                                   <span className="block text-[9.5px] font-mono text-amber-200/60">vir: {s.source}{s.retrieved ? ` · prebrano ${s.retrieved}` : ''}</span>
                                 </p>
                               ))}
