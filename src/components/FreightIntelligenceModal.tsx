@@ -1662,13 +1662,13 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
                 <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between shadow-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">24h Vozni Red Slotov</span>
+                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Objavljene poti danes</span>
                     <Layers size={13} className="text-slate-400" />
                   </div>
                   <div className="my-1 text-2xl font-bold font-mono text-white">
-                    {murskaSobotaData?.counts?.totalScheduledToday || 15}
+                    {murskaSobotaData?.counts?.totalScheduledToday || 0}
                   </div>
-                  <span className="text-[10px] text-slate-400">Tovornih vlakov skozi MS</span>
+                  <span className="text-[10px] text-slate-400">Poti kataloga skozi MS</span>
                 </div>
               </div>
 
@@ -1725,7 +1725,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
                             <div className="text-right">
                               <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 block">
-                                {train.currentSpeed} km/h
+                                {train.currentSpeed ?? '—'} km/h progovna
                               </span>
                               <span className="text-[10px] font-mono text-slate-400 mt-1 block">
                                 {train.distToMsKm} km od MS
@@ -1744,12 +1744,12 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                           {/* Logistics & Cargo specs */}
                           <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                             <div className="bg-slate-950/50 p-2 rounded border border-slate-800/60">
-                              <span className="text-slate-500 block text-[10px] font-sans">Prevoznik / Vleka</span>
-                              <span className="font-semibold text-slate-200 truncate block">{train.operator} · {train.locomotive}</span>
+                              <span className="text-slate-500 block text-[10px] font-sans">Prevoznik</span>
+                              <span className="font-semibold text-slate-200 truncate block">{train.operator}</span>
                             </div>
                             <div className="bg-slate-950/50 p-2 rounded border border-slate-800/60">
-                              <span className="text-slate-500 block text-[10px] font-sans">Tovor / Vagoni</span>
-                              <span className="font-semibold text-amber-300 truncate block">{train.cargo}</span>
+                              <span className="text-slate-500 block text-[10px] font-sans">Katalog</span>
+                              <span className="font-semibold text-amber-300 truncate block">{train.catalogueLabel}</span>
                             </div>
                           </div>
 
@@ -1757,7 +1757,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                           <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-950/60 border border-slate-800/70 text-[10px]">
                             <div className="flex items-center gap-1.5 text-emerald-400 font-mono">
                               <ShieldCheck size={12} className="text-emerald-400 shrink-0" />
-                              <span>Brez simulacije · Fuzija 4 uradnih virov</span>
+                              <span>Objavljena pot iz kataloga · lega interpolirana, ne izmerjena</span>
                             </div>
                             <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
                               {train.snappedToRailTrack ? 'Tirna os: Poravnano' : 'Vektorska tirna os'}
@@ -1801,7 +1801,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       Celodnevni Vozni Red Tovornih Vlakov skozi Mursko Soboto (24h Razpored)
                     </h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Kronološki seznam vseh 15 rednih tovornih tras s predvidenimi urami prehoda, operaterji in tipi vagonov.
+                      Objavljene poti katalogov koridorjev (RFC6, RFC10) skozi Mursko Soboto. Ura prehoda je interpolirana med objavljenima točkama okoli postaje. Katalog ne pove, ali pot danes vozi.
                     </p>
                   </div>
 
@@ -1815,7 +1815,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      Vse smeri ({murskaSobotaData?.allScheduledToday?.length || 15})
+                      Vse smeri ({murskaSobotaData?.allScheduledToday?.length || 0})
                     </button>
                     <button
                       onClick={() => setMsDirectionFilter('hodos')}
@@ -1902,7 +1902,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                               <span className="text-slate-600">➔</span>
                               <span>{train.toName}</span>
                               <span className="text-slate-600">·</span>
-                              <span className="text-amber-300 font-medium">{train.cargo}</span>
+                              <span className="text-amber-300 font-medium">{train.passageBasis}</span>
                             </p>
                           </div>
                         </div>
@@ -1910,8 +1910,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                         {/* Specs & Action */}
                         <div className="flex items-center justify-between md:justify-end gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
                           <div className="text-right text-[10px] font-mono text-slate-400">
-                            <div><strong className="text-slate-200">{train.locomotive}</strong></div>
-                            <div>{train.grossWeightTons} t · {train.lengthM} m · {train.trucksEquivalent} tov. manj</div>
+                            <div><strong className="text-slate-200">{train.title}</strong></div>
+                            <div>{train.operator}</div>
                           </div>
 
                           {train.isRunning && train.currentLon != null && train.currentLat != null ? (

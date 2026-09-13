@@ -4026,227 +4026,43 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   // -----------------------------------------------------------------------------------------
   // DEDICATED MURSKA SOBOTA & PREKMURJE FREIGHT CORRIDOR TELEMETRY & RADAR API (TEN-T RFC 6/11)
   // -----------------------------------------------------------------------------------------
-  app.get('/api/freight/murska-sobota', (req, res) => {
+  /**
+   * Freight through Murska Sobota, from the same catalogue paths the map
+   * draws. The previous version answered from a hand-written table of
+   * "slots" with invented names, locomotives and loads that the map no
+   * longer shows, which is why the radar listed trains that were nowhere
+   * on the map. Nothing here is invented: the paths, timings and running
+   * days are the corridors' published catalogues; the passage time at
+   * Murska Sobota is interpolated by kilometre between the two published
+   * timing points around it and says so; no public feed reports where a
+   * freight train actually is.
+   */
+  function currentCorridorPaths(): any | null {
+    if (corridorPathsCache && Date.now() - corridorPathsCache.ts < CORRIDOR_PATHS_TTL_MS) return corridorPathsCache.body;
+    const body: any = corridorFreightPositions();
+    if (body) { body.computeMs = 0; corridorPathsCache = { body, ts: Date.now() }; }
+    return body;
+  }
+
+  app.get('/api/freight/murska-sobota', (_req, res) => {
     try {
       const timeObj = getSloveniaTime();
       const nowMin = timeObj.totalMinutes;
-
-      // Coordinates of Murska Sobota freight/passenger railway station
       const MS_LAT = 46.663143;
       const MS_LON = 16.171442;
+      const distKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        return Math.round(2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 10) / 10;
+      };
+      const hm = (t: string) => { const [h, m] = t.split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+      const fmt = (min: number) => { const m = ((Math.round(min) % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+      const basis = 'Objavljene poti iz katalogov koridorjev (RFC6 Mediterranean, RFC10 Alpine-Western Balkan). Ura prehoda skozi Mursko Soboto je interpolirana po kilometraži med objavljenima točkama okoli nje. Katalog ne pove, ali pot danes vozi; živih položajev tovornih vlakov noben javni vir ne objavlja.';
 
-      // Haversine distance helper in km
-      function getDistKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-        const R = 6371;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return Math.round(R * c * 10) / 10;
-      }
-
-      // Filter all slots that traverse Murska Sobota
-      const msSlots = FREIGHT_TIMETABLE_SLOTS.filter(slot =>
-        slot.checkpoints && slot.checkpoints.some(c => c.name.toLowerCase().includes('murska sobota'))
-      );
-
-      const computedTrains: any[] = [];
-
-      for (const slot of msSlots) {
-        const depMin = parseTimeToMinutes(slot.depTime);
-        let arrMin = parseTimeToMinutes(slot.arrTime);
-        if (arrMin < depMin) arrMin += 1440; // overnight train
-
-        let durationMin = arrMin - depMin;
-        if (durationMin <= 0) durationMin = 240;
-
-        // Determine Murska Sobota checkpoint distance
-        const msCp = slot.checkpoints.find(c => c.name.toLowerCase().includes('murska sobota'));
-        const msKm = msCp ? msCp.km : (slot.routeKm * 0.9);
-        const msRatio = Math.max(0.05, Math.min(0.95, msKm / slot.routeKm));
-
-        // Exact estimated minute of day train passes Murska Sobota
-        const passageMinTotal = Math.round(depMin + durationMin * msRatio);
-        const normPassageMin = passageMinTotal % 1440;
-        const passH = Math.floor(normPassageMin / 60).toString().padStart(2, '0');
-        const passM = (normPassageMin % 60).toString().padStart(2, '0');
-        const scheduledPassageTime = `${passH}:${passM}`;
-
-        // Direction & corridor classification
-        const isHeadingNorthEast = slot.fromName.toLowerCase().includes('koper') || slot.fromName.toLowerCase().includes('zalog');
-        const directionLabel = isHeadingNorthEast 
-          ? 'Proti Madžarski / Hodošu ➔' 
-          : 'Proti Kopru / Sredozemlju ➔';
-
-        // Check if train is active right now
-        let currentDayMin = nowMin;
-        let isRunning = false;
-        let isPreparing = false;
-        let isArrived = false;
-
-        let diffToDep = depMin - currentDayMin;
-        if (diffToDep < -720) diffToDep += 1440;
-        if (diffToDep > 720) diffToDep -= 1440;
-
-        let diffToArr = arrMin - (currentDayMin < depMin && arrMin > 1440 ? currentDayMin + 1440 : currentDayMin);
-
-        let progress = 0;
-        if (arrMin > 1440) {
-          if (currentDayMin >= depMin) {
-            isRunning = true;
-            progress = (currentDayMin - depMin) / durationMin;
-          } else if (currentDayMin < (arrMin - 1440)) {
-            isRunning = true;
-            progress = (currentDayMin + 1440 - depMin) / durationMin;
-          } else if (diffToDep > 0 && diffToDep <= 45) {
-            isPreparing = true;
-          } else if (currentDayMin >= (arrMin - 1440) && currentDayMin <= (arrMin - 1440 + 60)) {
-            isArrived = true;
-          }
-        } else {
-          if (currentDayMin >= depMin && currentDayMin <= arrMin) {
-            isRunning = true;
-            progress = (currentDayMin - depMin) / durationMin;
-          } else if (diffToDep > 0 && diffToDep <= 45) {
-            isPreparing = true;
-          } else if (currentDayMin > arrMin && currentDayMin <= arrMin + 60) {
-            isArrived = true;
-          }
-        }
-
-        progress = Math.max(0, Math.min(1, progress));
-
-        let currentLat = slot.fromCoords[1];
-        let currentLon = slot.fromCoords[0];
-        let currentKm = Math.round(progress * slot.routeKm);
-        let currentSpeed = 0;
-        let currentBearing = 90;
-
-        if (isRunning) {
-          const interp = interpolatePolyline(slot.routeGeometry, progress);
-          currentLat = interp.lat;
-          currentLon = interp.lon;
-          currentBearing = interp.bearing;
-          currentSpeed = Math.round(slot.speedRange[0] + (slot.speedRange[1] - slot.speedRange[0]) * 0.75);
-        } else if (isArrived) {
-          currentLat = slot.toCoords[1];
-          currentLon = slot.toCoords[0];
-          currentKm = slot.routeKm;
-        }
-
-        // Snap coordinates strictly to railway track centerline when within Slovenia
-        let msSnappedSuccess = false;
-        const isOutsideSloMs = currentLon < 13.35 || currentLon > 16.60 || currentLat < 45.42 || currentLat > 46.88;
-        if (!isOutsideSloMs) {
-          const msSnapped = snapToRailTrack(currentLon, currentLat, 3500, currentBearing);
-          if (msSnapped.snapped) {
-            currentLon = msSnapped.lon;
-            currentLat = msSnapped.lat;
-            msSnappedSuccess = true;
-            if (isRunning && msSnapped.bearing != null) {
-              currentBearing = msSnapped.bearing;
-            }
-          }
-        }
-
-        const distToMs = getDistKm(currentLat, currentLon, MS_LAT, MS_LON);
-
-        // Calculate ETA to Murska Sobota
-        let etaMinutes: number | null = null;
-        let passageStatus = 'scheduled'; // 'passing_now', 'approaching', 'passed', 'scheduled'
-
-        if (isRunning) {
-          if (distToMs <= 3.5) {
-            passageStatus = 'passing_now';
-            etaMinutes = 0;
-          } else {
-            const hasPassedMs = (isHeadingNorthEast && currentKm > msKm) || (!isHeadingNorthEast && currentKm > msKm);
-            if (hasPassedMs) {
-              passageStatus = 'passed';
-              etaMinutes = -Math.round((currentKm - msKm) / (currentSpeed / 60 || 1));
-            } else {
-              passageStatus = 'approaching';
-              etaMinutes = Math.max(1, Math.round(Math.abs(msKm - currentKm) / (currentSpeed / 60 || 1)));
-            }
-          }
-        } else {
-          let diffToPass = normPassageMin - nowMin;
-          if (diffToPass < 0) diffToPass += 1440;
-          etaMinutes = diffToPass;
-          passageStatus = diffToPass <= 60 ? 'approaching_today' : 'scheduled';
-        }
-
-        const trainCard = {
-          id: slot.id,
-          trainNumber: slot.trainNumber,
-          name: slot.name,
-          operator: slot.operator,
-          // Resolve the free-text operator against the ERA/UIC register so the
-          // train carries a licensed entity with an official code, not a label.
-          operatorRegistration: lookupOrganisation(slot.operator),
-          // Route, operator and charging class as the public registers give
-          // them, kept apart from the scheduled figures above so the client can
-          // show which half of a train's description is actually sourced.
-          registerData: verifyFreightSlot(slot),
-          locomotive: slot.locomotive,
-          wagonType: slot.wagonType,
-          cargo: slot.cargo,
-          grossWeightTons: slot.grossWeightTons,
-          lengthM: slot.lengthM,
-          trucksEquivalent: slot.trucksEquivalent,
-          co2SavedKg: slot.co2SavedKg,
-          ridHazard: slot.ridHazard,
-          corridor: slot.corridor,
-          depTime: slot.depTime,
-          arrTime: slot.arrTime,
-          fromName: slot.fromName,
-          toName: slot.toName,
-          scheduledPassageTime: scheduledPassageTime,
-          distToMsKm: distToMs,
-          directionLabel: directionLabel,
-          isHeadingNorthEast: isHeadingNorthEast,
-          isRunning: isRunning,
-          isPreparing: isPreparing,
-          isArrived: isArrived,
-          currentLat: currentLat,
-          currentLon: currentLon,
-          currentKm: currentKm,
-          currentSpeed: currentSpeed,
-          currentBearing: currentBearing,
-          currentSection: determineTrackSection(slot.checkpoints, currentKm, slot.routeKm),
-          etaMinutes: etaMinutes,
-          passageStatus: passageStatus,
-          isSimulated: false,
-          isEstimated: true,
-          dataSources: [
-            'SŽ-Infrastruktura Omrežni Načrt (Glavna proga št. 40 Pragersko-Hodoš)',
-            'ERA ERATV / EVR Register Vlečnih Vozil',
-            'TEN-T RFC 6 / Sredozemski koridor',
-            'OJPP / MOTIS Visokoločljivostna Tirna Os Prekmurje'
-          ],
-          snappedToRailTrack: msSnappedSuccess
-        };
-
-        computedTrains.push(trainCard);
-      }
-
-      // Sort all slots chronologically by passage time at Murska Sobota
-      computedTrains.sort((a, b) => {
-        const minA = parseTimeToMinutes(a.scheduledPassageTime);
-        const minB = parseTimeToMinutes(b.scheduledPassageTime);
-        return minA - minB;
-      });
-
-      // Passing right now (within 15 km)
-      const passingNow = computedTrains.filter(t => t.isRunning && t.distToMsKm <= 15);
-      // Approaching within 60 minutes
-      const approachingSoon = computedTrains.filter(t => t.isRunning && t.passageStatus === 'approaching' && (t.etaMinutes !== null && t.etaMinutes <= 90));
-      // Active in Prekmurje sector (Pragersko to Hodoš, roughly lon > 15.65)
-      const activeInRegion = computedTrains.filter(t => t.isRunning && t.currentLon >= 15.65 && t.currentLat >= 46.38);
-
-      res.json({
+      const paths = currentCorridorPaths();
+      const geo = corridorPathTrack('koper-hodos');
+      const empty = { passingNow: [] as any[], approachingSoon: [] as any[], activeInRegion: [] as any[], allScheduledToday: [] as any[] };
+      const respond = (lists: typeof empty, ready: boolean) => res.json({
         timestamp: new Date().toISOString(),
         currentTimeInSlovenia: timeObj.timeStr,
         stationInfo: {
@@ -4272,19 +4088,102 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
           ]
         },
         counts: {
-          totalScheduledToday: computedTrains.length,
-          passingNowCount: passingNow.length,
-          approachingSoonCount: approachingSoon.length,
-          activeInRegionCount: activeInRegion.length
+          totalScheduledToday: lists.allScheduledToday.length,
+          passingNowCount: lists.passingNow.length,
+          approachingSoonCount: lists.approachingSoon.length,
+          activeInRegionCount: lists.activeInRegion.length
         },
-        passingNow: passingNow,
-        approachingSoon: approachingSoon,
-        activeInRegion: activeInRegion,
-        allScheduledToday: computedTrains
+        ...lists,
+        ready,
+        basis,
+        source: paths?.source ?? null
       });
+      if (!paths || !geo) return respond(empty, false);
+
+      const msKm = kmAlongTrack(geo.track, MS_LAT, MS_LON, geo.dists, geo.cumulative).km;
+      const cards: any[] = [];
+      for (const b of paths.board as any[]) {
+        if (b.corridor !== 'koper-hodos') continue;
+        const tps = (b.timingPoints as any[]).map(t => ({ ...t, km: geo.kmAt[t.location] })).filter(t => t.km != null);
+        // The two published points around Murska Sobota, in travel order.
+        let passMin: number | null = null, passageBasis: string | null = null;
+        for (let i = 0; i < tps.length - 1; i++) {
+          const a = tps[i], c = tps[i + 1];
+          const lo = Math.min(a.km, c.km), hi = Math.max(a.km, c.km);
+          if (msKm < lo || msKm > hi) continue;
+          const dep = hm(a.departure ?? a.arrival), arr0 = hm(c.arrival ?? c.departure);
+          const arr = arr0 < dep ? arr0 + 1440 : arr0;
+          const f = hi > lo ? Math.abs(msKm - a.km) / (hi - lo) : 0;
+          passMin = dep + (arr - dep) * f;
+          passageBasis = `interpolirano po kilometraži med ${a.location} (odh. ${fmt(dep)}) in ${c.location} (prih. ${fmt(arr0)})`;
+          break;
+        }
+        if (passMin == null) continue;
+        const feat = (paths.features as any[]).find(f => f.properties?.id === `pap_${b.papId}`);
+        const cur: [number, number] | null = feat ? feat.geometry.coordinates : null;
+        const kmAlong: number | null = feat?.properties?.kmAlong ?? null;
+        const isHeadingNorthEast = b.direction === CORRIDORS['koper-hodos'].forwardLabel;
+        const distToMs = cur ? distKm(cur[1], cur[0], MS_LAT, MS_LON) : null;
+        let diff = passMin - nowMin;
+        if (diff < -720) diff += 1440;
+        if (diff > 720) diff -= 1440;
+        let passageStatus = 'scheduled';
+        let etaMinutes: number | null = null;
+        if (b.active && cur && kmAlong != null) {
+          const passed = isHeadingNorthEast ? kmAlong > msKm : kmAlong < msKm;
+          if (distToMs != null && distToMs <= 15) { passageStatus = 'passing_now'; etaMinutes = 0; }
+          else if (!passed) { passageStatus = 'approaching'; etaMinutes = Math.max(1, Math.round(diff)); }
+          else { passageStatus = 'passed'; etaMinutes = Math.round(diff); }
+        } else if (b.runsToday && diff > 0 && diff <= 90) {
+          passageStatus = 'approaching_today'; etaMinutes = Math.round(diff);
+        }
+        const svc = b.publishedServices?.[0];
+        cards.push({
+          id: `pap_${b.papId}`,
+          papId: b.papId,
+          trainNumber: b.trainNumber,
+          name: `${b.trainNumber} · ${b.relation}`,
+          title: `Objavljena pot ${b.papId} · ${b.catalogueLabel}`,
+          catalogueLabel: b.catalogueLabel,
+          operator: svc ? `${svc.operator} (ujemanje relacije, ${svc.perDay}× na dan)` : 'prevoznik v katalogu ni objavljen',
+          fromName: tps[0].location,
+          toName: tps[tps.length - 1].location,
+          relation: b.relation,
+          daysOfWeek: b.daysOfWeek,
+          runsToday: b.runsToday,
+          scheduledPassageTime: fmt(passMin),
+          passageBasis,
+          distToMsKm: distToMs,
+          directionLabel: b.direction,
+          isHeadingNorthEast,
+          isRunning: !!b.active,
+          currentLat: cur ? cur[1] : null,
+          currentLon: cur ? cur[0] : null,
+          currentKm: kmAlong,
+          // Line speed where the train is now; a path that is not running has
+          // no "now" and gets nothing.
+          currentSpeed: b.active ? (b.lineSpeedKmh ?? null) : null,
+          speedBasis: b.active ? b.lineSpeedBasis : null,
+          currentSection: b.positionBand
+            ? `${b.positionBand.fromName} – ${b.positionBand.toName} (pas ±${Math.round(b.positionBand.widthKm / 2)} km)`
+            : (b.phase === 'dwell' && b.dwell ? `postanek: ${b.dwell.location}` : '—'),
+          etaMinutes,
+          passageStatus,
+          isEstimated: true,
+          snappedToRailTrack: true,
+          dataSources: [paths.source],
+          basis: b.status
+        });
+      }
+      cards.sort((a, b) => hm(a.scheduledPassageTime) - hm(b.scheduledPassageTime));
+      respond({
+        passingNow: cards.filter(c => c.passageStatus === 'passing_now'),
+        approachingSoon: cards.filter(c => c.isRunning && c.passageStatus === 'approaching' && c.etaMinutes != null && c.etaMinutes <= 90),
+        activeInRegion: cards.filter(c => c.isRunning && c.currentLon != null && c.currentLon >= 15.65 && c.currentLat >= 46.38),
+        allScheduledToday: cards.filter(c => c.runsToday)
+      }, paths.ready === true);
     } catch (err: any) {
-      console.error('Failed to compute Murska Sobota freight radar:', err);
-      res.status(500).json({ error: 'Failed to compute Murska Sobota freight data' });
+      res.status(500).json({ error: err?.message || 'Napaka' });
     }
   });
 
