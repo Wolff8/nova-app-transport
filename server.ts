@@ -10125,6 +10125,7 @@ app.post('/api/log', express.json(), (req, res) => {
     for (const c of Object.keys(CORRIDORS)) {
       try { await warmCorridor(c); } catch (e) { console.error(`[RFC6] corridor ${c} failed`, e); }
     }
+    try { await warmLineWorksGeometry(); } catch (e) { console.error('[TCR] placing works failed', e); }
   })();
 
   /**
@@ -10562,28 +10563,29 @@ app.post('/api/log', express.json(), (req, res) => {
       console.log(`[TCR] line works loaded: ${lineWorksData!.works.length}`);
     }
   } catch (e) { console.error('[TCR] line works load failed', e); }
-  let lineWorksCache: { body: any; ts: number } | null = null;
-
-  app.get('/api/rail/works', (_req, res) => {
-    if (!lineWorksData) return res.status(503).json({ error: 'Seznam del ni na voljo' });
-    if (lineWorksCache && Date.now() - lineWorksCache.ts < 10 * 60 * 1000) return res.json(lineWorksCache.body);
-    const today = new Date().toISOString().slice(0, 10);
-    const soon = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
-    const recent = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
-    const features: any[] = [];
-    let pending = false;
+  // Projecting each restriction onto the corridor polylines is the slow
+  // part (46 projections onto 13,000-point lines: 9 s on the instance), so it
+  // is done once, in the background after the corridors are ready, one item
+  // per turn of the event loop. Until then a restriction is drawn as a
+  // straight line between its two operational points.
+  const lineWorksGeometry = new Map<string, any>();
+  let lineWorksGeometryReady = false;
+  function workKey(w: any) { return `${w.id}|${w.dateFrom}`; }
+  function workGeometryStraight(w: any) {
+    const samePoint = Math.abs(w.fromPoint.lat - w.toPoint.lat) < 1e-4 && Math.abs(w.fromPoint.lon - w.toPoint.lon) < 1e-4;
+    return samePoint
+      ? { type: 'Point', coordinates: [w.fromPoint.lon, w.fromPoint.lat] }
+      : { type: 'LineString', coordinates: [[w.fromPoint.lon, w.fromPoint.lat], [w.toPoint.lon, w.toPoint.lat]] };
+  }
+  async function warmLineWorksGeometry(): Promise<void> {
+    if (!lineWorksData) return;
     for (const w of lineWorksData.works) {
-      if (!w.fromPoint || !w.toPoint || !w.dateTo || w.dateTo < recent) continue;
-      const status = w.dateFrom <= today && w.dateTo >= today ? 'v teku' : (w.dateFrom > today ? (w.dateFrom <= soon ? 'kmalu' : 'načrtovano') : 'končano');
-      let geometry: any;
-      const samePoint = Math.abs(w.fromPoint.lat - w.toPoint.lat) < 1e-4 && Math.abs(w.fromPoint.lon - w.toPoint.lon) < 1e-4;
-      if (samePoint) {
-        geometry = { type: 'Point', coordinates: [w.fromPoint.lon, w.fromPoint.lat] };
-      } else {
-        geometry = { type: 'LineString', coordinates: [[w.fromPoint.lon, w.fromPoint.lat], [w.toPoint.lon, w.toPoint.lat]] };
+      if (!w.fromPoint || !w.toPoint) continue;
+      let geometry: any = workGeometryStraight(w);
+      if (geometry.type === 'LineString') {
         for (const c of Object.keys(CORRIDORS)) {
           const geo = corridorPathTrack(c);
-          if (!geo) { if (!corridorTrackCache.has(c)) pending = true; continue; }
+          if (!geo) continue;
           const A = kmAlongTrack(geo.track, w.fromPoint.lat, w.fromPoint.lon, geo.dists, geo.cumulative);
           const B = kmAlongTrack(geo.track, w.toPoint.lat, w.toPoint.lon, geo.dists, geo.cumulative);
           if (A.offKm > 1.5 || B.offKm > 1.5) continue;
@@ -10595,6 +10597,27 @@ app.post('/api/log', express.json(), (req, res) => {
           break;
         }
       }
+      lineWorksGeometry.set(workKey(w), geometry);
+      await new Promise(r => setImmediate(r));
+    }
+    lineWorksGeometryReady = true;
+    lineWorksCache = null;
+    console.log(`[TCR] line works placed on corridors: ${lineWorksGeometry.size}`);
+  }
+  let lineWorksCache: { body: any; ts: number } | null = null;
+
+  app.get('/api/rail/works', (_req, res) => {
+    if (!lineWorksData) return res.status(503).json({ error: 'Seznam del ni na voljo' });
+    if (lineWorksCache && Date.now() - lineWorksCache.ts < 10 * 60 * 1000) return res.json(lineWorksCache.body);
+    const today = new Date().toISOString().slice(0, 10);
+    const soon = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+    const recent = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const features: any[] = [];
+    for (const w of lineWorksData.works) {
+      if (!w.fromPoint || !w.toPoint || !w.dateTo || w.dateTo < recent) continue;
+      const status = w.dateFrom <= today && w.dateTo >= today ? 'v teku' : (w.dateFrom > today ? (w.dateFrom <= soon ? 'kmalu' : 'načrtovano') : 'končano');
+      const geometry = lineWorksGeometry.get(workKey(w)) ?? workGeometryStraight(w);
+      const samePoint = geometry.type === 'Point';
       features.push({
         type: 'Feature',
         geometry,
@@ -10616,11 +10639,10 @@ app.post('/api/log', express.json(), (req, res) => {
       type: 'FeatureCollection', source: lineWorksData.source, sourceUrls: lineWorksData.sourceUrls, note: lineWorksData.note,
       generatedAt: new Date().toISOString(), count: features.length,
       active: features.filter(f => f.properties.status === 'v teku').length,
+      geometryOnCorridors: lineWorksGeometryReady,
       features
     };
-    // Geometry along a corridor still being prepared is a straight line; do
-    // not remember that for ten minutes.
-    if (!pending) lineWorksCache = { body, ts: Date.now() };
+    if (lineWorksGeometryReady) lineWorksCache = { body, ts: Date.now() };
     res.json(body);
   });
 
