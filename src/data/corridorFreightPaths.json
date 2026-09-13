@@ -5,7 +5,8 @@
   "Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx (rfc-awb.eu)",
   "CATALOGUE_RFC_BA_DEF_PaPsTT27.xlsx (rfc5.eu / RNE CIP)",
   "Pre-arranged-train-paths-for-Timetable-2026-2027.xlsx (rfc-awb.eu)",
-  "Catalogue-of-Reserved-Capacity-for-Timetable-2026.xlsx (rfc-awb.eu)"
+  "Catalogue-of-Reserved-Capacity-for-Timetable-2026.xlsx (rfc-awb.eu)",
+  "RFC_RD_PaP-Catalogue_TT2027_final.xlsx (Rhine-Danube, samo nemški del skupnih poti)"
  ],
  "sourceUrls": {
   "RFC6": "https://www.rfc-med.eu/",
@@ -247,7 +248,7 @@
    "retrieved": "2026-09-13"
   }
  ],
- "generated": "2026-09-13T20:12:46.880Z",
+ "generated": "2026-09-13T20:18:25.029Z",
  "paths": [
   {
    "papId": "C6NPPOZG02",
@@ -5068,6 +5069,39 @@
    ],
    "foreignSections": [
     {
+     "infrastructureManager": "DB InfraGO",
+     "nationalId": "99943",
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Mannheim",
+       "times": [
+        "13:08"
+       ]
+      },
+      {
+       "location": "Kornwestheim Rbf Süd-Ost",
+       "times": [
+        "14:55",
+        "15:09"
+       ]
+      },
+      {
+       "location": "München Nord RBF Mitte",
+       "times": [
+        "19:58"
+       ]
+      },
+      {
+       "location": "Salzburg",
+       "times": [
+        "22:35"
+       ]
+      }
+     ],
+     "note": "No PaP offer from 05.02.2027 - 08.07.2027 (RFC Rhine-Danube, PaP catalogue TT2027, param 09DB07)"
+    },
+    {
      "infrastructureManager": "AUST",
      "nationalId": "41821",
      "days": "2,3,4,5,6",
@@ -5378,6 +5412,40 @@
       }
      ],
      "note": null
+    },
+    {
+     "infrastructureManager": "DB InfraGO",
+     "nationalId": "99942",
+     "days": "1,2,3,4,5,6,7",
+     "points": [
+      {
+       "location": "Salzburg",
+       "times": [
+        "03:37",
+        "04:12"
+       ]
+      },
+      {
+       "location": "München Nord RBF Mitte",
+       "times": [
+        "06:26"
+       ]
+      },
+      {
+       "location": "Kornwestheim Rbf Süd-Ost",
+       "times": [
+        "10:50",
+        "10:55"
+       ]
+      },
+      {
+       "location": "Mannheim",
+       "times": [
+        "12:54"
+       ]
+      }
+     ],
+     "note": "No PaP offer from 06.02.2027 - 09.07.2027 (RFC Rhine-Danube, PaP catalogue TT2027, param 09DB03)"
     }
    ]
   },
