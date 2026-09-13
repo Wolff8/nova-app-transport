@@ -1,7 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import type { FeatureCollection as GeoJSONFeatureCollection } from 'geojson';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths, loadRailWorks } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
@@ -1344,6 +1344,54 @@ export class MapController {
         paint: { 'text-color': '#fbcfe8', 'text-halo-color': '#0f172a', 'text-halo-width': 1.4 }
       });
 
+      // Works and closures: the temporary capacity restrictions the freight
+      // corridors publish for SŽ-Infrastruktura, drawn along the affected
+      // stretch. Red where the line is fully closed, amber otherwise; a
+      // restriction at one station is a point.
+      this.map.addSource('rail_works', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      this.map.addLayer({
+        id: 'rail_works', type: 'line', source: 'rail_works',
+        filter: ['==', ['geometry-type'], 'LineString'],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': ['case', ['get', 'totalClosure'], '#ef4444', '#f59e0b'],
+          'line-width': ['case', ['==', ['get', 'status'], 'v teku'], 5, 3],
+          'line-dasharray': [1.5, 1.2],
+          'line-opacity': ['case', ['==', ['get', 'status'], 'v teku'], 0.95, 0.6]
+        }
+      });
+      this.map.addLayer({
+        id: 'rail_works_point', type: 'circle', source: 'rail_works',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'status'], 'v teku'], 7, 5],
+          'circle-color': ['case', ['get', 'totalClosure'], '#ef4444', '#f59e0b'],
+          'circle-stroke-width': 2, 'circle-stroke-color': '#fef3c7',
+          'circle-opacity': ['case', ['==', ['get', 'status'], 'v teku'], 0.95, 0.6]
+        }
+      });
+      // symbol-placement cannot be data-driven, so lines and points get a
+      // label layer each.
+      this.map.addLayer({
+        id: 'rail_works_label', type: 'symbol', source: 'rail_works',
+        minzoom: 8, filter: ['==', ['geometry-type'], 'LineString'],
+        layout: {
+          'symbol-placement': 'line-center',
+          'text-field': ['concat', ['get', 'name'], ' · ', ['get', 'dateFrom'], ' – ', ['get', 'dateTo']],
+          'text-size': 10.5, 'text-offset': [0, 1.2], 'text-anchor': 'top'
+        },
+        paint: { 'text-color': '#fde68a', 'text-halo-color': '#0f172a', 'text-halo-width': 1.4 }
+      });
+      this.map.addLayer({
+        id: 'rail_works_point_label', type: 'symbol', source: 'rail_works',
+        minzoom: 8, filter: ['==', ['geometry-type'], 'Point'],
+        layout: {
+          'text-field': ['concat', ['get', 'name'], ' · ', ['get', 'dateFrom'], ' – ', ['get', 'dateTo']],
+          'text-size': 10.5, 'text-offset': [0, 1.2], 'text-anchor': 'top'
+        },
+        paint: { 'text-color': '#fde68a', 'text-halo-color': '#0f172a', 'text-halo-width': 1.4 }
+      });
+
       // Reference geometry, not live data: fetch once, as soon as the layer
       // exists, rather than waiting on the thirty-second data tick.
       if (!this.tentRailwaysLoaded) {
@@ -1354,6 +1402,10 @@ export class MapController {
         }).catch(() => { this.tentRailwaysLoaded = false; });
         loadBorderCrossings().then(gj => {
           const src = this.map?.getSource('border_crossings') as maplibregl.GeoJSONSource | undefined;
+          if (src && gj?.features?.length) src.setData(gj);
+        }).catch(() => {});
+        loadRailWorks().then(gj => {
+          const src = this.map?.getSource('rail_works') as maplibregl.GeoJSONSource | undefined;
           if (src && gj?.features?.length) src.setData(gj);
         }).catch(() => {});
       }
@@ -1439,7 +1491,7 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings', 'rail_works', 'rail_works_point', 'rail_works_label']
         });
         
         if (features.length) {
@@ -1617,6 +1669,13 @@ export class MapController {
     if (layerKey === 'border_crossings') {
       toggle('border_crossings');
       toggle('border_crossings_label');
+      return;
+    }
+    if (layerKey === 'rail_works') {
+      toggle('rail_works');
+      toggle('rail_works_point');
+      toggle('rail_works_label');
+      toggle('rail_works_point_label');
       return;
     }
     if (layerKey === 'freight_paths') {
@@ -3473,7 +3532,32 @@ export class MapController {
 
   public buildTelemetryNode(type: string, data: any, coords: [number, number]): TelemetryNode {
     const metrics: any[] = [];
-    
+
+    // A restriction is not a vehicle: none of the speed/status/GPS-age
+    // metrics below apply, so its node is built here and returned.
+    if (type === 'rail_works' || data.type === 'rail_work') {
+      metrics.push({ label: 'Stanje', value: data.status, highlight: data.status === 'v teku' });
+      metrics.push({ label: 'Obdobje', value: `${data.dateFrom} – ${data.dateTo}`, highlight: false });
+      if (data.line) metrics.push({ label: 'Proga', value: data.line, highlight: false });
+      if (data.impacts) metrics.push({ label: 'Vpliv', value: data.impacts, highlight: !!data.totalClosure });
+      if (data.reason) metrics.push({ label: 'Razlog', value: data.reason, highlight: false });
+      if (data.description) metrics.push({ label: 'Opis', value: data.description, highlight: false });
+      if (data.timeOfDay) metrics.push({ label: 'Čas dneva', value: data.timeOfDay, highlight: false });
+      if (data.updated) metrics.push({ label: 'Zadnja sprememba v seznamu', value: data.updated, highlight: false });
+      if (data.sources) metrics.push({ label: 'Vir', value: data.sources, highlight: false });
+      if (data.basis) metrics.push({ label: 'Podlaga', value: data.basis, highlight: false });
+      return {
+        id: data.id || 'sel',
+        title: data.name || 'Dela na progi',
+        category: 'DELA NA PROGI / ZAPORA (TCR)',
+        type: 'rail_work',
+        coordinates: coords,
+        timestamp: new Date(),
+        metrics,
+        rawPayload: data
+      };
+    }
+
     if (data.density != null) { metrics.push({ label: 'Vzorec', value: data.density > '70%' ? 'Večerni vrhunec' : 'Stalen tok', highlight: false }); metrics.push({ label: 'Gostota', value: data.density, highlight: true }); }
     if (false) metrics.push({ label: 'Gostota', value: data.density, highlight: true });
         
@@ -4281,6 +4365,8 @@ export class MapController {
       resolvedCategory = 'MESTNI TRAMVAJ';
     } else if (data.type === 'bus' || type === 'buses') {
       resolvedCategory = 'AVTOBUSNI PROMET';
+    } else if (type === 'rail_works' || data.type === 'rail_work') {
+      resolvedCategory = 'DELA NA PROGI / ZAPORA (TCR)';
     } else if (type === 'freight_train' || type === 'freight_trains' || data.type === 'freight_train') {
       resolvedCategory = 'TOVORNI BLOK VLAK (TEN-T)';
     } else if (isStationNode) {
@@ -4486,6 +4572,7 @@ export const LAYER_META: Record<string, { label: string; color: string; category
   freight_paths: { label: 'Tovorni vlaki (katalog poti)', color: '#f97316', category: 'sz' },
   tent_railways:  { label: 'TEN-T proge (tovor / potniki)', color: '#a78bfa', category: 'sz' },
   border_crossings: { label: 'Mejni prehodi (RINF)', color: '#f472b6', category: 'sz' },
+  rail_works:     { label: 'Dela na progi / zapore (TCR koridorjev)', color: '#f59e0b', category: 'sz' },
   sensorcommunity:{ label: 'Sensor.Community (Nokia/Siemens/Air)', color: '#14b8a6', category: 'iot' },
   github:         { label: 'GitHub Open Source (Smart City)', color: '#e2e8f0', category: 'logistics' },
   openaq:         { label: 'OpenAQ (.gov zrak)', color: '#14b8a6', category: 'env' },

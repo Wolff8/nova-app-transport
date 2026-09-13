@@ -1166,10 +1166,34 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         {raw.trainNumber && (
                           <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
                             Številka {raw.trainNumber} je nacionalna številka poti iz stolpca „SZ-I" —
-                            Core identifikatorja TAF TSI. Časi so objavljeni v Kopru, Ljubljani in na
-                            Hodošu; lega med njimi je interpolirana po kilometraži.
+                            Core identifikatorja TAF TSI. Časi so objavljeni le na točkah kataloga
+                            ({(unpack(raw.timingPoints) || []).map((t: any) => t.location).join(', ') || 'glej spodaj'});
+                            lega med njimi je interpolirana po kilometraži.
                           </p>
                         )}
+                        {raw.catalogueLabel && (
+                          <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
+                            Katalog: <strong className="text-amber-200">{raw.catalogueLabel}</strong>
+                            {raw.corridorLabel ? ` · koridor ${raw.corridorLabel}` : ''}
+                          </p>
+                        )}
+                        {(() => {
+                          const ps: any[] = unpack(raw.publishedServices) || [];
+                          if (!ps.length) return null;
+                          return (
+                            <div className="mt-2 pt-2 border-t border-amber-500/20">
+                              <div className="text-[10px] uppercase font-mono tracking-wider text-white/70">Objavljeni urniki prevoznikov na tej relaciji</div>
+                              {ps.map((s: any, i: number) => (
+                                <p key={i} className="mt-1 text-[10.5px] leading-snug text-amber-100/85">
+                                  <strong className="text-amber-200">{s.operator}</strong>: {s.from} → {s.to}, {s.perDay}× na dan
+                                  {Array.isArray(s.days) && s.days.length === 7 ? ' (vsak dan)' : ''}
+                                  <span className="block text-[9.5px] font-mono text-amber-200/60">vir: {s.source}{s.retrieved ? ` · prebrano ${s.retrieved}` : ''}</span>
+                                </p>
+                              ))}
+                              <p className="mt-1 text-[9.5px] leading-snug text-amber-100/60">{ps[0].basis}</p>
+                            </div>
+                          );
+                        })()}
                         {/* The map can show two published paths nose to tail on a
                             single-track line. Each position is an honest reading of
                             its own timings, but the pair together is not something
@@ -1177,10 +1201,13 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         <p className="mt-1.5 text-[10px] leading-snug text-amber-100/70">
                             Med objavljenimi točkami je predpostavljena stalna hitrost. V resnici vlak
                             vozi blizu progovne hitrosti in nato dlje časa stoji na križišču — kje, iz
-                            kataloga ni razvidno. Progi 40 (Pragersko–Ormož) in 41 (Ormož–Hodoš) sta
-                            <strong className="text-amber-200"> enotirni</strong> (Program omrežja, Priloga 2A), zato se
-                            prehitevanje zgodi na postaji, ne na odprti progi. Če sta na mapi dve poti
-                            tesno skupaj, je to posledica te poenostavitve, ne dejanska lega.
+                            kataloga ni razvidno.
+                            {raw.corridor === 'koper-hodos' && (
+                              <> Progi 40 (Pragersko–Ormož) in 41 (Ormož–Hodoš) sta
+                              <strong className="text-amber-200"> enotirni</strong> (Program omrežja, Priloga 2A), zato se
+                              prehitevanje zgodi na postaji, ne na odprti progi.</>
+                            )}
+                            {' '}Če sta na mapi dve poti tesno skupaj, je to posledica te poenostavitve, ne dejanska lega.
                         </p>
                         {raw.source && (
                           <p className="mt-1.5 text-[9.5px] font-mono text-amber-200/60 leading-snug">

@@ -9888,7 +9888,7 @@ app.post('/api/log', express.json(), (req, res) => {
   };
   type CorridorPath = {
     papId: string; trainNumberSZ: string | null; relation: string;
-    corridor: string; direction: string; daysOfWeek: number[] | null;
+    corridor: string; catalogue?: string; daysOfWeek: number[] | null;
     timingPoints: CorridorPathTiming[]; foreignSections?: CorridorForeignSection[];
   };
   let corridorPathData: { paths: CorridorPath[]; [k: string]: any } | null = null;
@@ -10007,26 +10007,53 @@ app.post('/api/log', express.json(), (req, res) => {
    * load" looked like. The work is the same; it now yields between chunks so
    * nothing else is starved while it runs.
    */
+  /**
+   * The corridors the catalogues' paths run on. Each is one polyline assembled
+   * from the exact track geometry, drawn in the direction `forwardLabel`
+   * names; a path whose timing points run the other way is "reverse".
+   * Index 2229 of ZALOG_PRAGERSKO is Zidani Most, where the Dobova line
+   * branches off (checked against the RINF coordinate of the station).
+   */
+  const CORRIDORS: Record<string, { label: string; forwardLabel: string; reverseLabel: string; build: () => [number, number][] | null }> = {
+    'koper-hodos': {
+      label: 'Koper – Ljubljana – Pragersko – Hodoš', forwardLabel: 'proti Madžarski', reverseLabel: 'proti Kopru',
+      build: () => GEO_KOPER_ZALOG?.length ? [...GEO_KOPER_ZALOG, ...GEO_ZALOG_PRAGERSKO.slice(1), ...GEO_PRAGERSKO_HODOS.slice(1)] as [number, number][] : null
+    },
+    'opicina-dobova': {
+      label: 'Villa Opicina – Sežana – Ljubljana – Zidani Most – Dobova', forwardLabel: 'proti Hrvaški', reverseLabel: 'proti Italiji',
+      // Drawn Villa Opicina -> Dobova, so the stored geometry that runs
+      // Divača -> Opicina is reversed onto the front.
+      build: () => (GEO_DIVACA_SEZANA_OPICINA?.length && GEO_ZIDANI_MOST_DOBOVA?.length)
+        ? [...GEO_DIVACA_SEZANA_OPICINA.slice().reverse(), ...GEO_DIVACA_ZALOG.slice(1), ...GEO_ZALOG_PRAGERSKO.slice(1, 2229), ...GEO_ZIDANI_MOST_DOBOVA] as [number, number][]
+        : null
+    },
+    'dobova-maribor': {
+      label: 'Dobova – Zidani Most – Celje – Pragersko – Maribor', forwardLabel: 'proti Mariboru', reverseLabel: 'proti Hrvaški',
+      build: () => (GEO_ZIDANI_MOST_DOBOVA?.length && GEO_PRAGERSKO_MARIBOR?.length)
+        ? [...GEO_ZIDANI_MOST_DOBOVA.slice().reverse(), ...GEO_ZALOG_PRAGERSKO.slice(2230), ...GEO_PRAGERSKO_MARIBOR.slice(1)] as [number, number][]
+        : null
+    },
+    'pragersko-spielfeld': {
+      label: 'Pragersko – Maribor – Šentilj – Spielfeld', forwardLabel: 'proti Avstriji', reverseLabel: 'proti Mariboru',
+      // The stored geometry ends at Šentilj station; the last four
+      // kilometres to the border point (RINF, Šentilj d.m.) and to the
+      // ÖBB timing point at Spielfeld-Straß are a two-segment extension.
+      build: () => (GEO_PRAGERSKO_MARIBOR?.length && GEO_MARIBOR_SPILJE?.length)
+        ? [...GEO_PRAGERSKO_MARIBOR, ...GEO_MARIBOR_SPILJE.slice(1), [15.6404, 46.692], [15.6301, 46.7115]] as [number, number][]
+        : null
+    },
+    'ljubljana-jesenice': {
+      label: 'Ljubljana – Kranj – Jesenice', forwardLabel: 'proti Avstriji (Jesenice)', reverseLabel: 'proti Ljubljani',
+      // The stored geometry ends at Jesenice station; the border point
+      // (RINF, Jesenice d.m., at the Karawanken tunnel) is one segment on.
+      build: () => GEO_ZALOG_JESENICE?.length ? [...GEO_ZALOG_JESENICE, [14.0199, 46.4815]] as [number, number][] : null
+    }
+  };
+
   async function warmCorridor(corridor: string): Promise<void> {
     if (corridorTrackCache.has(corridor)) return;
 
-    let track: [number, number][] | null = null;
-    if (corridor === 'koper-hodos' && GEO_KOPER_ZALOG?.length) {
-      track = [
-        ...GEO_KOPER_ZALOG,
-        ...GEO_ZALOG_PRAGERSKO.slice(1),
-        ...GEO_PRAGERSKO_HODOS.slice(1)
-      ] as [number, number][];
-    } else if (corridor === 'opicina-dobova' && GEO_DIVACA_SEZANA_OPICINA?.length && GEO_ZIDANI_MOST_DOBOVA?.length) {
-      // Drawn Villa Opicina -> Dobova, so the stored geometry that runs
-      // Divača -> Opicina is reversed onto the front.
-      track = [
-        ...GEO_DIVACA_SEZANA_OPICINA.slice().reverse(),
-        ...GEO_DIVACA_ZALOG.slice(1),
-        ...GEO_ZALOG_PRAGERSKO.slice(1, 2229),
-        ...GEO_ZIDANI_MOST_DOBOVA
-      ] as [number, number][];
-    }
+    const track: [number, number][] | null = CORRIDORS[corridor]?.build() ?? null;
     if (!track || track.length < 2) { corridorTrackCache.set(corridor, null); return; }
 
     // Measured once, then reused by every projection below and by the timing
@@ -10095,7 +10122,7 @@ app.post('/api/log', express.json(), (req, res) => {
   // Prepared at startup rather than on the first request, and sequentially so
   // the two never compete for the one CPU this instance has.
   (async () => {
-    for (const c of ['koper-hodos', 'opicina-dobova']) {
+    for (const c of Object.keys(CORRIDORS)) {
       try { await warmCorridor(c); } catch (e) { console.error(`[RFC6] corridor ${c} failed`, e); }
     }
   })();
@@ -10182,6 +10209,12 @@ app.post('/api/log', express.json(), (req, res) => {
    *   timetable, so "where is path 42020 at 13:30" is a legitimate question of
    *   it; the response says when this was used so it cannot pass for live.
    */
+  // The licensed-operator list per corridor changes only when the registers
+  // are refreshed (every six hours), and building it walks the keeper
+  // register once per undertaking — 70-90 ms here, seconds on the instance.
+  const operatorCandidatesCache = new Map<string, { body: any; ts: number }>();
+  const OPERATOR_CANDIDATES_TTL_MS = 60 * 60 * 1000;
+
   function corridorFreightPositions(atMin?: number) {
     if (!corridorPathData || !GEO_KOPER_ZALOG?.length) return null;
     const now = new Date();
@@ -10200,10 +10233,30 @@ app.post('/api/log', express.json(), (req, res) => {
     const features: any[] = [];
     const board: any[] = [];
 
-    // The same answer for every path (the catalogue names no cargo and no
-    // operator), and not a cheap one: it walks the keeper register once per
-    // licensed undertaking. Computed once per response, not once per path.
-    const operatorCandidates = freightOperatorCandidates(null, 'pragersko_hodos');
+    // The same answer for every path on a corridor (the catalogue names no
+    // cargo and no operator), and not a cheap one: it walks the keeper
+    // register once per licensed undertaking. Computed once per corridor per
+    // response, not once per path.
+    const operatorCandidatesFor = (corridor: string) => {
+      const hit = operatorCandidatesCache.get(corridor);
+      if (hit && Date.now() - hit.ts < OPERATOR_CANDIDATES_TTL_MS) return hit.body;
+      const body = freightOperatorCandidates(null, corridor.replace(/-/g, '_'));
+      operatorCandidatesCache.set(corridor, { body, ts: Date.now() });
+      return body;
+    };
+    const normRel = (s: string) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const publishedServicesFor = (relation: string) => {
+      const rel = normRel(relation);
+      const out: any[] = [];
+      for (const s of (corridorPathData?.operatorServices ?? []) as any[]) {
+        // "Dunajska to Koper" matches Dunajská Streda -> Koper by the first
+        // word of each end, in order.
+        const a = normRel(s.from).split(' ')[0], b = normRel(s.to).split(' ')[0];
+        const ia = rel.indexOf(a), ib = rel.indexOf(b);
+        if (ia >= 0 && ib > ia) out.push({ ...s, basis: 'Ujemanje relacije z urnikom, ki ga objavlja prevoznik (število vlakov na dan, brez ur). Ni potrdilo, da ta prevoznik vozi po tej poti.' });
+      }
+      return out.length ? out : null;
+    };
 
     const pending = new Set<string>();
     for (const p of corridorPathData.paths) {
@@ -10220,9 +10273,10 @@ app.post('/api/log', express.json(), (req, res) => {
       }
       const pts = p.timingPoints.filter(t => geo.kmAt[t.location] != null);
       if (pts.length < 2) continue;
-      // The polylines are drawn Koper -> Hodoš and Villa Opicina -> Dobova; a
-      // path marked "forward" travels with that direction, "reverse" against.
-      const forward = p.direction === 'forward';
+      // Which way along the polyline the path runs, read off the measured
+      // kilometres of its first and last timing point rather than off a flag.
+      const forward = geo.kmAt[pts[pts.length - 1].location] >= geo.kmAt[pts[0].location];
+      const corridorMeta = CORRIDORS[p.corridor];
 
       // The catalogue publishes an arrival AND a departure at intermediate
       // points — 42020 reaches Ljubljana Zalog 13:17 and leaves 13:54, 47911
@@ -10384,12 +10438,14 @@ app.post('/api/log', express.json(), (req, res) => {
         trainNumber: p.trainNumberSZ,
         relation: p.relation,
         corridor: p.corridor,
-        corridorLabel: p.corridor === 'koper-hodos'
-          ? 'Koper – Ljubljana – Hodoš'
-          : 'Villa Opicina – Sežana – Ljubljana – Dobova',
-        direction: p.corridor === 'koper-hodos'
-          ? (forward ? 'proti Madžarski' : 'proti Kopru')
-          : (forward ? 'proti Hrvaški' : 'proti Italiji'),
+        corridorLabel: corridorMeta?.label ?? p.corridor,
+        direction: forward ? (corridorMeta?.forwardLabel ?? 'naprej') : (corridorMeta?.reverseLabel ?? 'nazaj'),
+        catalogue: (p as any).catalogue ?? 'RFC6',
+        catalogueLabel: (p as any).catalogue === 'RFC10' ? 'RFC Alpine-Western Balkan (RFC10)' : 'RFC Mediterranean (RFC6)',
+        // Operator-published services on this relation. A relation match,
+        // not a booking: it says who publishes trains on the relation this
+        // path serves, not that this path is theirs.
+        publishedServices: publishedServicesFor(p.relation),
         daysOfWeek: p.daysOfWeek,
         runsToday, active,
         // Permitted line speed here — the figure that matches what is visible
@@ -10415,7 +10471,7 @@ app.post('/api/log', express.json(), (req, res) => {
         elapsedMin: active ? Math.round(elapsed) : null,
         // The catalogue names no operator: a path is offered, and whoever books
         // it runs it. These are the companies the register says may.
-        operatorCandidates,
+        operatorCandidates: operatorCandidatesFor(p.corridor),
         timingPoints: p.timingPoints,
         // The honest line, carried on the train itself rather than a footnote.
         status: 'Objavljena pot iz kataloga koridorja. Ni potrjeno, da danes vozi.',
@@ -10488,6 +10544,83 @@ app.post('/api/log', express.json(), (req, res) => {
     const body = modelledFreightPositions();
     if (!body) return res.status(503).json({ error: 'Geometrija koridorja ni na voljo' });
     modelledFreightCache = { body, ts: Date.now() };
+    res.json(body);
+  });
+
+  /**
+   * Temporary capacity restrictions (works, closures, single-track running)
+   * on the Slovenian network, from the TCR lists the two rail freight
+   * corridors publish for SŽ-Infrastruktura. Drawn along the corridor
+   * polyline where both ends lie on one, otherwise as a straight line between
+   * the two operational points; a restriction at one station is a point.
+   */
+  let lineWorksData: { works: any[]; [k: string]: any } | null = null;
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'lineWorks.json');
+    if (fs.existsSync(p)) {
+      lineWorksData = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log(`[TCR] line works loaded: ${lineWorksData!.works.length}`);
+    }
+  } catch (e) { console.error('[TCR] line works load failed', e); }
+  let lineWorksCache: { body: any; ts: number } | null = null;
+
+  app.get('/api/rail/works', (_req, res) => {
+    if (!lineWorksData) return res.status(503).json({ error: 'Seznam del ni na voljo' });
+    if (lineWorksCache && Date.now() - lineWorksCache.ts < 10 * 60 * 1000) return res.json(lineWorksCache.body);
+    const today = new Date().toISOString().slice(0, 10);
+    const soon = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+    const recent = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const features: any[] = [];
+    let pending = false;
+    for (const w of lineWorksData.works) {
+      if (!w.fromPoint || !w.toPoint || !w.dateTo || w.dateTo < recent) continue;
+      const status = w.dateFrom <= today && w.dateTo >= today ? 'v teku' : (w.dateFrom > today ? (w.dateFrom <= soon ? 'kmalu' : 'načrtovano') : 'končano');
+      let geometry: any;
+      const samePoint = Math.abs(w.fromPoint.lat - w.toPoint.lat) < 1e-4 && Math.abs(w.fromPoint.lon - w.toPoint.lon) < 1e-4;
+      if (samePoint) {
+        geometry = { type: 'Point', coordinates: [w.fromPoint.lon, w.fromPoint.lat] };
+      } else {
+        geometry = { type: 'LineString', coordinates: [[w.fromPoint.lon, w.fromPoint.lat], [w.toPoint.lon, w.toPoint.lat]] };
+        for (const c of Object.keys(CORRIDORS)) {
+          const geo = corridorPathTrack(c);
+          if (!geo) { if (!corridorTrackCache.has(c)) pending = true; continue; }
+          const A = kmAlongTrack(geo.track, w.fromPoint.lat, w.fromPoint.lon, geo.dists, geo.cumulative);
+          const B = kmAlongTrack(geo.track, w.toPoint.lat, w.toPoint.lon, geo.dists, geo.cumulative);
+          if (A.offKm > 1.5 || B.offKm > 1.5) continue;
+          const lo = Math.min(A.km, B.km), hi = Math.max(A.km, B.km);
+          const coords: [number, number][] = [];
+          const steps = Math.max(2, Math.min(200, Math.round((hi - lo) / 0.5)));
+          for (let i = 0; i <= steps; i++) { const q = pointAtKm(geo, lo + ((hi - lo) * i) / steps); coords.push([Math.round(q.lon * 1e5) / 1e5, Math.round(q.lat * 1e5) / 1e5]); }
+          geometry = { type: 'LineString', coordinates: coords };
+          break;
+        }
+      }
+      features.push({
+        type: 'Feature',
+        geometry,
+        properties: {
+          id: `tcr_${w.id}_${w.dateFrom}`, type: 'rail_work',
+          name: samePoint ? w.from : `${w.from} – ${w.to}`,
+          line: w.line ?? null, from: w.from, to: w.to,
+          dateFrom: w.dateFrom, dateTo: w.dateTo, status,
+          timeOfDay: w.timeOfDay ?? null, reason: w.reason ?? null,
+          impacts: (w.impacts || []).join(', ') || null,
+          totalClosure: (w.impacts || []).some((s: string) => /popolna zapora/.test(s)),
+          description: w.description ?? null,
+          sources: (w.sources || []).join('; '), updated: w.updated ?? null,
+          basis: 'Začasna omejitev zmogljivosti (TCR) iz koridorskega seznama. Načrt, ne potrditev, da dela ta trenutek potekajo.'
+        }
+      });
+    }
+    const body = {
+      type: 'FeatureCollection', source: lineWorksData.source, sourceUrls: lineWorksData.sourceUrls, note: lineWorksData.note,
+      generatedAt: new Date().toISOString(), count: features.length,
+      active: features.filter(f => f.properties.status === 'v teku').length,
+      features
+    };
+    // Geometry along a corridor still being prepared is a straight line; do
+    // not remember that for ten minutes.
+    if (!pending) lineWorksCache = { body, ts: Date.now() };
     res.json(body);
   });
 

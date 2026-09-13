@@ -783,6 +783,19 @@ export async function loadCorridorFreightPaths(errors?: string[]): Promise<any> 
     return { type: 'FeatureCollection', features: [] };
 }
 
+export async function loadRailWorks(errors?: string[]): Promise<any> {
+    try {
+        const res = await fetch('/api/rail/works');
+        if (res.ok) {
+            const data = await res.json();
+            if (data && Array.isArray(data.features)) return data;
+        }
+    } catch (e) {
+        if (errors) errors.push('Rail works error');
+    }
+    return null;
+}
+
 export async function loadBorderCrossings(errors?: string[]): Promise<any> {
     try {
         const res = await fetch('/api/rinf/border-crossings');

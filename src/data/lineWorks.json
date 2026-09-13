@@ -1,0 +1,870 @@
+{
+ "source": "Začasne omejitve zmogljivosti (TCR) SŽ-Infrastrukture, kot jih objavljata koridorja RFC Mediterranean in RFC Alpine-Western Balkan",
+ "sourceUrls": [
+  "https://www.rfc-awb.eu/documents/",
+  "https://www.rfc-med.eu/"
+ ],
+ "note": "Načrtovana in tekoča dela iz koridorskih seznamov TCR. Seznama ne zajemata nujno vseh zapor na omrežju; točni dnevni termini so v obvestilih SŽ-Infrastrukture.",
+ "locationSource": "ERA RINF (operational points)",
+ "generated": "2026-09-13T18:56:46.090Z",
+ "works": [
+  {
+   "id": "7916",
+   "line": "Koper-Ljubljana",
+   "from": "Ljubljana",
+   "to": "Ljubljana",
+   "dateFrom": "2024-11-10",
+   "dateTo": "2027-10-02",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [],
+   "description": "Station renewal",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Ljubljana",
+    "lat": 46.0585712,
+    "lon": 14.5102702
+   },
+   "toPoint": {
+    "name": "Ljubljana",
+    "lat": 46.0585712,
+    "lon": 14.5102702
+   },
+   "located": true
+  },
+  {
+   "id": "791003",
+   "line": null,
+   "from": "Ljubljana",
+   "to": "Ljubljana",
+   "dateFrom": "2024-11-10",
+   "dateTo": "2026-08-31",
+   "timeOfDay": "continuous",
+   "reason": "station tracks",
+   "impacts": [],
+   "description": "Renewal of the individual tracks",
+   "updated": "2024-12-10",
+   "status": "planned",
+   "sources": [
+    "RFC AWB TCR TT2025-2026 (22.8.2025)"
+   ],
+   "fromPoint": {
+    "name": "Ljubljana",
+    "lat": 46.0585712,
+    "lon": 14.5102702
+   },
+   "toPoint": {
+    "name": "Ljubljana",
+    "lat": 46.0585712,
+    "lon": 14.5102702
+   },
+   "located": true
+  },
+  {
+   "id": "792001",
+   "line": null,
+   "from": "Medvode",
+   "to": "Škofja Loka",
+   "dateFrom": "2025-08-01",
+   "dateTo": "2025-08-17",
+   "timeOfDay": "continuous",
+   "reason": "maintenance",
+   "impacts": [],
+   "description": "Renewal of the railway line",
+   "updated": "2024-12-10",
+   "status": "planned",
+   "sources": [
+    "RFC AWB TCR TT2025-2026 (22.8.2025)"
+   ],
+   "fromPoint": {
+    "name": "Medvode",
+    "lat": 46.13792,
+    "lon": 14.4121693
+   },
+   "toPoint": {
+    "name": "Škofja Loka",
+    "lat": 46.1744996,
+    "lon": 14.3356703
+   },
+   "located": true
+  },
+  {
+   "id": "791001",
+   "line": null,
+   "from": "Krško",
+   "to": "Krško",
+   "dateFrom": "2025-10-03",
+   "dateTo": "2026-07-26",
+   "timeOfDay": "continuous",
+   "reason": "station tracks",
+   "impacts": [],
+   "description": "Renewal of the individual tracks",
+   "updated": "2024-12-10",
+   "status": "planned",
+   "sources": [
+    "RFC AWB TCR TT2025-2026 (22.8.2025)"
+   ],
+   "fromPoint": {
+    "name": "Krško",
+    "lat": 45.9561252,
+    "lon": 15.4934674
+   },
+   "toPoint": {
+    "name": "Krško",
+    "lat": 45.9561252,
+    "lon": 15.4934674
+   },
+   "located": true
+  },
+  {
+   "id": "791005",
+   "line": null,
+   "from": "Trbovlje",
+   "to": "Trbovlje",
+   "dateFrom": "2025-10-18",
+   "dateTo": "2025-12-31",
+   "timeOfDay": "continuous",
+   "reason": "station tracks",
+   "impacts": [],
+   "description": "Renewal of the individual tracks",
+   "updated": "2024-12-10",
+   "status": "planned",
+   "sources": [
+    "RFC AWB TCR TT2025-2026 (22.8.2025)"
+   ],
+   "fromPoint": {
+    "name": "Trbovlje",
+    "lat": 46.1262165,
+    "lon": 15.0366892
+   },
+   "toPoint": {
+    "name": "Trbovlje",
+    "lat": 46.1262165,
+    "lon": 15.0366892
+   },
+   "located": true
+  },
+  {
+   "id": "7914",
+   "line": "Koper - Ljubljana",
+   "from": "Preserje",
+   "to": "Preserje",
+   "dateFrom": "2026-01-11",
+   "dateTo": "2027-03-15",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [],
+   "description": "Station renewal",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Preserje",
+    "lat": 45.9666761,
+    "lon": 14.3968084
+   },
+   "toPoint": {
+    "name": "Preserje",
+    "lat": 45.9666761,
+    "lon": 14.3968084
+   },
+   "located": true
+  },
+  {
+   "id": "7923",
+   "line": "Ljubljana - Jesenice",
+   "from": "Jesenice",
+   "to": "Jesenice",
+   "dateFrom": "2026-02-06",
+   "dateTo": "2027-09-27",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [],
+   "description": "Station renewal",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Jesenice",
+    "lat": 46.4360452,
+    "lon": 14.0546156
+   },
+   "toPoint": {
+    "name": "Jesenice",
+    "lat": 46.4360452,
+    "lon": 14.0546156
+   },
+   "located": true
+  },
+  {
+   "id": "791004",
+   "line": null,
+   "from": "Jesenice",
+   "to": "Jesenice",
+   "dateFrom": "2026-02-06",
+   "dateTo": "2027-09-27",
+   "timeOfDay": "continuous",
+   "reason": "station tracks",
+   "impacts": [],
+   "description": "Renewal of the individual tracks",
+   "updated": "2024-12-10",
+   "status": "planned",
+   "sources": [
+    "RFC AWB TCR TT2025-2026 (22.8.2025)"
+   ],
+   "fromPoint": {
+    "name": "Jesenice",
+    "lat": 46.4360452,
+    "lon": 14.0546156
+   },
+   "toPoint": {
+    "name": "Jesenice",
+    "lat": 46.4360452,
+    "lon": 14.0546156
+   },
+   "located": true
+  },
+  {
+   "id": "7915",
+   "line": "Koper - Ljubljana",
+   "from": "Divača",
+   "to": "Koper",
+   "dateFrom": "2026-02-07",
+   "dateTo": "2026-02-08",
+   "timeOfDay": "Continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora"
+   ],
+   "description": null,
+   "updated": null,
+   "sources": [
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Divača",
+    "lat": 45.6815127,
+    "lon": 13.9651535
+   },
+   "toPoint": {
+    "name": "Koper",
+    "lat": 45.539055,
+    "lon": 13.7385807
+   },
+   "located": true
+  },
+  {
+   "id": "7915",
+   "line": "Koper - Ljubljana",
+   "from": "Divača",
+   "to": "Koper",
+   "dateFrom": "2026-03-07",
+   "dateTo": "2026-03-08",
+   "timeOfDay": "Continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora"
+   ],
+   "description": null,
+   "updated": null,
+   "sources": [
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Divača",
+    "lat": 45.6815127,
+    "lon": 13.9651535
+   },
+   "toPoint": {
+    "name": "Koper",
+    "lat": 45.539055,
+    "lon": 13.7385807
+   },
+   "located": true
+  },
+  {
+   "id": "7915",
+   "line": "Koper - Ljubljana",
+   "from": "Divača",
+   "to": "Koper",
+   "dateFrom": "2026-05-01",
+   "dateTo": "2026-05-03",
+   "timeOfDay": "Continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora"
+   ],
+   "description": null,
+   "updated": null,
+   "sources": [
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Divača",
+    "lat": 45.6815127,
+    "lon": 13.9651535
+   },
+   "toPoint": {
+    "name": "Koper",
+    "lat": 45.539055,
+    "lon": 13.7385807
+   },
+   "located": true
+  },
+  {
+   "id": "791002",
+   "line": null,
+   "from": "Sevnica",
+   "to": "Sevnica",
+   "dateFrom": "2026-06-19",
+   "dateTo": "2026-12-31",
+   "timeOfDay": "continuous",
+   "reason": "station tracks",
+   "impacts": [],
+   "description": "Renewal of the individual tracks",
+   "updated": "2024-12-10",
+   "status": "planned",
+   "sources": [
+    "RFC AWB TCR TT2025-2026 (22.8.2025)"
+   ],
+   "fromPoint": {
+    "name": "Sevnica",
+    "lat": 46.0093232,
+    "lon": 15.3012959
+   },
+   "toPoint": {
+    "name": "Sevnica",
+    "lat": 46.0093232,
+    "lon": 15.3012959
+   },
+   "located": true
+  },
+  {
+   "id": "7912",
+   "line": "Koper - Ljubljana",
+   "from": "Brezovica",
+   "to": "Preserje",
+   "dateFrom": "2026-06-30",
+   "dateTo": "2027-03-15",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "zmanjšana razpoložljivost tirov (LT)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Brezovica",
+    "lat": 46.0218774,
+    "lon": 14.4278476
+   },
+   "toPoint": {
+    "name": "Preserje",
+    "lat": 45.9666761,
+    "lon": 14.3968084
+   },
+   "located": true
+  },
+  {
+   "id": "7915",
+   "line": "Koper - Ljubljana",
+   "from": "Divača",
+   "to": "Koper",
+   "dateFrom": "2026-08-15",
+   "dateTo": "2026-08-17",
+   "timeOfDay": "Continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora"
+   ],
+   "description": null,
+   "updated": null,
+   "sources": [
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Divača",
+    "lat": 45.6815127,
+    "lon": 13.9651535
+   },
+   "toPoint": {
+    "name": "Koper",
+    "lat": 45.539055,
+    "lon": 13.7385807
+   },
+   "located": true
+  },
+  {
+   "id": "791006",
+   "line": null,
+   "from": "Ljubljana Šiška",
+   "to": "Vižmarje",
+   "dateFrom": "2026-08-17",
+   "dateTo": "2026-08-31",
+   "timeOfDay": "continuous",
+   "reason": "maintenance",
+   "impacts": [],
+   "description": "Renewal of the railway line",
+   "updated": "2024-12-10",
+   "status": "planned",
+   "sources": [
+    "RFC AWB TCR TT2025-2026 (22.8.2025)"
+   ],
+   "fromPoint": {
+    "name": "Ljubljana Šiška",
+    "lat": 46.0659913,
+    "lon": 14.5001171
+   },
+   "toPoint": {
+    "name": "Ljubljana Vižmarje",
+    "lat": 46.1006715,
+    "lon": 14.4645052
+   },
+   "located": true
+  },
+  {
+   "id": "7918",
+   "line": "Ljubljana - Jesenice",
+   "from": "Ljubljana Šiška",
+   "to": "Kranj",
+   "dateFrom": "2026-09-25",
+   "dateTo": "2026-10-11",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora",
+    "zmanjšana razpoložljivost tirov (LT+ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Ljubljana Šiška",
+    "lat": 46.0659913,
+    "lon": 14.5001171
+   },
+   "toPoint": {
+    "name": "Kranj",
+    "lat": 46.2421477,
+    "lon": 14.3476422
+   },
+   "located": true
+  },
+  {
+   "id": "7980",
+   "line": "Jesenice-Nova Gorica",
+   "from": "Jesenice",
+   "to": "Bled Jezero",
+   "dateFrom": "2026-09-25",
+   "dateTo": "2026-11-12",
+   "timeOfDay": "Continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora"
+   ],
+   "description": null,
+   "updated": null,
+   "sources": [
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Jesenice",
+    "lat": 46.4360452,
+    "lon": 14.0546156
+   },
+   "toPoint": {
+    "name": "Bled Jezero",
+    "lat": 46.3683115,
+    "lon": 14.0823119
+   },
+   "located": true
+  },
+  {
+   "id": "7911",
+   "line": "Koper - Ljubljana",
+   "from": "Borovnica",
+   "to": "Verd",
+   "dateFrom": "2026-10-06",
+   "dateTo": "2026-12-23",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "zmanjšana razpoložljivost tirov (ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Borovnica",
+    "lat": 45.9213886,
+    "lon": 14.368218
+   },
+   "toPoint": {
+    "name": "Verd",
+    "lat": 45.9479679,
+    "lon": 14.3039226
+   },
+   "located": true
+  },
+  {
+   "id": "7918",
+   "line": "Ljubljana - Jesenice",
+   "from": "Ljubljana Šiška",
+   "to": "Kranj",
+   "dateFrom": "2026-11-02",
+   "dateTo": "2026-11-06",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora",
+    "zmanjšana razpoložljivost tirov (LT+ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Ljubljana Šiška",
+    "lat": 46.0659913,
+    "lon": 14.5001171
+   },
+   "toPoint": {
+    "name": "Kranj",
+    "lat": 46.2421477,
+    "lon": 14.3476422
+   },
+   "located": true
+  },
+  {
+   "id": "7908",
+   "line": "Ljubljana - Celje",
+   "from": "Zagorje",
+   "to": "Sava",
+   "dateFrom": "2026-12-04",
+   "dateTo": "2026-12-13",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "zmanjšana razpoložljivost tirov (ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Zagorje",
+    "lat": 46.1205577,
+    "lon": 14.9909258
+   },
+   "toPoint": {
+    "name": "Sava",
+    "lat": 46.088673,
+    "lon": 14.8984704
+   },
+   "located": true
+  },
+  {
+   "id": "7911",
+   "line": "Koper - Ljubljana",
+   "from": "Borovnica",
+   "to": "Verd",
+   "dateFrom": "2027-01-04",
+   "dateTo": "2027-03-31",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "zmanjšana razpoložljivost tirov (LT)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Borovnica",
+    "lat": 45.9213886,
+    "lon": 14.368218
+   },
+   "toPoint": {
+    "name": "Verd",
+    "lat": 45.9479679,
+    "lon": 14.3039226
+   },
+   "located": true
+  },
+  {
+   "id": "7924",
+   "line": "Zidani Most - Dobova",
+   "from": "Krško",
+   "to": "Krško",
+   "dateFrom": "2027-01-25",
+   "dateTo": "2027-09-20",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [],
+   "description": "Station renewal",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Krško",
+    "lat": 45.9561252,
+    "lon": 15.4934674
+   },
+   "toPoint": {
+    "name": "Krško",
+    "lat": 45.9561252,
+    "lon": 15.4934674
+   },
+   "located": true
+  },
+  {
+   "id": "7921",
+   "line": "Ljubljana - Jesenice",
+   "from": "Lesce Bled",
+   "to": "Jesenice d.m.",
+   "dateFrom": "2027-03-19",
+   "dateTo": "2027-03-22",
+   "timeOfDay": "Continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora"
+   ],
+   "description": null,
+   "updated": null,
+   "sources": [
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Lesce-Bled",
+    "lat": 46.360351,
+    "lon": 14.1578402
+   },
+   "toPoint": {
+    "name": "Jesenice d.m.",
+    "lat": 46.4815,
+    "lon": 14.0199
+   },
+   "located": true
+  },
+  {
+   "id": "7919",
+   "line": "Ljubljana - Jesenice",
+   "from": "Lesce Bled",
+   "to": "Jesenice d.m.",
+   "dateFrom": "2027-03-19",
+   "dateTo": "2027-03-22",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora",
+    "zmanjšana razpoložljivost tirov (LT+ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)"
+   ],
+   "fromPoint": {
+    "name": "Lesce-Bled",
+    "lat": 46.360351,
+    "lon": 14.1578402
+   },
+   "toPoint": {
+    "name": "Jesenice d.m.",
+    "lat": 46.4815,
+    "lon": 14.0199
+   },
+   "located": true
+  },
+  {
+   "id": "7921",
+   "line": "Ljubljana - Jesenice",
+   "from": "Lesce Bled",
+   "to": "Jesenice d.m.",
+   "dateFrom": "2027-04-16",
+   "dateTo": "2027-04-28",
+   "timeOfDay": "Continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora"
+   ],
+   "description": null,
+   "updated": null,
+   "sources": [
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Lesce-Bled",
+    "lat": 46.360351,
+    "lon": 14.1578402
+   },
+   "toPoint": {
+    "name": "Jesenice d.m.",
+    "lat": 46.4815,
+    "lon": 14.0199
+   },
+   "located": true
+  },
+  {
+   "id": "7920",
+   "line": "Ljubljana - Jesenice",
+   "from": "Lesce Bled",
+   "to": "Jesenice d.m.",
+   "dateFrom": "2027-04-16",
+   "dateTo": "2027-04-28",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora",
+    "zmanjšana razpoložljivost tirov (LT+ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)"
+   ],
+   "fromPoint": {
+    "name": "Lesce-Bled",
+    "lat": 46.360351,
+    "lon": 14.1578402
+   },
+   "toPoint": {
+    "name": "Jesenice d.m.",
+    "lat": 46.4815,
+    "lon": 14.0199
+   },
+   "located": true
+  },
+  {
+   "id": "7921",
+   "line": "Ljubljana - Jesenice",
+   "from": "Lesce Bled",
+   "to": "Jesenice d.m.",
+   "dateFrom": "2027-09-17",
+   "dateTo": "2027-09-20",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora",
+    "zmanjšana razpoložljivost tirov (LT+ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Lesce-Bled",
+    "lat": 46.360351,
+    "lon": 14.1578402
+   },
+   "toPoint": {
+    "name": "Jesenice d.m.",
+    "lat": 46.4815,
+    "lon": 14.0199
+   },
+   "located": true
+  },
+  {
+   "id": "7922",
+   "line": "Ljubljana - Jesenice",
+   "from": "Lesce Bled",
+   "to": "Jesenice d.m.",
+   "dateFrom": "2027-09-24",
+   "dateTo": "2027-09-27",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [
+    "popolna zapora",
+    "zmanjšana razpoložljivost tirov (LT+ST)"
+   ],
+   "description": "maintenance",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Lesce-Bled",
+    "lat": 46.360351,
+    "lon": 14.1578402
+   },
+   "toPoint": {
+    "name": "Jesenice d.m.",
+    "lat": 46.4815,
+    "lon": 14.0199
+   },
+   "located": true
+  },
+  {
+   "id": "7925",
+   "line": "Zidani Most - Dobova",
+   "from": "Sevnica",
+   "to": "Sevnica",
+   "dateFrom": "2027-10-18",
+   "dateTo": "2028-01-30",
+   "timeOfDay": "continuous",
+   "reason": "Track & Rail",
+   "impacts": [],
+   "description": "Station renewal",
+   "updated": "2026-07-28",
+   "status": null,
+   "sources": [
+    "RFC AWB TCR TT2026-2027 (3.8.2026)",
+    "RFC Mediterranean TCR list (tcrs.xlsx)"
+   ],
+   "fromPoint": {
+    "name": "Sevnica",
+    "lat": 46.0093232,
+    "lon": 15.3012959
+   },
+   "toPoint": {
+    "name": "Sevnica",
+    "lat": 46.0093232,
+    "lon": 15.3012959
+   },
+   "located": true
+  }
+ ]
+}
