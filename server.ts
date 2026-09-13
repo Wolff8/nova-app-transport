@@ -7268,13 +7268,36 @@ app.get('/api/train/trip', async (req, res) => {
 
   let hafasResponseCache: { data: any[]; ts: number } = { data: [], ts: 0 };
 
-  app.get('/api/hafas', async (req, res) => {
-    try {
-      const nowMs = Date.now();
-      if (nowMs - hafasResponseCache.ts < 7000 && hafasResponseCache.data.length > 0) {
-        return res.json(hafasResponseCache.data);
-      }
+  // Fifteen radar calls to ÖBB per refresh take 11-29 s on the production
+  // instance. A client that asked while the cache was older than seven
+  // seconds used to wait for all of that — past its own 15 s limit as often
+  // as not, so the trains it was waiting for were dropped that round. The
+  // last answer is now returned at once and one refresh runs behind it;
+  // only the very first request, with nothing cached yet, waits.
+  let hafasRefreshInFlight: Promise<any[]> | null = null;
+  const refreshHafas = (): Promise<any[]> => {
+    if (!hafasRefreshInFlight) {
+      hafasRefreshInFlight = buildHafasTrains()
+        .catch(e => { console.error("Hafas error:", e); return hafasResponseCache.data; })
+        .finally(() => { hafasRefreshInFlight = null; });
+    }
+    return hafasRefreshInFlight;
+  };
 
+  app.get('/api/hafas', async (_req, res) => {
+    if (hafasResponseCache.data.length > 0) {
+      if (Date.now() - hafasResponseCache.ts >= 7000) refreshHafas();
+      return res.json(hafasResponseCache.data);
+    }
+    try {
+      return res.json(await refreshHafas());
+    } catch (e) {
+      console.error("Hafas error:", e);
+      return res.json([]);
+    }
+  });
+
+  async function buildHafasTrains(): Promise<any[]> {
       const { createClient } = await import('hafas-client');
       
       // Initialize specific, high-quality profiles to prevent duplication and ghost trains
@@ -7672,12 +7695,8 @@ const trains = combinedMovements
 
       // Leftover MOTIS trains are intentionally dropped here, as they are served via /api/transit directly.
 
-      return res.json(deduplicatedHafasTrains);
-    } catch (e) {
-      console.error("Hafas error:", e);
-      return res.json([]);
-    }
-  });
+      return deduplicatedHafasTrains;
+  }
 
 
   
