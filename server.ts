@@ -6372,7 +6372,9 @@ app.get('/api/train/trip', async (req, res) => {
                 queryDelay || 0
             );
 
-            const rollingStockObj = getRollingStockDetails(motisTrip.routeShortName, motisTrip.operator);
+            // No rolling stock: the timetable names none, and the
+            // per-operator guess that used to be returned here (with WiFi and
+            // air-conditioning flags derived from the guess) was not data.
             return res.json({
                 tripId: motisTrip.tripId,
                 line: motisTrip.routeShortName,
@@ -6385,8 +6387,7 @@ app.get('/api/train/trip', async (req, res) => {
                 delayMinutes: effectiveTripDelay,
                 status: effectiveTripDelay > 3 ? 'delayed' : 'ontime',
                 currentStopIndex: motisTrip.currentStopIndex ?? 0,
-                rollingStock: rollingStockObj,
-                amenities: ['Klimatska naprava', 'Brezplačen WiFi', 'Nizkopodni vstop', 'Prevoz koles', 'Vtičnice 230V'],
+                rollingStock: null,
                 stopovers: motisTrip.stopovers,
                 currentLocation: motisTrip.currentLocation || ((queryLon && queryLat) ? [queryLon, queryLat] : null),
                 polyline: motisTrip.polyline,
@@ -6625,8 +6626,11 @@ app.get('/api/train/trip', async (req, res) => {
                 delayMinutes: effectiveHafasDelay,
                 status: effectiveHafasDelay > 3 ? 'delayed' : 'ontime',
                 currentStopIndex,
-                rollingStock: getRollingStockDetails(tripData.line?.name || cleanLine, finalOp),
-                amenities: ['Klimatska naprava', 'Brezplačen WiFi', 'Nizkopodni vstop', 'Prevoz koles', 'Vtičnice 230V'],
+                // The product class is the one thing the timetable does say
+                // about the train; the stock itself it does not.
+                rollingStock: null,
+                trainClass: tripData.line?.product ?? null,
+                trainClassName: tripData.line?.productName ?? null,
                 stopovers: finalStopovers,
                 currentLocation,
                 polyline: tripData.polyline || null,
@@ -6634,7 +6638,23 @@ app.get('/api/train/trip', async (req, res) => {
             });
         }
 
-        // 6. Regional Rail Corridor itinerary builder (Guaranteed Stops & Route for Domestic & Foreign Trains)
+        // Neither HAFAS nor MOTIS knows this train. What follows used to build
+        // an itinerary anyway: a hand-picked station list for the region, a
+        // departure "15 minutes ago", six minutes between stops, platforms by
+        // formula, train number 8078 by default, a straight-line polyline and
+        // the remark "vozi redno skladno z objavljenim voznim redom". None of
+        // that is a timetable, so it is no longer returned; the client shows
+        // that the journey is not available.
+        const SYNTHESIZED_ITINERARIES = false;
+        if (!SYNTHESIZED_ITINERARIES) {
+            return res.status(404).json({
+                error: 'Potek vožnje za ta vlak ni objavljen v nobenem dostopnem viru (HAFAS, MOTIS).',
+                line: cleanLine || null,
+                trainNumber: extractedNum || null,
+                operator: resolvedOperator || null,
+                stopovers: []
+            });
+        }
         let corridorPool = SLO_RAIL_CORRIDORS;
         if (trainRegion === 'austria') {
             corridorPool = AUSTRIAN_RAIL_CORRIDORS;

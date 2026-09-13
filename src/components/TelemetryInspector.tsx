@@ -196,6 +196,14 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
       lat: node.coordinates?.[1],
       lon: node.coordinates?.[0]
     }).then(data => {
+      // The server no longer invents an itinerary when HAFAS and MOTIS have
+      // none; it answers 404 and the loader returns null. Say so.
+      if (!data || !Array.isArray(data.stopovers) || data.stopovers.length === 0) {
+        setTrainTripData(null);
+        setTripError('Potek vožnje za ta vlak ni objavljen v nobenem dostopnem viru (HAFAS, MOTIS).');
+        setLoadingTrip(false);
+        return;
+      }
       setTrainTripData(data);
       setLoadingTrip(false);
       if (data?.polyline && onHighlightRoute) {
