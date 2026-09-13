@@ -10096,7 +10096,8 @@ app.post('/api/log', express.json(), (req, res) => {
         corridorLabel: corridorMeta?.label ?? p.corridor,
         direction: forward ? (corridorMeta?.forwardLabel ?? 'naprej') : (corridorMeta?.reverseLabel ?? 'nazaj'),
         catalogue: (p as any).catalogue ?? 'RFC6',
-        catalogueLabel: ({ RFC5: 'RFC Baltic-Adriatic (RFC5), vozni red 2027', RFC10: 'RFC Alpine-Western Balkan (RFC10)', RFC6: 'RFC Mediterranean (RFC6)' } as Record<string, string>)[(p as any).catalogue ?? 'RFC6'] ?? String((p as any).catalogue),
+        catalogueLabel: ({ RFC5: 'RFC Baltic-Adriatic (RFC5), vozni red 2027', RFC10: 'RFC Alpine-Western Balkan (RFC10)', 'RFC10-RC': 'RFC Alpine-Western Balkan (RFC10) – rezervna zmogljivost', RFC6: 'RFC Mediterranean (RFC6)' } as Record<string, string>)[(p as any).catalogue ?? 'RFC6'] ?? String((p as any).catalogue),
+        offerType: (p as any).catalogue === 'RFC10-RC' ? 'rezervna zmogljivost (RC): zmogljivost, ki jo koridor drži za naročila v tekočem voznem redu, do 30 dni pred vožnjo' : 'vnaprej pripravljena pot (PaP)',
         // Operator-published services on this relation. A relation match,
         // not a booking: it says who publishes trains on the relation this
         // path serves, not that this path is theirs.

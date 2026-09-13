@@ -1183,6 +1183,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                             {raw.corridorLabel ? ` · koridor ${raw.corridorLabel}` : ''}
                             {raw.validFrom && raw.validTo ? ` · velja ${String(raw.validFrom).split('-').reverse().join('. ')} – ${String(raw.validTo).split('-').reverse().join('. ')}` : ''}
                             {raw.inForce === false ? ' · ta pot še ne velja' : ''}
+                            {raw.offerType ? ` · ${raw.offerType}` : ''}
                           </p>
                         )}
                         {(() => { const d: any[] = unpack(raw.pointsNotOnCorridor) || []; return d.length ? (
