@@ -12458,8 +12458,6 @@ let eraTunnelsLastFetch = 0;
 let eraTelemetryCache: any[] = [];
 let eraTelemetryLastFetch = 0;
 
-let eraTracksCache: any = null;
-let eraTracksLastFetch = 0;
 
 const ERA_CACHE_TTL = 3600 * 1000 * 12; // 12 hours cache for static European rail infrastructure
 
@@ -12518,6 +12516,16 @@ function rinfSISectionSummary(s: any) {
 const rinfSISections: any[] = rinfSI ? rinfSI.sections.map(rinfSISectionSummary) : [];
 const rinfSIBySection = new Map<string, any>(rinfSISections.map(s => [s.id, s]));
 const rinfSISourceLine = rinfSI ? `${rinfSI.source} · posnetek ${String(rinfSI.retrieved).slice(0, 10)} · ${rinfSI.validity?.[0] ?? ''}` : null;
+/**
+ * How far a position may sit from a section's straight OP→OP link and still
+ * be taken as being on it. Measured against the app's surveyed corridor
+ * geometry (Koper–Divača, Divača–Zalog, Zalog–Pragersko, Pragersko–Maribor,
+ * Maribor–Špilje, Zidani Most–Dobova): real track lies within 2.2 km of a
+ * link at worst, 1.7 km at the 99th percentile. Beyond this the section is
+ * not determined rather than guessed — an unbounded nearest-match named a
+ * Slovenian section for a train standing at Halbenrain in Austria.
+ */
+const RINF_MAX_LINK_M = 2500;
 /** Distance (m) from a point to a straight OP→OP link, and where along it. */
 function rinfSIPointToSegment(lat: number, lon: number, a: number[], b: number[]) {
   const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110540;
@@ -12633,7 +12641,7 @@ app.get('/api/rinf/at', (req, res) => {
   const lat = Number(req.query.lat), lon = Number(req.query.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ error: 'lat in lon sta obvezna' });
   const { best, nearestOp, nearestOpM } = rinfSINearest(lat, lon);
-  if (!best || best.distanceM > 5000) return res.json({ section: null, nearestOp: nearestOp ? { name: nearestOp.name, uopid: nearestOp.uopid, distanceM: Math.round(nearestOpM) } : null, note: 'Položaj je več kot 5 km od vseh odsekov slovenskega omrežja v RINF.' , source: rinfSISourceLine });
+  if (!best || best.distanceM > RINF_MAX_LINK_M) return res.json({ section: null, nearestOp: nearestOp ? { name: nearestOp.name, uopid: nearestOp.uopid, distanceM: Math.round(nearestOpM) } : null, note: `Položaj je več kot ${(RINF_MAX_LINK_M / 1000).toFixed(1)} km od vseh odsekov slovenskega omrežja v RINF.`, source: rinfSISourceLine });
   res.json({
     section: best.section,
     distanceToLinkM: Math.round(best.distanceM),
@@ -12916,233 +12924,56 @@ app.get("/api/era/tunnels", async (req, res) => {
     return res.json(eraTunnelsCache);
 });
 
-app.get("/api/era/track", async (req, res) => {
-    try {
-        const lat = parseFloat(req.query.lat as string);
-        const lon = parseFloat(req.query.lon as string);
-        const now = Date.now();
-        if (!eraTracksCache && (now - eraTracksLastFetch > 300000)) {
-            eraTracksLastFetch = now;
-            const query = `
-            PREFIX era: <http://data.europa.eu/949/>
-            PREFIX geo: <http://www.opengis.net/ont/geosparql#>
-            PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            SELECT ?label ?wkt (MAX(?speed) as ?maxSpeed) (SAMPLE(?sysLabel) as ?system) (SAMPLE(?level) as ?etcsLevel)
-            WHERE {
-              ?sol a era:SectionOfLine .
-              ?sol era:inCountry <http://publications.europa.eu/resource/authority/country/SVN> .
-              ?sol era:netReference ?nr .
-              ?nr geo:hasGeometry ?geom .
-              ?geom geo:asWKT ?wkt .
-              OPTIONAL { ?sol rdfs:label ?label . }
-              OPTIONAL {
-                ?sol era:hasPart ?track .
-                ?track a era:RunningTrack .
-                OPTIONAL { ?track era:maximumPermittedSpeed ?speedObj . ?speedObj era:speed ?speed . }
-                OPTIONAL {
-                  ?track era:contactLineSystem ?sys .
-                  ?sys era:energySupplySystem ?es .
-                  ?es skos:prefLabel ?sysLabel .
-                }
-                OPTIONAL {
-                  ?track era:etcsLevel ?etcsObj .
-                  ?etcsObj skos:prefLabel ?level .
-                }
-              }
-            }
-            GROUP BY ?label ?wkt
-            `;
-            try {
-                const response = await fetch("https://graph.data.era.europa.eu/repositories/rinf-plus", {
-                    method: "POST",
-                    headers: {
-                        "Accept": "application/sparql-results+json",
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    body: "query=" + encodeURIComponent(query),
-                    signal: AbortSignal.timeout(3500)
-                });
-                if (response.ok) {
-                    const data = await response.json();
-                    eraTracksCache = (data?.results?.bindings || []).map((b: any) => ({
-                        label: b.label?.value || "Odsek proge",
-                        wkt: b.wkt?.value || "",
-                        speed: b.maxSpeed?.value || null,
-                        system: b.system?.value || null,
-                        etcs: b.etcsLevel?.value || null
-                    }));
-                }
-            } catch (err: any) {
-                console.warn(`[ERA Track] Notice: ${err?.message || 'remote timeout'}, using default track parameters.`);
-            }
-        }
+/**
+ * The piece of line under a position, from ERA's RINF register.
+ *
+ * This used to guess: the line category, gradient, maximum train length and
+ * axle load were picked from station names in the label ("Jesenice" implies
+ * C3, 26 per mille, 500 m), the speed and ETCS level fell back to hardcoded
+ * "120 km/h" and "ETCS Level 1" because the query asked for properties the
+ * ontology does not have, and the nearest section was taken at any distance
+ * — which named a Slovenian section for a train standing in Austria.
+ *
+ * Now it answers only from the register, only inside Slovenia, and only when
+ * a section is close enough to be the one the vehicle is on.
+ */
+app.get("/api/era/track", (req, res) => {
+    const lat = parseFloat(String(req.query.lat));
+    const lon = parseFloat(String(req.query.lon));
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ inNetwork: false, note: 'lat in lon sta obvezna' });
+    if (!rinfSI) return res.json({ inNetwork: false, note: 'Nabor RINF ni naložen.' });
 
-        if (eraTracksCache && Array.isArray(eraTracksCache)) {
-            let nearest = null;
-            let minDistance = Infinity;
-            for (const track of eraTracksCache) {
-                if (!track.wkt.startsWith("LINESTRING")) continue;
-                const inner = track.wkt.replace("LINESTRING (", "").replace(")", "");
-                const coords = inner.split(",").map((pair: any) => {
-                    const parts = pair.trim().split(" ");
-                    return [parseFloat(parts[0]), parseFloat(parts[1])];
-                });
-                for(let i=0; i<coords.length-1; i++) {
-                    const x1 = coords[i][0];
-                    const y1 = coords[i][1];
-                    const x2 = coords[i+1][0];
-                    const y2 = coords[i+1][1];
-                    const px = lon;
-                    const py = lat;
-                    const A = px - x1;
-                    const B = py - y1;
-                    const C = x2 - x1;
-                    const D = y2 - y1;
-                    const dot = A * C + B * D;
-                    const len_sq = C * C + D * D;
-                    let param = -1;
-                    if (len_sq != 0) param = dot / len_sq;
-                    let xx, yy;
-                    if (param < 0) { xx = x1; yy = y1; }
-                    else if (param > 1) { xx = x2; yy = y2; }
-                    else { xx = x1 + param * C; yy = y1 + param * D; }
-                    const dx = px - xx;
-                    const dy = py - yy;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                        nearest = track;
-                    }
-                }
-            }
-            if (nearest) {
-                let cleanedLabel = nearest.label.replace("Section of Line ", "").split(" (from")[0];
-                
-                // Program Omrežja SŽ 2025 heuristics
-                const name = cleanedLabel.toLowerCase();
-                let category = "D4";
-                let maxGradient = "Neznano";
-                let maxLength = "700 m";
-                let gsmr = "Da";
-                let loadLimit = "22.5 t / os, 8.0 t/m";
-
-                if (name.includes('jesenice') && (name.includes('sežana') || name.includes('sezana') || name.includes('bohinj'))) {
-                    category = "C3";
-                    maxGradient = "26 ‰";
-                    maxLength = "500 m";
-                    loadLimit = "20 t / os, 7.2 t/m";
-                } else if (name.includes('koper') || name.includes('divača') || name.includes('hrpelje')) {
-                    category = "D4";
-                    maxGradient = "26 ‰";
-                    maxLength = "700 m";
-                    loadLimit = "22.5 t / os, 8.0 t/m";
-                } else if (name.includes('kočevje') || name.includes('kocevje') || name.includes('grosuplje')) {
-                    category = "C3";
-                    maxGradient = "12 ‰";
-                    maxLength = "400 m";
-                    loadLimit = "20 t / os, 7.2 t/m";
-                    gsmr = "Ne"; 
-                } else if (name.includes('velenje') || name.includes('celje')) {
-                    category = "C3";
-                    maxGradient = "15 ‰";
-                    maxLength = "500 m";
-                    loadLimit = "20 t / os, 7.2 t/m";
-                } else if (name.includes('kamnik') || name.includes('šiška') || name.includes('siska')) {
-                    category = "C3";
-                    maxGradient = "10 ‰";
-                    maxLength = "300 m";
-                    loadLimit = "20 t / os, 7.2 t/m";
-                    gsmr = "Ne";
-                } else if (name.includes('hodoš') || name.includes('hodos') || name.includes('pragersko') || name.includes('ormož') || name.includes('ormoz') || name.includes('ptuj')) {
-                    category = "D4";
-                    maxGradient = "12 ‰";
-                    maxLength = "700 m";
-                } else if (name.includes('dobova') || name.includes('zidani most') || name.includes('ljubljana') || name.includes('maribor') || name.includes('šentilj') || name.includes('jesenice') || name.includes('kranj')) {
-                    category = "D4";
-                    maxGradient = "10-15 ‰";
-                    maxLength = "700 m";
-                } else if (name.includes('novo mesto') || name.includes('trebnje') || name.includes('metlika') || name.includes('črnomelj')) {
-                    category = "B2 / C3";
-                    maxGradient = "17 ‰";
-                    maxLength = "400 m";
-                    loadLimit = "18 t / os";
-                    gsmr = "Ne";
-                } else if (name.includes('sežana') || name.includes('sezana') || name.includes('postojna') || name.includes('pivka') || name.includes('ilirska bistrica')) {
-                     category = "D4";
-                     maxGradient = "15 ‰";
-                     maxLength = "700 m";
-                } else {
-                     category = "D4 (Koridor) / C3 (Regionalno)";
-                     maxGradient = "< 15 ‰";
-                     maxLength = "500 - 700 m";
-                }
-
-                // CCS TSI 2023 Application Guide Heuristics (Control-Command and Signalling)
-                let ccsBaseline = "Class B (Nacionalni sistem)";
-                let ccsRadio = "Brez / Analogno";
-                let ccsAto = "Ni podprto (GoA0)";
-
-                const etcsVal = nearest.etcs || "ETCS Level 1"; // By default, SŽ tracks have L1 in ERA if unspecified
-                if (etcsVal.includes('Level 1') || etcsVal.includes('Level 2') || etcsVal.includes('ETCS')) {
-                    // For ETCS L1/L2 in SI/AT/HU according to TSI 2023 transitioning
-                    ccsBaseline = "ETCS Baseline 3 (TSI 2023: zamenljivo z B4)";
-                    ccsRadio = gsmr === "Da" ? "GSM-R (TSI 2023: Pripravljeno na FRMCS migracijo)" : "Zahtevana GSM-R/FRMCS nadgradnja";
-                    ccsAto = etcsVal.includes('Level 2') ? "ATO GoA2 pripravljeno (TSI 2023)" : "ATO ni mogoč na L1 (zgolj L2/L3)";
-                }
-
-                return res.json({
-                    opName: cleanedLabel,
-                    voltage: nearest.system || "3 kV DC (SŽ elektrifikacija)",
-                    speed: nearest.speed ? nearest.speed + " km/h" : "120 km/h",
-                    gauge: "1435 mm (standardna tirna širina)",
-                    etcs: nearest.etcs || "ETCS Level 1",
-                    szCategory: category,
-                    szGradient: maxGradient,
-                    szLength: maxLength,
-                    szLoad: loadLimit,
-                    szGsmr: gsmr,
-                    ccsBaseline,
-                    ccsRadio,
-                    ccsAto
-                });
-            }
-        }
-        return res.json({ 
-            opName: "Glavna proga SŽ", 
-            voltage: "3 kV DC (SŽ)", 
-            speed: "120 km/h", 
-            gauge: "1435 mm", 
-            etcs: "ETCS Level 1",
-            szCategory: "D4",
-            szGradient: "10-15 ‰",
-            szLength: "700 m",
-            szLoad: "22.5 t / os",
-            szGsmr: "Da",
-            ccsBaseline: "ETCS Baseline 3 (TSI 2023 zamenljivo z B4)",
-            ccsRadio: "GSM-R (TSI 2023: Pripravljeno na FRMCS)",
-            ccsAto: "ATO ni mogoč na L1"
-        });
-    } catch (e: any) {
-        return res.json({ 
-            opName: "Slovenske Železnice", 
-            voltage: "3 kV DC", 
-            speed: "120 km/h", 
-            gauge: "1435 mm", 
-            etcs: "ETCS Level 1",
-            szCategory: "Neznano",
-            szGradient: "Neznano",
-            szLength: "Neznano",
-            szLoad: "Neznano",
-            szGsmr: "Neznano",
-            ccsBaseline: "Neznano",
-            ccsRadio: "Neznano",
-            ccsAto: "Neznano"
+    const { best, nearestOp, nearestOpM } = rinfSINearest(lat, lon);
+    if (!best || best.distanceM > RINF_MAX_LINK_M) {
+        return res.json({
+            inNetwork: false,
+            note: `Odsek ni določljiv: najbližji odsek slovenskega omrežja je ${best ? (best.distanceM / 1000).toFixed(1) : '?'} km stran${nearestOp ? `, najbližja točka ${nearestOp.name} (${(nearestOpM / 1000).toFixed(1)} km)` : ''}. Nabor pokriva slovensko omrežje (upravljavec 0079).`,
+            source: rinfSISourceLine
         });
     }
+
+    const sec = best.section;
+    const join = (a: string[]) => (a && a.length ? a.join(', ') : null);
+    res.json({
+        inNetwork: true,
+        section: `${sec.fromName} – ${sec.toName}`,
+        line: sec.line,
+        lengthKm: sec.lengthKm,
+        trackCount: sec.trackCount,
+        speed: sec.maxSpeedKmh != null ? `${sec.minSpeedKmh != null && sec.minSpeedKmh !== sec.maxSpeedKmh ? `${sec.minSpeedKmh}–` : ''}${sec.maxSpeedKmh} km/h` : null,
+        voltage: join(sec.energySupply) || 'brez elektrifikacije',
+        etcs: sec.etcsLevels.length ? `raven ${sec.etcsLevels.join('/')}${sec.etcsBaselines.length ? ` (${sec.etcsBaselines.join(', ')})` : ''}` : null,
+        loadCategory: join(sec.loadCategories),
+        gauging: join(sec.gauging),
+        wheelSetGauge: sec.wheelSetGauge,
+        protection: join([...sec.legacyProtection, ...sec.otherProtection]),
+        corridors: join(sec.freightCorridors),
+        nearestOp: nearestOp ? { name: nearestOp.name, uopid: nearestOp.uopid, plc: nearestOp.plc, distanceM: Math.round(nearestOpM) } : null,
+        method: `ocena po zračni razdalji (${Math.round(best.distanceM)} m do ravne povezave točk); RINF ne objavlja poteka trase`,
+        source: rinfSISourceLine
+    });
 });
 
-  
   app.get('/api/vagonweb', async (req, res) => {
     try {
         const num = String(req.query.train || req.query.trainName || req.query.name || '').trim();

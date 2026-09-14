@@ -1552,47 +1552,32 @@ export class MapController {
           const node = this.buildTelemetryNode(type, p, coords as [number, number]);
 
           if (node.metrics.some((m: any) => m.id === "era-loading")) {
-
-             fetch(`/api/era/track?lat=${coords[1]}&lon=${coords[0]}`).then(r => r.json()).then(eraData => {
-
-                 if (eraData) {
-
-                     const eraMetricIdx = node.metrics.findIndex((m: any) => m.id === "era-loading");
-
-                     if (eraMetricIdx > -1) {
-
-                         node.metrics.splice(eraMetricIdx, 1,
-
-                             { label: "Sistem (ERA)", value: eraData.voltage, highlight: true },
-
-                             { label: "V_max (ERA)", value: eraData.speed, highlight: true },
-                             
-                             { label: "ETCS Nivo (ERA)", value: eraData.etcs, highlight: true },
-
-                             { label: "Odsek proge (ERA)", value: eraData.opName, highlight: false }, { label: "Kategorija proge (SŽ)", value: eraData.szCategory || 'Neznano', highlight: true }, { label: "Max dolžina vlaka (SŽ)", value: eraData.szLength || 'Neznano', highlight: false }, { label: "Osn. obremenitev (SŽ)", value: eraData.szLoad || 'Neznano', highlight: false }, { label: "Maks. vzpon (SŽ)", value: eraData.szGradient || 'Neznano', highlight: false }, { label: "TSI 2023 Baseline", value: eraData.ccsBaseline || 'Neznano', highlight: true }, { label: "TSI Radio Komunikacija", value: eraData.ccsRadio || 'Neznano', highlight: false }, { label: "ATO Pripravljenost (TSI)", value: eraData.ccsAto || 'Neznano', highlight: false }
-
-                         );
-
-                         this.onSelectNode({ ...node });
-
-                     }
-
-                 } else {
-
-                     const eraMetricIdx = node.metrics.findIndex((m: any) => m.id === "era-loading");
-
-                     if (eraMetricIdx > -1) {
-
-                         node.metrics[eraMetricIdx].value = "Ni podatkov za to lokacijo";
-
-                         this.onSelectNode({ ...node });
-
-                     }
-
+             // What ERA's register says about the piece of line under the
+             // vehicle. Values are the register's own; where it says nothing,
+             // nothing is shown.
+             fetch(`/api/era/track?lat=${coords[1]}&lon=${coords[0]}`).then(r => r.json()).then(era => {
+                 const idx = node.metrics.findIndex((m: any) => m.id === "era-loading");
+                 if (idx < 0) return;
+                 if (!era || !era.inNetwork) {
+                     node.metrics.splice(idx, 1, { label: 'Odsek proge (ERA RINF)', value: era?.note || 'Ni podatkov za to lokacijo', highlight: false });
+                     this.onSelectNode({ ...node });
+                     return;
                  }
-
+                 const rows: any[] = [{ label: 'Odsek proge (ERA RINF)', value: era.section, highlight: true }];
+                 if (era.line) rows.push({ label: 'Proga', value: `${era.line}${era.lengthKm != null ? ` · ${era.lengthKm} km` : ''}${era.trackCount ? ` · ${era.trackCount === 1 ? 'enotirna' : era.trackCount + ' tira'}` : ''}`, highlight: false });
+                 if (era.speed) rows.push({ label: 'Največja progovna hitrost (RINF)', value: era.speed, highlight: true });
+                 rows.push({ label: 'Elektrifikacija (RINF)', value: era.voltage, highlight: true });
+                 if (era.etcs) rows.push({ label: 'ETCS (RINF)', value: era.etcs, highlight: false });
+                 if (era.loadCategory) rows.push({ label: 'Kategorija proge (RINF)', value: era.loadCategory, highlight: true });
+                 if (era.gauging) rows.push({ label: 'Nakladalni profil (RINF)', value: era.gauging, highlight: false });
+                 if (era.wheelSetGauge) rows.push({ label: 'Tirna širina (RINF)', value: `${era.wheelSetGauge} mm`, highlight: false });
+                 if (era.protection) rows.push({ label: 'Zaščita vlaka (RINF)', value: era.protection, highlight: false });
+                 if (era.corridors) rows.push({ label: 'Tovorni koridorji (RINF)', value: era.corridors, highlight: false });
+                 if (era.method) rows.push({ label: 'Izbira odseka', value: era.method, highlight: false });
+                 if (era.source) rows.push({ label: 'Vir', value: era.source, highlight: false });
+                 node.metrics.splice(idx, 1, ...rows);
+                 this.onSelectNode({ ...node });
              }).catch(e => console.error("ERA fetch failed", e));
-
           }
 
           this.onSelectNode(node);
