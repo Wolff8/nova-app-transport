@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import trainImages from '../data/trainImages.json';
 import { 
   X, Train, Anchor, Factory, ArrowRightLeft, ShieldCheck, 
   Leaf, Gauge, Navigation, ChevronRight, Search, Info, ExternalLink,
@@ -27,7 +28,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [registerQuery, setRegisterQuery] = useState('');
-  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params' | 'freightStations' | 'commodities' | 'rcc'>('vkm');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params' | 'freightStations' | 'commodities' | 'rcc' | 'photos'>('vkm');
   const [paramTable, setParamTable] = useState<any>(null);
   const [paramsNetworkOnly, setParamsNetworkOnly] = useState(false);
   const [glossary, setGlossary] = useState<any>(null);
@@ -499,6 +500,10 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
             <button onClick={() => jumpTo('registers', null, 'rcc')}
               className="px-2 py-0.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 cursor-pointer font-semibold">
               RCC · združljivost lokomotiv
+            </button>
+            <button onClick={() => jumpTo('registers', 'panel-photos', 'photos')}
+              className="px-2 py-0.5 rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-200 hover:bg-fuchsia-500/20 cursor-pointer font-semibold">
+              Vozila v slikah ({Object.keys((trainImages as any).images || {}).length})
             </button>
           </div>
 
@@ -1977,7 +1982,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   { k: 'params', label: 'Parametri in TSI (ERA)' },
                   { k: 'freightStations', label: 'Tovorne postaje (DIUM)' },
                   { k: 'commodities', label: 'Blagovne šifre (NHM)' },
-                  { k: 'rcc', label: 'Združljivost s progo (RCC)' }
+                  { k: 'rcc', label: 'Združljivost s progo (RCC)' },
+                  { k: 'photos', label: 'Vozila v slikah' }
                 ].map(t => (
                   <button
                     key={t.k}
@@ -2064,7 +2070,43 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </form>
               )}
 
-              {registerKind === 'rcc' ? (
+              {registerKind === 'photos' ? (() => {
+                // Photographs of the classes a source names for Slovenia —
+                // ERATV-authorised types, catalogue reference locomotives, the
+                // locomotive register — grouped, each with author and licence.
+                const imgs: any[] = Object.values((trainImages as any).images || {});
+                const groups: [string, string][] = [['lokomotiva', 'Lokomotive'], ['garnitura', 'Motorne garniture'], ['potniški vagon', 'Potniški vagoni'], ['tovorni vagon', 'Tovorni vagoni (tipi z dovoljenjem za Slovenijo, ERATV)']];
+                return (
+                  <div id="panel-photos" className="space-y-4 scroll-mt-4">
+                    <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 text-[10.5px] text-slate-300 leading-relaxed">
+                      {(trainImages as any).basisNote} {(trainImages as any).licenceNote} Vir fotografij: {(trainImages as any).source}, prebrano {String((trainImages as any).retrieved).slice(0, 10)}.
+                    </div>
+                    {groups.map(([g, title]) => {
+                      const items = imgs.filter(i => i.group === g);
+                      if (!items.length) return null;
+                      return (
+                        <div key={g} className="space-y-2">
+                          <h4 className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">{title} ({items.length})</h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {items.map(i => (
+                              <figure key={i.key} className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60">
+                                <a href={i.pageUrl} target="_blank" rel="noopener noreferrer" title="Odpri na Wikimedia Commons">
+                                  <img src={i.thumbUrl} alt={i.label} loading="lazy" className="w-full block object-cover" style={{ height: 150 }} />
+                                </a>
+                                <figcaption className="p-2.5 space-y-1">
+                                  <div className="text-[12px] font-bold text-white leading-tight">{i.label}</div>
+                                  <div className="text-[10px] text-slate-400 leading-snug">Podlaga: {i.basis}</div>
+                                  <div className="text-[9.5px] font-mono text-slate-500 leading-snug">foto: {i.author || 'neznan avtor'} · {i.license || 'licenca ni navedena'} · <a href={i.pageUrl} target="_blank" rel="noopener noreferrer" className="underline">Commons</a></div>
+                                </figcaption>
+                              </figure>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })() : registerKind === 'rcc' ? (
                 rccLocos ? (
                   <div className="space-y-3">
                     <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
