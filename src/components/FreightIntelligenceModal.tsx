@@ -27,7 +27,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [registerQuery, setRegisterQuery] = useState('');
-  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms'>('vkm');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params'>('vkm');
+  const [paramTable, setParamTable] = useState<any>(null);
+  const [paramsNetworkOnly, setParamsNetworkOnly] = useState(false);
   const [glossary, setGlossary] = useState<any>(null);
   const [eratvData, setEratvData] = useState<any>(null);
   const [eratvDetail, setEratvDetail] = useState<any>(null);
@@ -1486,7 +1488,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   { k: 'operators', label: 'Prevozniki (ERA)' },
                   { k: 'lines', label: 'Proge SŽ' },
                   { k: 'vehicles', label: 'Tipi vozil (ERATV)' },
-                  { k: 'terms', label: 'Izrazje (IATE)' }
+                  { k: 'terms', label: 'Izrazje (IATE)' },
+                  { k: 'params', label: 'Parametri in TSI (ERA)' }
                 ].map(t => (
                   <button
                     key={t.k}
@@ -1497,6 +1500,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       }
                       if (t.k === 'terms' && !glossary) {
                         fetch('/api/glossary/rail').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setGlossary(j); }).catch(() => {});
+                      }
+                      if (t.k === 'params' && !paramTable) {
+                        fetch('/api/era/parameters').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setParamTable(j); }).catch(() => {});
                       }
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
@@ -1514,6 +1520,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 <form
                   onSubmit={e => {
                     e.preventDefault();
+                    if (registerKind === 'params') {
+                      fetch(`/api/era/parameters?q=${encodeURIComponent(registerQuery)}${paramsNetworkOnly ? '&network=1' : ''}`)
+                        .then(r => r.json()).then(setParamTable).catch(() => {});
+                      return;
+                    }
                     if (registerKind === 'terms') {
                       fetch(`/api/glossary/rail?q=${encodeURIComponent(registerQuery)}`)
                         .then(r => r.json()).then(setGlossary).catch(() => {});
@@ -1535,7 +1546,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   <input
                     value={registerQuery}
                     onChange={e => setRegisterQuery(e.target.value)}
-                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : registerKind === 'terms' ? 'Izraz (npr. profil, hitrost, ETCS)' : 'Ime prevoznika (npr. Metrans, Adria)'}
+                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : registerKind === 'terms' ? 'Izraz (npr. profil, hitrost, ETCS)' : registerKind === 'params' ? 'Številka ali ime parametra (npr. 2.1.2, pantograph)' : 'Ime prevoznika (npr. Metrans, Adria)'}
                     className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                   <button type="submit" className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors cursor-pointer shrink-0">
@@ -1544,7 +1555,65 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </form>
               )}
 
-              {registerKind === 'terms' ? (
+              {registerKind === 'params' ? (
+                paramTable ? (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                          Parametri za ugotavljanje skladnosti ({paramTable.counts.parameters})
+                        </h4>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {paramTable.counts.networkCompatibility} za združljivost s progo · {paramTable.counts.withTsi} s klavzulo TSI
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">
+                        ERATV pri vozilu navede le številke teh parametrov. Tu so njihova imena, oznaka, ali se uporabljajo za združljivost s progo, in klavzule TSI, ki jih pokrivajo.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = !paramsNetworkOnly;
+                          setParamsNetworkOnly(next);
+                          fetch(`/api/era/parameters?q=${encodeURIComponent(registerQuery)}${next ? '&network=1' : ''}`)
+                            .then(r => r.json()).then(setParamTable).catch(() => {});
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border ${
+                          paramsNetworkOnly ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-950 text-slate-400 border-slate-700'
+                        }`}
+                      >
+                        {paramsNetworkOnly ? 'Samo združljivost s progo' : 'Vsi parametri'}
+                      </button>
+                    </div>
+                    <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+                      {paramTable.parameters.map((p: any) => (
+                        <div key={p.number} className="p-2.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                            <span className="text-[12px] font-semibold text-white">{p.number} {p.name}</span>
+                            {p.networkCompatibility ? (
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">združljivost s progo</span>
+                            ) : null}
+                          </div>
+                          {p.tsis.length ? (
+                            <ul className="mt-1 space-y-0.5">
+                              {p.tsis.map((t: any) => (
+                                <li key={t.column || t.tsi} className="text-[10px] leading-snug">
+                                  <span className="text-sky-300/90">{t.tsi}</span>
+                                  <span className="block font-mono text-slate-400">{t.clauses.slice(0, 3).join(' · ')}{t.clauses.length > 3 ? ` · +${t.clauses.length - 3}` : ''}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : <div className="text-[10px] text-slate-500 mt-0.5">brez navedene klavzule TSI</div>}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[9.5px] leading-snug text-slate-400">{paramTable.note}</p>
+                    <p className="text-[10px] font-mono text-sky-300/80">vir: {paramTable.source}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">Nalagam tabelo parametrov…</p>
+                )
+              ) : registerKind === 'terms' ? (
                 glossary ? (
                   <div className="space-y-3">
                     <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
@@ -1683,7 +1752,33 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                                 <Row label="Sistemi zaznavanja vlaka" value={eratvDetail.trainDetection} />
                                 <Row label="Temperaturno območje" value={eratvDetail.temperatureRange} />
                                 <Row label="Požarna kategorija" value={eratvDetail.fireCategory} />
+                                <Row label="Države dovoljenja" value={eratvDetail.memberStates} />
+                                <Row label="Združljivost ETCS" value={eratvDetail.etcsCompatibility} />
+                                <Row label="Vozil v stalni sestavi" value={eratvDetail.fixedFormationVehicles} />
+                                <Row label="Potrdila o pregledu tipa" value={eratvDetail.typeExaminationCertificates} />
                                 <Row label="Kodirane omejitve" value={eratvDetail.codedRestrictions} />
+                                {Array.isArray(eratvDetail.nationalRuleParameters) && eratvDetail.nationalRuleParameters.length > 0 && (
+                                  <div className="mt-1.5 pt-1.5 border-t border-white/10">
+                                    <div className="text-[9.5px] uppercase font-mono tracking-wider text-sky-300 mb-0.5">
+                                      Parametri, ocenjeni po nacionalnih predpisih
+                                    </div>
+                                    <ul className="space-y-0.5">
+                                      {eratvDetail.nationalRuleParameters.map((p: any, i: number) => (
+                                        <li key={i} className="text-[10px] leading-snug">
+                                          {p.isParameter ? (
+                                            <>
+                                              <span className="text-white/90">{p.number} {p.name}</span>
+                                              {p.networkCompatibility ? <span className="ml-1 text-[9px] font-mono text-emerald-300">· združljivost s progo</span> : null}
+                                              {p.tsis?.length ? <span className="block font-mono text-[9px] text-slate-400">{p.tsis[0].tsi}</span> : null}
+                                            </>
+                                          ) : (
+                                            <span className="font-mono text-slate-400">{p.raw}</span>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                                 {eratvDetail.detailNote ? <p className="text-[9.5px] text-amber-200/80 leading-snug">{eratvDetail.detailNote}</p> : null}
                                 <a href={eratvDetail.sourceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[9.5px] font-mono text-sky-300/80 hover:text-sky-200 break-all block pt-1">
                                   zapis v registru: {eratvDetail.sourceUrl}

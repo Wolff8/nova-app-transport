@@ -11833,6 +11833,7 @@ app.post('/api/log', express.json(), (req, res) => {
       rinfSlovenia: rinfSI ? { ...rinfSI.counts, retrieved: rinfSI.retrieved } : null,
       eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
       iateGlossary: iateGlossary ? { ...iateGlossary.counts, retrieved: iateGlossary.retrieved } : null,
+      eraParameterXref: eraParamXref ? eraParamXref.counts : null,
       note: 'motis/travic/mav povedo, koliko vozil je prispevalo posamezno zaledje pri zadnji gradnji. Nic pri motis in travic pomeni, da sta oba odpovedala in ostanejo samo madzarski vlaki.'
     });
   });
@@ -12830,7 +12831,14 @@ function eratvParseDetail(xml: string): any {
     let code: string | null = null;
     for (const child of $(node).children().toArray() as any[]) {
       const tag = child.tagName;
-      if (tag === 'Code') { code = $(child).text().trim(); continue; }
+      if (tag === 'Code') {
+        // Some records put the name inside the Code element as well
+        // ("3.1.1 Member state of authorisation:"), so only the leading
+        // number identifies the parameter.
+        const t = $(child).text().trim();
+        code = (t.match(/^[\d]+(?:\.[\d]+)*/) || [t])[0];
+        continue;
+      }
       if (tag === 'Name') continue;
       if (tag === 'Value') { add(code, [$(child).text().trim()].filter(Boolean)); continue; }
       if (tag === 'Configurations') { add(code, $(child).find('Value').map((_: any, v: any) => $(v).text().trim()).get().filter(Boolean)); continue; }
@@ -12848,20 +12856,62 @@ function eratvParseDetail(xml: string): any {
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : null;
   };
-  const areaOfUse = $('Characteristic').filter((_, e) => ($(e).children('Code').first().text() || '').startsWith('3.0')).children('Value').first().text().trim() || null;
   return {
     name: one('1.1'), altName: one('1.2'), category: one('1.4'), subcategory: one('1.5'),
     dateOfRecord: one('0.3'), authStatus: one('3.1.2.1'), authDocRef: one('3.1.3.1.3'), authDate: one('3.1.3.1.1'),
-    areaOfUse, manufacturer: one('1.3.1.1'), holder: one('3.1.3.1.2.1.1'), holderCode: one('3.1.3.1.2.1.3'),
+    areaOfUse: one('3.0'), manufacturer: one('1.3.1.1'), holder: one('3.1.3.1.2.1.1'), holderCode: one('3.1.3.1.2.1.3'),
     drivingCabs: num('4.1.1'), maxSpeedKmh: num('4.1.2.1'), wheelSetGauge: one('4.1.3'),
     referenceProfile: g('4.2.1'), temperatureRange: g('4.3.1'), fireCategory: one('4.4.1'), lineCategories: g('4.5.1.1'),
     designMassKg: num('4.5.2.1'), axleLoadKg: num('4.5.3.1'), lengthM: num('4.8.1'),
     minWheelDiameterMm: num('4.8.2'), minCurveRadiusM: num('4.8.4'),
     energySupply: g('4.10.1'), maxDecelerationMs2: num('4.7.1'), coupling: g('4.9.1'), hotAxleBoxDetection: one('4.9.2'),
-    etcs: g('4.13.1.1'), etcsImplementation: g('4.13.1.7'), trainProtectionLegacy: g('4.13.1.5'),
-    gsmrVoice: g('4.13.2.1'), trainDetection: g('4.14.1'),
-    codedRestrictions: g('3.1.2.3'), nonCodedRestrictions: g('3.1.2.4')
+    etcs: g('4.13.1.1'), etcsImplementation: g('4.13.1.7'), etcsCompatibility: g('4.13.1.8'),
+    trainProtectionLegacy: g('4.13.1.5'), gsmrVoice: g('4.13.2.1'), trainDetection: g('4.14.1'),
+    codedRestrictions: g('3.1.2.3'), nonCodedRestrictions: g('3.1.2.4'),
+    memberStates: g('3.1.1'), fixedFormationVehicles: num('4.1.12'),
+    manufacturerCountry: one('1.3.2.3'), holderCountry: one('3.1.3.1.2.2.3'),
+    typeExaminationCertificates: g('3.1.3.1.4'), comments: one('3.1.3.1.6'),
+    // The register lists these as bare numbers; eraParamByNumber turns each
+    // into its name, whether it is a route-compatibility parameter, and the
+    // TSI clauses that cover it.
+    nationalRuleParameters: eraExpandParameters(g('3.1.3.1.5'))
   };
+}
+
+/**
+ * ERA's cross-reference table between the list of parameters and the TSIs.
+ *
+ * ERATV records a vehicle's assessment against national rules as bare
+ * parameter numbers. This is the register's own key to them: for each of the
+ * 319 parameters, whether it is used for network (route) compatibility, and
+ * which TSI clauses cover it.
+ */
+let eraParamXref: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'eraParameterTsiXref.json');
+  if (fs.existsSync(p)) {
+    eraParamXref = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[ERA] Parameter/TSI cross-reference:', eraParamXref.counts.parameters, 'parameters,', eraParamXref.counts.networkCompatibility, 'for route compatibility');
+  }
+} catch (e: any) { console.warn('[ERA] eraParameterTsiXref.json failed:', e?.message); }
+const eraParamByNumber = new Map<string, any>((eraParamXref?.parameters ?? []).map((p: any) => [p.number, p]));
+/**
+ * Splits ERATV's national-rule list into its configuration headers and its
+ * parameters, and attaches what the cross-reference table says about each.
+ * A line that is not a numbered parameter is kept as the register wrote it.
+ */
+function eraExpandParameters(values: string[]): any[] {
+  return (values || []).map(v => {
+    const m = String(v).trim().match(/^([\d]+(?:\.[\d]+)*)\s+(.*)$/);
+    if (!m) return { raw: String(v).trim(), isParameter: false };
+    const ref = eraParamByNumber.get(m[1]);
+    return {
+      raw: String(v).trim(), isParameter: true, number: m[1], name: m[2] || ref?.name || null,
+      networkCompatibility: ref ? ref.networkCompatibility : null,
+      tsis: ref ? ref.tsis.map((t: any) => ({ tsi: t.tsi, clauses: t.clauses })) : [],
+      inXref: !!ref
+    };
+  });
 }
 
 /**
@@ -12878,6 +12928,19 @@ try {
     console.log('[IATE] Rail glossary:', iateGlossary.counts.withSlovene, 'of', iateGlossary.counts.concepts, 'concepts with a Slovene term');
   }
 } catch (e: any) { console.warn('[IATE] iateRailGlossary.json failed:', e?.message); }
+
+app.get('/api/era/parameters', (req, res) => {
+  if (!eraParamXref) return res.status(503).json({ error: 'Tabela parametrov ni naložena' });
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const onlyNetwork = String(req.query.network || '') === '1';
+  const rows = eraParamXref.parameters
+    .filter((p: any) => !onlyNetwork || p.networkCompatibility)
+    .filter((p: any) => !q || `${p.number} ${p.name}`.toLowerCase().includes(q) || p.tsis.some((t: any) => t.tsi.toLowerCase().includes(q)));
+  res.json({
+    source: eraParamXref.source, note: eraParamXref.note, retrieved: eraParamXref.retrieved,
+    counts: eraParamXref.counts, query: q || null, onlyNetwork, matched: rows.length, parameters: rows
+  });
+});
 
 app.get('/api/glossary/rail', (req, res) => {
   if (!iateGlossary) return res.status(503).json({ error: 'Pojmovnik IATE ni naložen' });
