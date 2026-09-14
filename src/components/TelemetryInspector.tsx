@@ -474,20 +474,6 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     }
   }, [node?.id, node?.type]);
 
-  if (!node) return null;
-
-  const isLoRa = node.type === 'lorawan' || node.type === 'ttn' || !!node.loraData;
-  const isSignal = node.type === 'signal' || !!node.signalData;
-  const loraPackets = node.loraData?.packets || [];
-  const signalData: any = node.signalData || (node.rawPayload as any);
-  if (signalData && signalData.timeToChange !== undefined && signalData.countdownSeconds === undefined) { signalData.countdownSeconds = signalData.timeToChange; }
-
-  const handleCopy = (data: any) => {
-    navigator.clipboard.writeText(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   useEffect(() => {
     setRinfAt(null);
     if (!(isTrain || isModelledFreight)) return;
@@ -501,6 +487,20 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id, isTrain, isModelledFreight]);
+
+  if (!node) return null;
+
+  const isLoRa = node.type === 'lorawan' || node.type === 'ttn' || !!node.loraData;
+  const isSignal = node.type === 'signal' || !!node.signalData;
+  const loraPackets = node.loraData?.packets || [];
+  const signalData: any = node.signalData || (node.rawPayload as any);
+  if (signalData && signalData.timeToChange !== undefined && signalData.countdownSeconds === undefined) { signalData.countdownSeconds = signalData.timeToChange; }
+
+  const handleCopy = (data: any) => {
+    navigator.clipboard.writeText(typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const getTypeIcon = () => {
     switch (node.type) {
