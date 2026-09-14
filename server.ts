@@ -6148,6 +6148,148 @@ async function getOrFetchMotisTrip(
     }
 }
 
+/**
+ * MÁV's GTFS-style live feed, as mirrored once a minute by holavonat.is
+ * (https://github.com/holavonat/holavonatis, an open-source collector of the
+ * operators' undocumented API). Per rail vehicle: position, heading, the
+ * trip's full stop list with scheduled and real-time seconds-of-day, the
+ * route geometry and the train category. Passenger trains only — the
+ * categories are Sz, S, Z, G, IR, IC, EC, EN, ER, H; there is no freight
+ * category and a text search of the feed finds none.
+ *
+ * Used as enrichment for the trains vonatinfo places (the operator's own map
+ * stays the position of record), and as the timetable behind the journey
+ * panel for Hungarian trains, which HAFAS and MOTIS do not know.
+ */
+const HOLA_URL = 'https://cdn.holavonat.is/train_data_v3.json';
+const HOLA_TTL_MS = 30000;
+let holaCache: { ts: number; feedTs: string | null; byNumber: Map<string, any> } = { ts: 0, feedTs: null, byNumber: new Map() };
+let holaInFlight: Promise<typeof holaCache> | null = null;
+async function getHolavonatIndex(): Promise<typeof holaCache> {
+  if (Date.now() - holaCache.ts < HOLA_TTL_MS) return holaCache;
+  if (!holaInFlight) {
+    holaInFlight = (async () => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 8000);
+      try {
+        const r = await fetch(HOLA_URL, { signal: ctl.signal, headers: { 'User-Agent': 'nova-app-transport (+https://nova-app-transport.onrender.com)' } });
+        if (!r.ok) return holaCache;
+        const j: any = await r.json();
+        const byNumber = new Map<string, any>();
+        const nowS = Date.now() / 1000;
+        for (const v of (j.vehiclePositions || [])) {
+          const mode = v.trip?.route?.mode;
+          if (mode !== 'RAIL' && mode !== 'SUBURBAN_RAILWAY' && mode !== 'TRAMTRAIN') continue;
+          // A position older than fifteen minutes is a stale record, not a train.
+          if (Number.isFinite(v.lastUpdated) && nowS - v.lastUpdated > 900) continue;
+          const n = String(v.trip?.tripNumber || v.trip?.domesticResTrainNumber || '').replace(/\D/g, '');
+          if (n) byNumber.set(n, v);
+        }
+        holaCache = { ts: Date.now(), feedTs: j.timestamp || null, byNumber };
+        return holaCache;
+      } catch (e: any) {
+        console.error('[holavonat] fetch failed:', e?.message || e);
+        return holaCache;
+      } finally { clearTimeout(timer); holaInFlight = null; }
+    })();
+  }
+  return holaInFlight;
+}
+const HOLA_CATEGORIES: Record<string, { short: string; cls: string; label: string }> = {
+  Sz: { short: 'R', cls: 'regional', label: 'potniški vlak (személyvonat)' },
+  S: { short: 'S', cls: 'suburban', label: 'primestni vlak (S)' },
+  Z: { short: 'Z', cls: 'regionalExpress', label: 'zonski hitri vlak (zónázó)' },
+  G: { short: 'G', cls: 'interregional', label: 'brzi vlak (gyorsvonat)' },
+  Gy: { short: 'G', cls: 'interregional', label: 'brzi vlak (gyorsvonat)' },
+  IR: { short: 'IR', cls: 'interregional', label: 'InterRégió' },
+  IC: { short: 'IC', cls: 'national', label: 'InterCity' },
+  EC: { short: 'EC', cls: 'national', label: 'EuroCity' },
+  EN: { short: 'EN', cls: 'interregional', label: 'EuroNight' },
+  ER: { short: 'ER', cls: 'regional', label: 'EuRegio' },
+  H: { short: 'HÉV', cls: 'suburban', label: 'primestna železnica HÉV' }
+};
+function holaCategory(v: any): { short: string; cls: string; label: string } | null {
+  const m = String(v?.trip?.route?.longName || '').match(/^([A-Za-z]+)/);
+  return m ? (HOLA_CATEGORIES[m[1]] ?? null) : null;
+}
+const secToHm = (sec: number | null | undefined) => (Number.isFinite(sec as number) ? `${String(Math.floor(((sec as number) % 86400) / 3600)).padStart(2, '0')}:${String(Math.floor(((sec as number) % 3600) / 60)).padStart(2, '0')}` : null);
+/** Now, as seconds since midnight in Budapest (the feed's clock). */
+function budapestSecOfDay(): number {
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Budapest', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(new Date());
+  const g = (t: string) => Number(p.find(x => x.type === t)?.value || 0);
+  return g('hour') * 3600 + g('minute') * 60 + g('second');
+}
+/**
+ * A feed second-of-service-day as an ISO timestamp with Budapest's current
+ * offset. GTFS counts past 86400 for stops after midnight, and an overnight
+ * trip's service day may be `dayOffset` days back (IC Adria leaves Split in
+ * the evening and reaches Hungary the next morning).
+ */
+function budapestIso(sec: number, dayOffset = 0): string {
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Budapest', year: 'numeric', month: '2-digit', day: '2-digit', timeZoneName: 'longOffset' }).formatToParts(new Date());
+  const g = (t: string) => p.find(x => x.type === t)?.value || '';
+  const off = (g('timeZoneName') || 'GMT+01:00').replace('GMT', '') || '+01:00';
+  // Naive local clock arithmetic: service-day midnight minus dayOffset days plus sec.
+  const naive = new Date(Date.UTC(Number(g('year')), Number(g('month')) - 1, Number(g('day')) - dayOffset) + Math.round(sec) * 1000);
+  return `${naive.toISOString().slice(0, 19)}${off}`;
+}
+/**
+ * Which stop the vehicle is heading to (index into stoptimes) and how many
+ * days ago its service day began. Prefers the feed's own stopRelationship;
+ * otherwise picks the smallest day offset under which the trip has already
+ * departed but not yet ended.
+ */
+function holaProgress(v: any, nowSec: number): { next: number; dayOffset: number } {
+  const st: any[] = v?.trip?.stoptimes || [];
+  if (!st.length) return { next: 0, dayOffset: 0 };
+  const arrSec = (s: any) => s.realtimeArrival ?? s.scheduledArrival ?? s.realtimeDeparture ?? s.scheduledDeparture ?? 0;
+  const relName = String(v?.stopRelationship?.stop?.name || '').trim();
+  let next = relName ? st.findIndex(s => String(s.stop?.name || '').trim() === relName) : -1;
+  let dayOffset = 0;
+  if (next >= 0) {
+    dayOffset = Math.max(0, Math.round((arrSec(st[next]) - nowSec) / 86400));
+    return { next, dayOffset };
+  }
+  const first = st[0].realtimeDeparture ?? st[0].scheduledDeparture ?? arrSec(st[0]);
+  const last = arrSec(st[st.length - 1]);
+  for (let k = 0; k <= 2; k++) {
+    if (first - k * 86400 <= nowSec && last - k * 86400 > nowSec) { dayOffset = k; break; }
+  }
+  next = st.findIndex(s => arrSec(s) - dayOffset * 86400 > nowSec);
+  if (next < 0) next = st.length - 1;
+  return { next, dayOffset };
+}
+/** Google encoded polyline (1e-5) to [lon, lat] pairs. */
+function decodeGooglePolyline(str: string): [number, number][] {
+  const out: [number, number][] = [];
+  let i = 0, lat = 0, lon = 0;
+  while (i < str.length) {
+    let b, shift = 0, result = 0;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20 && i < str.length);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20 && i < str.length);
+    lon += (result & 1) ? ~(result >> 1) : (result >> 1);
+    out.push([lon / 1e5, lat / 1e5]);
+  }
+  return out;
+}
+function holaStopovers(v: any) {
+  const st: any[] = v?.trip?.stoptimes || [];
+  return st.map((s, i) => ({
+    stopName: s.stop?.name || '',
+    stationId: `mav_${String(s.stop?.name || i).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+    lat: s.stop?.lat ?? null, lon: s.stop?.lon ?? null,
+    plannedDeparture: i < st.length - 1 ? secToHm(s.scheduledDeparture) : null,
+    actualDeparture: i < st.length - 1 ? secToHm(s.realtimeDeparture) : null,
+    plannedArrival: i > 0 ? secToHm(s.scheduledArrival) : null,
+    actualArrival: i > 0 ? secToHm(s.realtimeArrival) : null,
+    delayMinutes: Math.round(((i > 0 ? s.arrivalDelay : s.departureDelay) || 0) / 60),
+    platform: s.stop?.platformCode || null,
+    passed: false, current: false
+  }));
+}
+
 // Interactive Train Journey and Stops API endpoint (Supports domestic & foreign trains)
 app.get('/api/train/trip', async (req, res) => {
     try {
@@ -6160,6 +6302,43 @@ app.get('/api/train/trip', async (req, res) => {
         const originStr = String(origin || '').trim();
         const destStr = String(destination || '').trim();
         const opStr = String(operator || '').trim();
+
+        // Hungarian trains: the operator's own schedule and real-time stop
+        // delays from MÁV's feed (via holavonat.is). HAFAS and MOTIS do not
+        // know these trains, so this used to be a 404.
+        if (/MÁV|MAV|GYSEV/i.test(opStr) || String(tripId || '').startsWith('mav_')) {
+            const num = String(tripId || '').startsWith('mav_') ? String(tripId).slice(4).replace(/\D/g, '') : extractedNum.replace(/\D/g, '');
+            const idx = await getHolavonatIndex();
+            const v = num ? idx.byNumber.get(num) : null;
+            if (v && Array.isArray(v.trip?.stoptimes) && v.trip.stoptimes.length >= 2) {
+                const stops = holaStopovers(v);
+                const { next: cur } = holaProgress(v, budapestSecOfDay());
+                stops.forEach((s, i) => { s.passed = i < cur; s.current = i === cur; });
+                const cat = holaCategory(v);
+                const coords = decodeGooglePolyline(String(v.trip.tripGeometry?.points || ''));
+                const delayMin = Math.round(((v.trip.stoptimes[cur]?.arrivalDelay ?? v.trip.stoptimes[cur]?.departureDelay ?? 0)) / 60);
+                return res.json({
+                    tripId: `mav_${num}`,
+                    line: `${cat ? cat.short : 'MÁV'} ${num}`,
+                    trainNumber: num,
+                    operator: opStr || 'MÁV (Madžarske železnice)',
+                    origin: stops[0].stopName,
+                    destination: v.trip.tripHeadsign || stops[stops.length - 1].stopName,
+                    departureTime: stops[0].plannedDeparture || '--:--',
+                    arrivalTime: stops[stops.length - 1].plannedArrival || '--:--',
+                    delayMinutes: Math.max(delayMin, queryDelay || 0),
+                    status: Math.max(delayMin, queryDelay || 0) > 3 ? 'delayed' : 'ontime',
+                    currentStopIndex: cur,
+                    rollingStock: null,
+                    trainClass: cat?.cls ?? null,
+                    trainClassName: cat?.short ?? null,
+                    stopovers: stops,
+                    currentLocation: Number.isFinite(v.lon) && Number.isFinite(v.lat) ? [v.lon, v.lat] : null,
+                    polyline: coords.length > 1 ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }] } : null,
+                    remarks: [`Vozni red in zamude po postajah: MÁV (GTFS prek holavonat.is, posnetek ${idx.feedTs || 'neznan'}).`]
+                });
+            }
+        }
         const opUpper = opStr.toUpperCase();
         const lineUpper = cleanLine.toUpperCase();
 
@@ -7009,7 +7188,9 @@ app.get('/api/train/trip', async (req, res) => {
       return j?.d ?? j;
     } finally { clearTimeout(t); }
   }
-  const mavNumber = (raw: string) => { const d = String(raw || '').replace(/\D/g, ''); return d.length >= 6 && /^(55|43)/.test(d) ? d.slice(2) : d; };
+  // vonatinfo prefixes every number with the operator's UIC code (55 = MÁV,
+  // 43 = GySEV): "55849" is IC 849, "439049" is 9049.
+  const mavNumber = (raw: string) => { const d = String(raw || '').replace(/\D/g, ''); return d.length >= 4 && /^(55|43)/.test(d) ? d.slice(2) : d; };
   async function mavDetail(number: string) {
     const hit = mavDetailCache.get(number);
     if (hit && Date.now() - hit.ts < MAV_DETAIL_TTL_MS) return hit;
@@ -7052,30 +7233,50 @@ app.get('/api/train/trip', async (req, res) => {
     }
     const out: any[] = [];
     const nowHm = (() => { const s = new Date().toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Budapest' }); return s; })();
+    // The GTFS mirror adds heading, category, next stops with delays and the
+    // route geometry for the same train numbers.
+    const hola = await getHolavonatIndex();
+    const nowSec = budapestSecOfDay();
     for (const t of near) {
       const number = mavNumber(t['@TrainNumber']);
       const det = mavDetailCache.get(number) ?? null;
       const typeKey = det?.type ? Object.keys(MAV_TYPES).find(k => det!.type!.startsWith(k)) : undefined;
-      const ty = typeKey ? MAV_TYPES[typeKey] : null;
+      const sheetTy = typeKey ? MAV_TYPES[typeKey] : null;
+      const hv = hola.byNumber.get(number) ?? null;
+      const cat = hv ? holaCategory(hv) : null;
+      const ty = cat ?? sheetTy;
       const menet = String(t['@Menetvonal'] || '');
       const operator = menet === 'GYSEV' ? 'GySEV (Győr–Sopron–Ebenfurt)' : menet === 'HEV' ? 'MÁV-HÉV (Budapest)' : 'MÁV (Madžarske železnice)';
       const rel = String(t['@Relation'] || '');
       const [origin, destination] = rel.split(/\s+-\s+/);
-      const upcoming = (det?.stops || []).filter(s => (s.dep || s.arr || '') > nowHm).slice(0, 2);
+      let nextStopovers: any[];
+      if (hv && Array.isArray(hv.trip?.stoptimes)) {
+        const { next, dayOffset } = holaProgress(hv, nowSec);
+        nextStopovers = hv.trip.stoptimes
+          .slice(next, next + 2)
+          .map((s: any) => ({ arrival: budapestIso(s.realtimeArrival ?? s.scheduledArrival, dayOffset), arrivalPlatform: s.stop?.platformCode || null, plannedTime: secToHm(s.scheduledArrival), delayMin: Math.round((s.arrivalDelay || 0) / 60), stop: { name: s.stop?.name || '' } }));
+      } else {
+        const upcoming = (det?.stops || []).filter(s => (s.dep || s.arr || '') > nowHm).slice(0, 2);
+        nextStopovers = upcoming.map(s => ({ arrival: null, arrivalPlatform: null, plannedTime: s.arr || s.dep, stop: { name: s.name } }));
+      }
+      const heading = hv && Number.isFinite(hv.heading) ? ((Math.round(hv.heading) % 360) + 360) % 360 : 0;
+      const coords = hv?.trip?.tripGeometry?.points ? decodeGooglePolyline(String(hv.trip.tripGeometry.points)) : [];
       out.push({
         id: `mav_${number}`,
         name: `${ty ? ty.short : 'MÁV'} ${number}`,
         lat: t['@Lat'], lon: t['@Lon'],
-        heading: 0, speed: 0,
+        heading, hasHeading: heading !== 0 || !!hv,
+        speed: hv && Number.isFinite(hv.speed) ? Math.round(hv.speed) : 0,
         operator,
         origin: origin || null,
-        destination: destination || 'Neznano',
+        destination: destination || (hv?.trip?.tripHeadsign ?? 'Neznano'),
         delay: Number(t['@Delay']) || 0,
-        source: 'MÁV vonatinfo (živi položaj prevoznika)',
+        source: hv ? 'MÁV vonatinfo (položaj prevoznika) + MÁV GTFS prek holavonat.is (smer, postanki, pot)' : 'MÁV vonatinfo (živi položaj prevoznika)',
         timestamp: new Date().toISOString(),
         type: 'train',
-        nextStopovers: upcoming.map(s => ({ arrival: null, arrivalPlatform: null, plannedTime: s.arr || s.dep, stop: { name: s.name } })),
-        hasPolyline: false,
+        nextStopovers,
+        hasPolyline: coords.length > 1,
+        polyline: coords.length > 1 ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }] } : null,
         trainClass: ty ? ty.cls : null,
         trainClassName: ty ? ty.short : null,
         trainClassLabel: ty ? ty.label : (det?.type ? det.type : null),
