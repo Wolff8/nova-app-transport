@@ -10890,8 +10890,8 @@ app.post('/api/log', express.json(), (req, res) => {
     } : null;
 
     const today = new Date().toISOString().slice(0, 10);
-    const works = ((lineWorksData?.works ?? []) as any[])
-      .filter(w => w.dateTo && w.dateTo >= today && (has(w.fromPoint?.name || w.from) || has(w.toPoint?.name || w.to)))
+    const works = ([...(lineWorksData?.works ?? []), ...szTcrWorks] as any[])
+      .filter(w => w.dateTo && w.dateTo >= today && !w.group && (has(w.fromPoint?.name || w.from) || has(w.toPoint?.name || w.to)))
       .map(w => ({ id: w.id, line: w.line, from: w.from, to: w.to, dateFrom: w.dateFrom, dateTo: w.dateTo, timeOfDay: w.timeOfDay, reason: w.reason, description: w.description, impacts: w.impacts, sources: w.sources, status: w.dateFrom <= today ? 'v teku' : 'načrtovano' }))
       .sort((a, c) => String(a.dateFrom).localeCompare(String(c.dateFrom)));
 
@@ -10990,8 +10990,10 @@ app.post('/api/log', express.json(), (req, res) => {
     const soon = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
     const recent = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     const features: any[] = [];
-    for (const w of lineWorksData.works) {
-      if (!w.fromPoint || !w.toPoint || !w.dateTo || w.dateTo < recent) continue;
+    // The corridors' TCR lists plus the infrastructure manager's own 2026
+    // closure table (Network Statement); each feature names its source.
+    for (const w of [...lineWorksData.works, ...szTcrWorks]) {
+      if (!w.fromPoint || !w.toPoint || !w.dateTo || w.dateTo < recent || w.group) continue;
       const status = w.dateFrom <= today && w.dateTo >= today ? 'v teku' : (w.dateFrom > today ? (w.dateFrom <= soon ? 'kmalu' : 'načrtovano') : 'končano');
       const geometry = lineWorksGeometry.get(workKey(w)) ?? workGeometryStraight(w);
       const samePoint = geometry.type === 'Point';
@@ -12695,6 +12697,72 @@ try {
   }
 } catch (e: any) { console.warn('[RINF] rinfSlovenia.json failed:', e?.message); }
 const rinfSIByUopid = new Map<string, any>(rinfSI ? rinfSI.operationalPoints.map((o: any) => [o.uopid, o]) : []);
+
+/**
+ * The infrastructure manager's own closure plan for timetable 2026: the
+ * table "Predvidene zapore na glavnih in regionalnih progah v letu 2026" in
+ * SŽ-Infrastruktura's Network Statement (src/data/szTcr2026.json, transcribed
+ * with page numbers). Each row is placed on the map by looking its section's
+ * end stations up in the RINF register; a row the register cannot place is
+ * still listed, just not drawn. Rows without dates (works "starting in Q2")
+ * are listed only. Sits alongside the corridors' TCR lists (lineWorks.json)
+ * in /api/rail/works and in each path's context.
+ */
+let szTcr: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'szTcr2026.json');
+  if (fs.existsSync(p)) {
+    szTcr = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  }
+} catch (e: any) { console.warn('[TCR] szTcr2026.json failed:', e?.message); }
+const tcrNorm = (s: any) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+const rinfOpByName = new Map<string, any>(rinfSI ? rinfSI.operationalPoints.filter((o: any) => o.name && Number.isFinite(o.lat)).map((o: any) => [tcrNorm(o.name), o]) : []);
+// How the Network Statement spells a place versus how the register does.
+const TCR_NAME_ALIASES: Record<string, string> = {
+  'lj.siska': 'ljubljana siska', 'lj. siska': 'ljubljana siska', 'lesce bled': 'lesce-bled', 'vizmarje': 'ljubljana vizmarje',
+  'cep. presnica': 'presnica', 'cepisce presnica': 'presnica', 'proga 12': 'ljubljana siska', 'proga 13': 'ljubljana moste',
+  'ljubljana moste (te - tol)': 'ljubljana moste', 'ljubljana moste - lokomotivska postaja': 'ljubljana moste'
+};
+function tcrLocate(raw: string): { name: string; lat: number; lon: number } | null {
+  let n = tcrNorm(raw).replace(/\(.*?\)/g, '').trim();
+  n = TCR_NAME_ALIASES[n] || n;
+  const o = rinfOpByName.get(n);
+  return o ? { name: o.name, lat: o.lat, lon: o.lon } : null;
+}
+const szTcrWorks: any[] = szTcr ? (szTcr.restrictions as any[]).map((r, i) => {
+  // "Krško – Brestanica", "Lesce Bled – Jesenice – d.m.", "Sevnica": the two
+  // named ends, the border ("d.m.") dropped since the register names it
+  // under the neighbouring station.
+  const parts = String(r.section).replace(/\(.*?\)/g, '').split(/\s[–-]\s/).map(s => s.trim()).filter(s => s && !/^d\.m\.$/i.test(s));
+  const fromName = parts[0], toName = parts[parts.length - 1];
+  const fromPoint = tcrLocate(fromName), toPoint = tcrLocate(toName) || fromPoint;
+  const when = (r.fromTime || r.toTime) ? ` · ${r.fromTime ? `od ${r.fromTime}` : ''}${r.toTime ? ` do ${r.toTime}` : ''}`.replace(' ·  do', ' · do') : '';
+  return {
+    id: `ns2026_${i}`, nsRow: i, line: r.line, from: fromName, to: toName, section: r.section, work: r.work, track: r.track ?? null,
+    dateFrom: r.from, dateTo: r.to, fromTime: r.fromTime ?? null, toTime: r.toTime ?? null, startNote: r.startNote ?? null, group: !!r.group,
+    timeOfDay: r.window === 'neprekinjena' ? 'continuous' : r.window,
+    reason: 'Program omrežja 2026 – načrtovana zapora (SŽ-Infrastruktura)',
+    impacts: [], description: `${r.work}${r.track ? ` (${r.track})` : ''}${when}`,
+    updated: szTcr.retrieved, status: null,
+    sources: [`SŽ-Infrastruktura – Program omrežja 2026, str. ${r.page}`],
+    fromPoint: fromPoint ? { ...fromPoint } : null, toPoint: toPoint ? { ...toPoint } : null,
+    located: !!(fromPoint && toPoint)
+  };
+}) : [];
+if (szTcr) console.log('[TCR] Network Statement 2026 closures:', szTcrWorks.length, 'rows,', szTcrWorks.filter(w => w.located).length, 'placed on the map,', szTcrWorks.filter(w => !w.dateFrom).length, 'without dates');
+
+app.get('/api/freight/tcr-ns', (_req, res) => {
+  if (!szTcr) return res.status(503).json({ error: 'Program omrežja ni naložen' });
+  const today = new Date().toISOString().slice(0, 10);
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.json({
+    source: szTcr.source, sourceUrl: szTcr.sourceUrl, documentVersion: szTcr.documentVersion, documentPages: szTcr.documentPages,
+    retrieved: szTcr.retrieved, timetable: szTcr.timetable, transcription: szTcr.transcription, documentNote: szTcr.documentNote,
+    capacityMeasure: szTcr.capacityMeasure, table2027Note: szTcr.table2027Note,
+    counts: { rows: szTcrWorks.length, located: szTcrWorks.filter(w => w.located).length, undated: szTcrWorks.filter(w => !w.dateFrom).length },
+    works: szTcrWorks.map(w => ({ ...w, status: !w.dateFrom ? 'brez datuma' : (w.dateTo < today ? 'končano' : (w.dateFrom <= today ? 'v teku' : 'načrtovano')) }))
+  });
+});
 const RINF_OP_TYPE_SL: Record<string, string> = {
   'station': 'postaja', 'small station': 'manjša postaja', 'passenger stop': 'postajališče', 'border point': 'mejna točka (d.m.)',
   'junction': 'cepišče', 'freight terminal': 'tovorni terminal', 'shunting yard': 'ranžirna postaja', 'depot or workshop': 'depo / delavnica',

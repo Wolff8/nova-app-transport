@@ -63,6 +63,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   // Eurostat: what is carried (NST 2007), quarterly tonnes, intermodal units
   // and partner countries — the server's summary of the full cubes.
   const [eurostat, setEurostat] = useState<any>(null);
+  // SŽ-Infrastruktura's 2026 closure table from the Network Statement.
+  const [nsTcr, setNsTcr] = useState<any>(null);
   // The data panels live several tabs deep, and the tab strip used to scroll
   // sideways with nothing to show it did — so half the tabs were never seen.
   // A jump sets the tab (and register kind) and scrolls to the panel once it
@@ -233,6 +235,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     fetch('/api/freight/eurostat')
       .then(res => (res.ok ? res.json() : null))
       .then(data => { if (data && (data.commodities || data.quarterly)) setEurostat(data); })
+      .catch(() => {});
+
+    fetch('/api/freight/tcr-ns')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data && Array.isArray(data.works)) setNsTcr(data); })
       .catch(() => {});
 
     // Initial UIC decoder lookup
@@ -468,6 +475,10 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
             <button onClick={() => jumpTo('corridors', 'panel-capacity')}
               className="px-2 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 cursor-pointer font-semibold">
               SŽ-I vlakovne poti {capacityStrategy?.timetable || '2026'}{capacityStrategy?.mainLines ? ` (${capacityStrategy.mainLines.length} odsekov)` : ''}
+            </button>
+            <button onClick={() => jumpTo('corridors', 'panel-tcr-ns')}
+              className="px-2 py-0.5 rounded-md border border-rose-500/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 cursor-pointer font-semibold">
+              SŽ-I zapore prog 2026{nsTcr?.counts ? ` (${nsTcr.counts.rows} vrstic)` : ''}
             </button>
             <button onClick={() => jumpTo('modalsplit', 'panel-surs')}
               className="px-2 py-0.5 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 cursor-pointer font-semibold">
@@ -1555,6 +1566,57 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
                     <p className="text-[9.5px] leading-snug text-slate-500">
                       {rfcKpis.definitions?.trainsPerBorder} {rfcKpis.definitions?.rfcTrain} Vir: {rfcKpis.source}.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* The infrastructure manager's own 2026 closure table, row for
+                  row as the Network Statement prints it, with the page. */}
+              {nsTcr && (() => {
+                const today = new Date().toISOString().slice(0, 10);
+                const rows: any[] = nsTcr.works.filter((w: any) => !w.group);
+                const live = rows.filter(w => w.dateFrom && w.dateTo >= today);
+                const past = rows.filter(w => w.dateFrom && w.dateTo < today);
+                const undated = rows.filter(w => !w.dateFrom);
+                const d = (s: any) => (s ? String(s).split('-').reverse().join('. ') : '');
+                const Row: React.FC<{ w: any }> = ({ w }) => (
+                  <div className="flex items-start gap-2 text-[11px] leading-snug py-1 border-b border-slate-800/70">
+                    <span className="shrink-0 w-14 font-mono text-slate-400">proga {w.line}</span>
+                    <span className={`shrink-0 px-1 rounded text-[9.5px] font-mono ${w.status === 'v teku' ? 'bg-rose-500/30 text-rose-100' : w.status === 'načrtovano' ? 'bg-amber-500/20 text-amber-100' : 'bg-white/10 text-slate-300'}`}>{w.status}</span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="text-white">{w.section}</strong>{w.track ? <span className="text-slate-400"> · {w.track}</span> : null}
+                      <span className="text-slate-300"> — {w.work}</span>
+                      <span className="block text-[10px] font-mono text-slate-400">
+                        {w.dateFrom ? `${d(w.dateFrom)}${w.fromTime ? ` ${w.fromTime}` : ''} – ${d(w.dateTo)}${w.toTime ? ` ${w.toTime}` : ''}` : w.startNote}
+                        {w.timeOfDay && w.timeOfDay !== 'continuous' ? ` · ${w.timeOfDay}` : (w.timeOfDay === 'continuous' ? ' · neprekinjena' : '')}
+                        {!w.located ? ' · ni na karti (RINF ne pozna imena)' : ''}
+                        {` · str. ${String(w.sources?.[0] || '').replace(/.*str\. /, '')}`}
+                      </span>
+                    </span>
+                  </div>
+                );
+                return (
+                  <div id="panel-tcr-ns" className="p-4 rounded-xl bg-slate-900/70 border border-rose-500/25 space-y-2 scroll-mt-4">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div>
+                        <h3 className="text-sm font-bold text-white">Načrtovane zapore prog 2026 — Program omrežja SŽ-Infrastruktura</h3>
+                        <p className="text-[10.5px] text-slate-400 leading-snug">{nsTcr.documentVersion} · {nsTcr.documentPages} · {nsTcr.counts.rows} vrstic, {nsTcr.counts.located} narisanih na karti (sloj »Dela na progi / zapore«)</p>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border border-rose-500/40 text-rose-200 bg-rose-500/10">upravljavčev načrt, ne vlak</span>
+                    </div>
+                    {live.length > 0 && <div className="text-[10px] uppercase font-mono tracking-wider text-rose-300 pt-1">V teku in prihodnje ({live.length})</div>}
+                    {live.map(w => <Row key={w.id} w={w} />)}
+                    {undated.length > 0 && <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 pt-2">Brez datuma v tabeli ({undated.length})</div>}
+                    {undated.map(w => <Row key={w.id} w={w} />)}
+                    {past.length > 0 && (
+                      <details className="pt-1">
+                        <summary className="text-[10.5px] text-slate-400 cursor-pointer">Že končane letos ({past.length})</summary>
+                        {past.map(w => <Row key={w.id} w={w} />)}
+                      </details>
+                    )}
+                    <p className="text-[10px] text-slate-400 leading-relaxed border-t border-slate-800 pt-2">
+                      {nsTcr.transcription} {nsTcr.documentNote} Ukrep za tovorni promet: {nsTcr.capacityMeasure} {nsTcr.table2027Note} Vir: {nsTcr.source} ({nsTcr.sourceUrl}).
                     </p>
                   </div>
                 );
