@@ -6165,15 +6165,19 @@ const HOLA_URL = 'https://cdn.holavonat.is/train_data_v3.json';
 const HOLA_TTL_MS = 30000;
 let holaCache: { ts: number; feedTs: string | null; byNumber: Map<string, any> } = { ts: 0, feedTs: null, byNumber: new Map() };
 let holaInFlight: Promise<typeof holaCache> | null = null;
+/** Last fetch outcome, surfaced in /api/transit/diagnostics. */
+const holaStatus: { lastAttempt: string | null; lastOk: string | null; lastError: string | null; lastMs: number | null; vehicles: number } = { lastAttempt: null, lastOk: null, lastError: null, lastMs: null, vehicles: 0 };
 async function getHolavonatIndex(): Promise<typeof holaCache> {
   if (Date.now() - holaCache.ts < HOLA_TTL_MS) return holaCache;
   if (!holaInFlight) {
     holaInFlight = (async () => {
       const ctl = new AbortController();
-      const timer = setTimeout(() => ctl.abort(), 8000);
+      const timer = setTimeout(() => ctl.abort(), 20000);
+      const t0 = Date.now();
+      holaStatus.lastAttempt = new Date().toISOString();
       try {
-        const r = await fetch(HOLA_URL, { signal: ctl.signal, headers: { 'User-Agent': 'nova-app-transport (+https://nova-app-transport.onrender.com)' } });
-        if (!r.ok) return holaCache;
+        const r = await fetch(HOLA_URL, { signal: ctl.signal, headers: { 'User-Agent': 'nova-app-transport (+https://nova-app-transport.onrender.com)', Accept: 'application/json' } });
+        if (!r.ok) { holaStatus.lastError = `HTTP ${r.status}`; holaStatus.lastMs = Date.now() - t0; return holaCache; }
         const j: any = await r.json();
         const byNumber = new Map<string, any>();
         const nowS = Date.now() / 1000;
@@ -6186,13 +6190,19 @@ async function getHolavonatIndex(): Promise<typeof holaCache> {
           if (n) byNumber.set(n, v);
         }
         holaCache = { ts: Date.now(), feedTs: j.timestamp || null, byNumber };
+        holaStatus.lastOk = new Date().toISOString(); holaStatus.lastError = null; holaStatus.lastMs = Date.now() - t0; holaStatus.vehicles = byNumber.size;
         return holaCache;
       } catch (e: any) {
-        console.error('[holavonat] fetch failed:', e?.message || e);
+        holaStatus.lastError = String(e?.name === 'AbortError' ? 'timeout' : (e?.cause?.code || e?.cause?.message || e?.message || e));
+        holaStatus.lastMs = Date.now() - t0;
+        console.error('[holavonat] fetch failed:', holaStatus.lastError);
         return holaCache;
       } finally { clearTimeout(timer); holaInFlight = null; }
     })();
   }
+  // A stale index is better than a blocked response: refresh in the
+  // background while a previous snapshot exists.
+  if (holaCache.byNumber.size) return holaCache;
   return holaInFlight;
 }
 const HOLA_CATEGORIES: Record<string, { short: string; cls: string; label: string }> = {
@@ -11730,6 +11740,7 @@ app.post('/api/log', express.json(), (req, res) => {
       uptimeS: Math.round(process.uptime()),
       cachedVehicles: transitCache.data.length,
       cacheAgeMs: transitCache.ts ? Date.now() - transitCache.ts : null,
+      holavonat: { ...holaStatus, feedTs: holaCache.feedTs, cacheAgeMs: holaCache.ts ? Date.now() - holaCache.ts : null },
       note: 'motis/travic/mav povedo, koliko vozil je prispevalo posamezno zaledje pri zadnji gradnji. Nic pri motis in travic pomeni, da sta oba odpovedala in ostanejo samo madzarski vlaki.'
     });
   });
