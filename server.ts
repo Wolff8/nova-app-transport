@@ -11694,7 +11694,46 @@ app.post('/api/log', express.json(), (req, res) => {
       };
       transitBuild.lastError = null;
 
-      const baseTransit = [...motisVehicles, ...travicVehicles];
+      /**
+       * The same train, once from each layer.
+       *
+       * TRAVIC carries ÖBB trains with a position but no train number, so they
+       * are drawn as "ÖBB Vlak", while the HAFAS layer carries the same trains
+       * with their number, line and journey. Both were shown, which is the
+       * pair of markers a metre apart near Kaindorf an der Sulm. The HAFAS
+       * layer already drops its own unnumbered trains near a numbered one;
+       * this applies the same rule across the two layers, so the marker that
+       * survives is the one that can be identified.
+       *
+       * Only an unnumbered train is ever dropped, and only against a numbered
+       * train of the same operator, so a service the other layer does not
+       * carry stays on the map: measured live, 22 of 48 TRAVIC ÖBB trains sit
+       * more than ten kilometres from any HAFAS train and are untouched.
+       */
+      const namedFromHafas: any[] = Array.isArray((global as any).latestTrainsList) ? (global as any).latestTrainsList : [];
+      const operatorKey = (v: any) => String(v?.operator || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 6);
+      const numberedByOperator = new Map<string, any[]>();
+      for (const h of namedFromHafas) {
+        if (h?.type !== 'train' || !Number.isFinite(h.lat) || !Number.isFinite(h.lon)) continue;
+        if (!String(h.name || '').match(/\d/)) continue;
+        const k = operatorKey(h);
+        if (!k) continue;
+        if (!numberedByOperator.has(k)) numberedByOperator.set(k, []);
+        numberedByOperator.get(k)!.push(h);
+      }
+      const DUP_KM = 6; // the threshold the HAFAS layer already uses for this
+      const withoutHafasCopies = [...motisVehicles, ...travicVehicles].filter(v => {
+        if (v?.type !== 'train') return true;
+        if (String(v.name || '').match(/\d/)) return true;
+        const peers = numberedByOperator.get(operatorKey(v));
+        if (!peers?.length || !Number.isFinite(v.lat) || !Number.isFinite(v.lon)) return true;
+        return !peers.some(h => {
+          const dy = (h.lat - v.lat) * 110.5;
+          const dx = (h.lon - v.lon) * 111.3 * Math.cos((v.lat * Math.PI) / 180);
+          return Math.hypot(dx, dy) <= DUP_KM;
+        });
+      });
+      const baseTransit = withoutHafasCopies;
 
       // Fold in MÁV's own Hungarian trains. Where the same train number is
       // already present from TRAVIC/MOTIS the existing record wins, so this
