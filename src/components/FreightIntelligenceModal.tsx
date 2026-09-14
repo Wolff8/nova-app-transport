@@ -27,7 +27,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [registerQuery, setRegisterQuery] = useState('');
-  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params' | 'freightStations' | 'commodities'>('vkm');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params' | 'freightStations' | 'commodities' | 'rcc'>('vkm');
   const [paramTable, setParamTable] = useState<any>(null);
   const [paramsNetworkOnly, setParamsNetworkOnly] = useState(false);
   const [glossary, setGlossary] = useState<any>(null);
@@ -42,6 +42,10 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   // user has opened.
   const [nhmData, setNhmData] = useState<any>(null);
   const [nhmCode, setNhmCode] = useState<any>(null);
+  // RCC: route-compatibility check of a locomotive type against the SI network.
+  const [rccLocos, setRccLocos] = useState<any>(null);
+  const [rccResult, setRccResult] = useState<any>(null);
+  const [rccLoading, setRccLoading] = useState(false);
   const [registerResults, setRegisterResults] = useState<any>(null);
   const [networkRef, setNetworkRef] = useState<any>(null);
   const [feedHealth, setFeedHealth] = useState<any>(null);
@@ -1557,7 +1561,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   { k: 'terms', label: 'Izrazje (IATE)' },
                   { k: 'params', label: 'Parametri in TSI (ERA)' },
                   { k: 'freightStations', label: 'Tovorne postaje (DIUM)' },
-                  { k: 'commodities', label: 'Blagovne šifre (NHM)' }
+                  { k: 'commodities', label: 'Blagovne šifre (NHM)' },
+                  { k: 'rcc', label: 'Združljivost s progo (RCC)' }
                 ].map(t => (
                   <button
                     key={t.k}
@@ -1578,6 +1583,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       if (t.k === 'commodities' && !nhmData) {
                         fetch('/api/freight/nhm?rail=1').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setNhmData(j); }).catch(() => {});
                       }
+                      if (t.k === 'rcc' && !rccLocos) {
+                        fetch('/api/rcc/locomotives').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setRccLocos(j); }).catch(() => {});
+                      }
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                       registerKind === t.k
@@ -1590,7 +1598,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 ))}
               </div>
 
-              {registerKind !== 'lines' && (
+              {registerKind !== 'lines' && registerKind !== 'rcc' && (
                 <form
                   onSubmit={e => {
                     e.preventDefault();
@@ -1641,7 +1649,105 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </form>
               )}
 
-              {registerKind === 'commodities' ? (
+              {registerKind === 'rcc' ? (
+                rccLocos ? (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Združljivost vozila s progo (RCC)</h4>
+                      <p className="text-[10px] text-slate-400 leading-relaxed">
+                        Izberi tip lokomotive; izračunam, po katerih odsekih slovenskega omrežja (RINF) sme tehnično voziti — po elektrifikaciji,
+                        osni obremenitvi in zaščiti vlaka. Vsak izid je izračun iz registrskih vrednosti; kjer registra ne odločita, je »ročna presoja«.
+                        <span className="text-amber-400/90"> Ni dovoljenje za vožnjo in ne položaj vlaka.</span>
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {rccLocos.locomotives.map((l: any) => (
+                        <button
+                          key={l.id}
+                          onClick={() => {
+                            setRccResult(null); setRccLoading(true);
+                            fetch(`/api/rcc/${l.id}`).then(r => (r.ok ? r.json() : null)).then(j => { if (j && !j.error) setRccResult(j); }).finally(() => setRccLoading(false));
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all cursor-pointer border ${
+                            rccResult?.locomotive?.id === l.id ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-slate-900/60 text-slate-300 border-slate-800 hover:border-amber-500/40'
+                          }`}
+                          title={l.voltageSummary}
+                        >
+                          {l.countryFlag} {l.name.replace(/\s*\(.*\)/, '')}
+                        </button>
+                      ))}
+                    </div>
+
+                    {rccLoading && <p className="text-[11px] text-slate-400">Računam združljivost…</p>}
+
+                    {rccResult && (() => {
+                      const total = rccResult.networkKm || 1;
+                      const pct = (km: number) => Math.round((km / total) * 100);
+                      const VS: Record<string, { t: string; c: string }> = {
+                        'compatible': { t: 'združljivo', c: 'text-emerald-400' },
+                        'not-compatible': { t: 'ni združljivo', c: 'text-rose-400' },
+                        'manual-check': { t: 'ročna presoja', c: 'text-amber-400' },
+                        'info': { t: 'info', c: 'text-slate-400' }
+                      };
+                      const PNAME: Record<string, string> = { loadCategory: 'osna obremenitev', electrification: 'elektrifikacija', trainProtection: 'zaščita vlaka' };
+                      const blocked = Object.entries(rccResult.sections.reduce((acc: any, s: any) => { if (s.verdict !== 'compatible') (acc[s.verdict] ||= []).push(s); return acc; }, {}));
+                      return (
+                        <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-3">
+                          <div>
+                            <div className="text-sm font-bold text-white">{rccResult.locomotive.name}</div>
+                            <div className="text-[10px] font-mono text-amber-200/70">
+                              {rccResult.locomotive.axleLoadTonnes ?? '?'} t/os · do {rccResult.locomotive.maxSpeedKmh} km/h · {(rccResult.locomotive.voltageSystems || []).join(', ')}
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            {[['compatible', rccResult.summary.compatibleKm, 'bg-emerald-400'], ['not-compatible', rccResult.summary.notCompatibleKm, 'bg-rose-400'], ['manual-check', rccResult.summary.manualCheckKm, 'bg-amber-400']].map(([v, km, bar]: any) => (
+                              <div key={v} className="space-y-0.5">
+                                <div className="flex items-baseline justify-between gap-2 text-[11px]">
+                                  <span className={VS[v].c}>{VS[v].t}</span>
+                                  <span className="font-mono text-white">{Number(km).toLocaleString('sl-SI')} km ({pct(km)} %)</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.max(1, pct(km))}%` }} /></div>
+                              </div>
+                            ))}
+                            <div className="text-[10px] text-slate-500">od skupno {Number(rccResult.networkKm).toLocaleString('sl-SI')} km omrežja RINF Slovenija</div>
+                          </div>
+                          {Object.keys(rccResult.blockingKmByParameter || {}).length > 0 && (
+                            <div className="border-t border-white/10 pt-2">
+                              <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">Kaj blokira (km po parametru)</div>
+                              {Object.entries(rccResult.blockingKmByParameter).sort((a: any, b: any) => b[1] - a[1]).map(([k, km]: any) => (
+                                <div key={k} className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                                  <span className="text-slate-300">{PNAME[k] || k}</span>
+                                  <span className="font-mono text-slate-200">{Number(km).toLocaleString('sl-SI')} km</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {blocked.length > 0 && (
+                            <div className="border-t border-white/10 pt-2">
+                              <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">Primeri odsekov</div>
+                              <div className="space-y-1 max-h-52 overflow-y-auto">
+                                {(blocked as any).flatMap(([v, arr]: any) => arr.slice(0, 6).map((s: any) => (
+                                  <div key={s.sectionId} className="text-[10px] leading-snug">
+                                    <span className={`font-semibold ${VS[s.verdict].c}`}>{VS[s.verdict].t}</span>
+                                    <span className="text-slate-300"> · {s.from} – {s.to} ({s.lengthKm} km)</span>
+                                    <div className="text-slate-500 pl-2">
+                                      {Object.entries(s.parameters).filter(([, p]: any) => p.verdict === 'not-compatible' || p.verdict === 'manual-check').map(([k, p]: any) => `${PNAME[k] || k}: ${p.why}`).join(' · ')}
+                                    </div>
+                                  </div>
+                                )))}
+                              </div>
+                            </div>
+                          )}
+                          <p className="text-[9px] leading-snug font-mono text-amber-200/60">{rccResult.disclaimer}</p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400">Nalagam register lokomotiv…</p>
+                )
+              ) : registerKind === 'commodities' ? (
                 nhmData ? (
                   <div className="space-y-3">
                     <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">

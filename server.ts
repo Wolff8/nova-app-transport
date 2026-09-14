@@ -13384,6 +13384,189 @@ app.get('/api/rinf/summary', (_req, res) => {
   if (!rinfSISummary) return res.status(503).json({ error: 'Nabor RINF za Slovenijo ni naložen' });
   res.json(rinfSISummary);
 });
+
+/**
+ * Route Compatibility Check (RCC), Slovenia, computed offline.
+ *
+ * ERA's own RCC tool answers whether a vehicle type may technically run a
+ * route by comparing the vehicle's authorised parameters against the RINF
+ * network. This does the same from data already in the app: the curated
+ * locomotive register (voltage, train-protection, axle load, top speed) and
+ * the RINF Slovenia sections (electrification, ETCS/class-B protection, load
+ * category, line speed, loading gauge), per track.
+ *
+ * Nothing here is a live train or an invented figure. Each verdict is a
+ * computation over published register values, and every verdict ships with
+ * the raw values it was computed from, so the basis is visible. Where the
+ * registers do not settle it, the verdict is "manual check", never a guess.
+ */
+const RCC_VERDICT = { OK: 'compatible', NO: 'not-compatible', MANUAL: 'manual-check', INFO: 'info' } as const;
+
+/** Electrification tokens, canonicalised from both registers' spellings. */
+function rccVoltageTokens(values: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const v of values || []) {
+    const s = String(v).toLowerCase().replace(/\s|-/g, '');
+    if (/dizel|diesel|neelektrif|autonom|avtonom/.test(s)) out.add('DIESEL');
+    if (/3kvdc|dc3kv/.test(s)) out.add('DC3');
+    if (/1\.?5kvdc|dc1\.?5kv/.test(s)) out.add('DC1_5');
+    if (/25kv.*(ac|50hz)|ac25kv/.test(s)) out.add('AC25');
+    if (/15kv.*(ac|16\.?7hz)|ac15kv/.test(s)) out.add('AC15');
+  }
+  return out;
+}
+
+/** EN 15528 line category letter → permissible axle load, tonnes. */
+const RCC_AXLE_LIMIT: Record<string, number> = { A: 16, B: 18, C: 20, D: 22.5, E: 25, F: 27.5, G: 30 };
+function rccCategoryLimit(cats: string[]): number | null {
+  let best: number | null = null;
+  for (const c of cats || []) {
+    const lim = RCC_AXLE_LIMIT[String(c).trim().charAt(0).toUpperCase()];
+    if (lim != null) best = best == null ? lim : Math.max(best, lim);
+  }
+  return best;
+}
+
+/** Count axles from UIC arrangement notation (Bo'Bo' = 4, Co'Co' = 6, …). */
+function rccAxleCount(arr: string): number {
+  let n = 0;
+  for (const ch of String(arr || '')) {
+    if (/[A-G]/i.test(ch)) n += (ch.toUpperCase().charCodeAt(0) - 64); // A=1 … G=7 driven axles
+    else if (/[1-9]/.test(ch)) n += Number(ch);                        // carrying axles
+  }
+  return n;
+}
+
+/** Train-protection families present, from either register's free text. */
+function rccProtectionTokens(values: string[], etcsLevels: string[] = []): Set<string> {
+  const out = new Set<string>();
+  const all = [...(values || []), ...(etcsLevels || []).map(l => `etcs${l}`)].join(' ').toLowerCase();
+  if (/etcs|\bntc\b/.test(all)) out.add('ETCS');           // NTC = ETCS onboard using STM for the national system
+  if (/indusi|pzb/.test(all)) out.add('PZB_INDUSI');       // INDUSI and PZB are the same class-B family
+  if (/lzb/.test(all)) out.add('LZB');
+  return out;
+}
+
+/** The section summary already folds every track's params to the top level. */
+function rccSectionParams(sec: any) {
+  return {
+    energySupply: sec.energySupply || [],
+    loadCategories: sec.loadCategories || [],
+    legacyProtection: (sec.legacyProtection || []).filter((x: string) => x && x !== 'None'),
+    etcsLevels: sec.etcsLevels || [],
+    gauging: sec.gauging || [],
+    maxSpeedKmh: sec.maxSpeedKmh ?? null
+  };
+}
+
+/** One locomotive against one section: a verdict per parameter, with values. */
+function rccCheckSection(loco: any, sec: any) {
+  const p = rccSectionParams(sec);
+  const isElectric = /electric|emu/.test(String(loco.propulsion || ''));
+  const locoVolt = rccVoltageTokens(loco.voltageSystems || []);
+  const lineVolt = rccVoltageTokens(p.energySupply);
+
+  // Electrification
+  let electrification;
+  if (!isElectric || locoVolt.has('DIESEL')) {
+    electrification = { verdict: RCC_VERDICT.OK, why: 'vozilo je avtonomno (dizel), elektrifikacija ni pogoj' };
+  } else if (!p.energySupply.length) {
+    electrification = { verdict: RCC_VERDICT.NO, why: 'odsek ni elektrificiran, vozilo pa je izključno električno' };
+  } else {
+    const shared = [...lineVolt].filter(v => locoVolt.has(v));
+    electrification = shared.length
+      ? { verdict: RCC_VERDICT.OK, why: `skupni sistem: ${shared.join(', ')}` }
+      : { verdict: RCC_VERDICT.NO, why: `vozilo (${[...locoVolt].join(', ') || '?'}) ne podpira napetosti odseka (${[...lineVolt].join(', ') || '?'})` };
+  }
+
+  // Axle load vs line category
+  const axles = rccAxleCount(loco.axleArrangement);
+  const axleLoad = axles ? Number((loco.weightTons / axles).toFixed(1)) : null;
+  const limit = rccCategoryLimit(p.loadCategories);
+  let load;
+  if (axleLoad == null || limit == null) load = { verdict: RCC_VERDICT.MANUAL, why: 'osne obremenitve ali kategorije proge ni mogoče določiti' };
+  else if (axleLoad <= limit) load = { verdict: RCC_VERDICT.OK, why: `${axleLoad} t/os ≤ ${limit} t/os (kat. ${p.loadCategories.join('/')})` };
+  else load = { verdict: RCC_VERDICT.NO, why: `${axleLoad} t/os > ${limit} t/os (kat. ${p.loadCategories.join('/')})` };
+
+  // Train protection
+  const locoProt = rccProtectionTokens(loco.safetySystems || []);
+  const lineProt = rccProtectionTokens(p.legacyProtection, p.etcsLevels);
+  let protection;
+  if (!lineProt.size) protection = { verdict: RCC_VERDICT.MANUAL, why: 'odsek nima navedenega sistema zaščite vlaka' };
+  else if (!locoProt.size) protection = { verdict: RCC_VERDICT.MANUAL, why: 'sistem zaščite vozila ni jasno naveden' };
+  else {
+    const shared = [...lineProt].filter(x => locoProt.has(x));
+    protection = shared.length
+      ? { verdict: RCC_VERDICT.OK, why: `skupni sistem: ${shared.join(', ')}` }
+      : { verdict: RCC_VERDICT.MANUAL, why: `vozilo ima ${[...locoProt].join('/')}, odsek pa ${[...lineProt].join('/')} — potrebna ročna presoja (npr. STM)` };
+  }
+
+  // Speed & gauge — informational, never a blocker
+  const speed = {
+    verdict: RCC_VERDICT.INFO,
+    why: p.maxSpeedKmh ? `progovna hitrost ${p.maxSpeedKmh} km/h, vozilo do ${loco.maxSpeedKmh} km/h → dejansko ${Math.min(p.maxSpeedKmh, loco.maxSpeedKmh)} km/h` : 'progovna hitrost ni navedena'
+  };
+
+  const blocking = [electrification, load, protection];
+  const worst = blocking.some(b => b.verdict === RCC_VERDICT.NO) ? RCC_VERDICT.NO
+    : blocking.some(b => b.verdict === RCC_VERDICT.MANUAL) ? RCC_VERDICT.MANUAL
+      : RCC_VERDICT.OK;
+
+  return {
+    sectionId: sec.id, line: sec.line, from: sec.fromName, to: sec.toName, lengthKm: sec.lengthKm,
+    verdict: worst,
+    parameters: { electrification, loadCategory: load, trainProtection: protection, speed, loadingGauge: { verdict: RCC_VERDICT.INFO, why: `profil odseka: ${p.gauging.join('/') || 'ni naveden'}` } }
+  };
+}
+
+function rccEvaluate(loco: any) {
+  const perSection = rinfSISections.filter(s => (s.lengthKm || 0) > 0).map(s => rccCheckSection(loco, s));
+  const kmBy = (v: string) => Number(perSection.filter(s => s.verdict === v).reduce((a, s) => a + (s.lengthKm || 0), 0).toFixed(1));
+  const reasonKm: Record<string, number> = {};
+  for (const s of perSection) {
+    if (s.verdict === RCC_VERDICT.OK) continue;
+    for (const [name, p] of Object.entries(s.parameters) as any) {
+      if (p.verdict === RCC_VERDICT.NO || p.verdict === RCC_VERDICT.MANUAL) reasonKm[name] = Number(((reasonKm[name] || 0) + (s.lengthKm || 0)).toFixed(1));
+    }
+  }
+  return {
+    locomotive: {
+      id: loco.id, name: loco.name, series: loco.series, operator: loco.operator, manufacturer: loco.manufacturer,
+      propulsion: loco.propulsion, propulsionLabel: loco.propulsionLabel, voltageSystems: loco.voltageSystems,
+      safetySystems: loco.safetySystems, maxSpeedKmh: loco.maxSpeedKmh, weightTons: loco.weightTons,
+      axleArrangement: loco.axleArrangement, axleLoadTonnes: rccAxleCount(loco.axleArrangement) ? Number((loco.weightTons / rccAxleCount(loco.axleArrangement)).toFixed(1)) : null,
+      eratvCode: loco.eratvCode, authorizedCountries: loco.authorizedCountries
+    },
+    networkKm: Number(perSection.reduce((a, s) => a + (s.lengthKm || 0), 0).toFixed(1)),
+    summary: { compatibleKm: kmBy(RCC_VERDICT.OK), notCompatibleKm: kmBy(RCC_VERDICT.NO), manualCheckKm: kmBy(RCC_VERDICT.MANUAL) },
+    blockingKmByParameter: reasonKm,
+    sections: perSection
+  };
+}
+
+app.get('/api/rcc/locomotives', (_req, res) => {
+  res.json({
+    source: 'Register lokomotiv (kurirani javni viri + ERATV) — vozni park, ki vozi po slovenskih koridorjih',
+    note: 'Tehnične lastnosti tipa iz javnih virov; kjer obstaja, koda tipa iz registra ERATV. Konkretno vozilo ni objavljeno.',
+    count: EUROPEAN_LOCOMOTIVES.length,
+    locomotives: EUROPEAN_LOCOMOTIVES.map((l: any) => ({
+      id: l.id, name: l.name, series: l.series, operator: l.operator, countryName: l.countryName, countryFlag: l.countryFlag,
+      propulsionLabel: l.propulsionLabel, voltageSummary: l.voltageSummary, maxSpeedKmh: l.maxSpeedKmh, eratvCode: l.eratvCode
+    }))
+  });
+});
+
+app.get('/api/rcc/:id', (req, res) => {
+  if (!rinfSISections.length) return res.status(503).json({ error: 'Nabor RINF za Slovenijo ni naložen' });
+  const loco = EUROPEAN_LOCOMOTIVES.find((l: any) => l.id === String(req.params.id));
+  if (!loco) return res.status(404).json({ error: 'Tega tipa lokomotive ni v registru', id: req.params.id });
+  res.json({
+    source: 'RCC izračun (nova-app-transport) iz RINF Slovenija + register lokomotiv',
+    method: 'Preverjanje združljivosti tipa vozila s progo po parametrih (elektrifikacija, osna obremenitev, zaščita vlaka; hitrost in profil informativno). Vsak izid je izračun iz registrskih vrednosti, ki so priložene — kjer registra ne odločita, je izid »ročna presoja«, ne ugibanje.',
+    disclaimer: 'To ni dovoljenje za vožnjo in ne položaj vlaka. Uradno združljivost potrjuje ERA RCC / upravljavec infrastrukture.',
+    ...rccEvaluate(loco)
+  });
+});
 app.get('/api/rinf/op/:uopid', (req, res) => {
   const o = rinfSIByUopid.get(String(req.params.uopid));
   if (!o) return res.status(404).json({ error: 'Operativne točke ni v naboru RINF' });
