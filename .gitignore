@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# ship-safe working directory (scan reports/state)
+.ship-safe/

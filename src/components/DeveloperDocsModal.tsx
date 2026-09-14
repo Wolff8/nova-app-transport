@@ -95,8 +95,8 @@ export const DeveloperDocsModal: React.FC<DeveloperDocsModalProps> = ({ onClose 
 #include <ArduinoJson.h>
 
 // ESP32-C5 Wi-Fi 6 Configuration
-const char* ssid = "V2X_WIFI6_NETWORK";
-const char* password = "secure_password";
+const char* ssid = "<WIFI_SSID>";
+const char* password = "<WIFI_PASSWORD>";
 const char* mqtt_server = "cits.broker.example.com"; // C-Roads AMQP/MQTT broker
 
 WiFiClient espClient;
