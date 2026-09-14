@@ -11832,6 +11832,7 @@ app.post('/api/log', express.json(), (req, res) => {
       holavonat: { ...holaStatus, feedTs: holaCache.feedTs, cacheAgeMs: holaCache.ts ? Date.now() - holaCache.ts : null },
       rinfSlovenia: rinfSI ? { ...rinfSI.counts, retrieved: rinfSI.retrieved } : null,
       diumSlovenia: diumSI ? { ...diumSI.counts, edition: diumSI.edition, retrieved: diumSI.retrieved } : null,
+      nhmCommodities: nhmSI ? { ...nhmSI.counts, effective: nhmSI.effective, retrieved: nhmSI.retrieved } : null,
       eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
       iateGlossary: iateGlossary ? { ...iateGlossary.counts, retrieved: iateGlossary.retrieved } : null,
       eraParameterXref: eraParamXref ? eraParamXref.counts : null,
@@ -12721,6 +12722,141 @@ app.get('/api/dium/slovenia', (req, res) => {
     counts: diumSI.counts, legend: diumSI.legend,
     borderPoints: diumSI.borderPoints, intermodalTerminals: diumSI.intermodalTerminals,
     query: q || null, matched: stations.length, stations
+  });
+});
+
+/**
+ * NHM, the commodity code a rail consignment note carries to say what is in
+ * the wagon, in the UIC's free multilingual edition. Built by
+ * scripts/nhm_commodities.mjs.
+ *
+ * It follows the WCO Harmonised System, and adds the codes only railways
+ * need: groupage freight, removal goods, a complete industrial plant, and
+ * wagons and locomotives running as a means of transport rather than as
+ * cargo — which is how an empty wagon is declared. That is why it is here:
+ * the freight data model this app reads gives every wagon an NHM code, and
+ * until now the app could only show the digits.
+ */
+let nhmSI: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'nhmCommodities.json');
+  if (fs.existsSync(p)) {
+    nhmSI = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[NHM] Commodity codes:', nhmSI.counts.withCode, 'coded rows of', nhmSI.counts.rows, '· effective', nhmSI.effective);
+  }
+} catch (e: any) { console.warn('[NHM] nhmCommodities.json failed:', e?.message); }
+
+const nhmByCode = new Map<string, number>();
+if (nhmSI) nhmSI.codes.forEach((c: any, i: number) => { if (c.code && !nhmByCode.has(c.code)) nhmByCode.set(c.code, i); });
+/** Codes sorted once, so a partial code can be resolved by prefix. */
+const nhmSortedCodes: string[] = nhmSI ? [...nhmByCode.keys()].sort() : [];
+
+/** The chain from the section down to the code, which is how a name reads. */
+function nhmChain(index: number): any[] {
+  const out: any[] = [];
+  let i: number | null = index;
+  let guard = 0;
+  while (i != null && guard++ < 24) {
+    const c = nhmSI.codes[i];
+    if (!c) break;
+    out.unshift({ code: c.code, level: c.level, sl: c.sl, en: c.en ?? null, slIsCroatian: !!c.slIsCroatian });
+    i = c.parent;
+  }
+  return out;
+}
+
+/**
+ * A consignment note carries six digits; the published list also holds the
+ * Combined Nomenclature's eight, so a six-digit code is answered by the row
+ * that continues it. A shorter code falls back to the heading it names.
+ */
+function nhmLookup(query: string): number | null {
+  const q = String(query || '').replace(/\D/g, '');
+  if (!q) return null;
+  if (nhmByCode.has(q)) return nhmByCode.get(q)!;
+  for (const code of nhmSortedCodes) if (code.startsWith(q)) return nhmByCode.get(code)!;
+  for (let len = q.length - 1; len >= 2; len--) {
+    const head = q.slice(0, len);
+    if (nhmByCode.has(head)) return nhmByCode.get(head)!;
+  }
+  return null;
+}
+
+/** Children by parent row, built once so a lookup does not scan the list. */
+const nhmChildren = new Map<number, number[]>();
+if (nhmSI) nhmSI.codes.forEach((c: any, i: number) => {
+  if (c.parent == null) return;
+  if (!nhmChildren.has(c.parent)) nhmChildren.set(c.parent, []);
+  nhmChildren.get(c.parent)!.push(i);
+});
+
+/** The coded rows under a row, stepping over headings that carry no code. */
+function nhmSubdivisions(index: number, depth = 0): any[] {
+  if (depth > 4) return [];
+  const out: any[] = [];
+  for (const child of nhmChildren.get(index) || []) {
+    const c = nhmSI.codes[child];
+    if (c.code) out.push({ code: c.code, display: c.display || c.code, sl: c.sl, en: c.en ?? null, slIsCroatian: !!c.slIsCroatian });
+    else out.push(...nhmSubdivisions(child, depth + 1));
+    if (out.length >= 60) break;
+  }
+  return out.slice(0, 60);
+}
+
+const nhmSourceLine = nhmSI ? `${nhmSI.source} · velja od ${nhmSI.effective}` : null;
+
+app.get('/api/freight/nhm', (req, res) => {
+  if (!nhmSI) return res.status(503).json({ error: 'Nomenklatura NHM ni naložena' });
+  const q = String(req.query.q || '').trim();
+  const digits = q.replace(/\D/g, '');
+  const needle = q.toLowerCase();
+  const onlyRail = String(req.query.rail || '') === '1';
+  const rows: any[] = [];
+  for (let i = 0; i < nhmSI.codes.length && rows.length < 200; i++) {
+    const c = nhmSI.codes[i];
+    if (!c.code) continue;
+    if (onlyRail && !/^(98|99)/.test(c.code)) continue;
+    const hit = !q
+      || (digits.length >= 2 && c.code.startsWith(digits))
+      || (needle.length >= 3 && (String(c.sl).toLowerCase().includes(needle) || String(c.en || '').toLowerCase().includes(needle)));
+    if (!hit) continue;
+    rows.push({
+      code: c.code, display: c.display || c.code, level: c.level,
+      sl: c.sl, en: c.en ?? null,
+      slIsCroatian: !!c.slIsCroatian,
+      chapter: c.code.length > 2 ? c.code.slice(0, 2) : null,
+      consignmentNote: c.consignmentNote ?? null
+    });
+  }
+  res.json({
+    source: nhmSI.source, url: nhmSI.url, publisher: nhmSI.publisher, effective: nhmSI.effective,
+    retrieved: nhmSI.retrieved, note: nhmSI.note, slNote: nhmSI.slNote, structureNote: nhmSI.structureNote,
+    counts: nhmSI.counts, chapterIndex: nhmSI.chapterIndex,
+    query: q || null, onlyRail, matched: rows.length, truncated: rows.length >= 200, codes: rows
+  });
+});
+
+app.get('/api/freight/nhm/:code', (req, res) => {
+  if (!nhmSI) return res.status(503).json({ error: 'Nomenklatura NHM ni naložena' });
+  const asked = String(req.params.code);
+  const i = nhmLookup(asked);
+  if (i == null) return res.status(404).json({ error: 'Te blagovne šifre ni v nomenklaturi NHM', asked });
+  const c = nhmSI.codes[i];
+  const chapter = c.code && c.code.length > 2 ? c.code.slice(0, 2) : null;
+  res.json({
+    source: nhmSourceLine, url: nhmSI.url, effective: nhmSI.effective, note: nhmSI.note,
+    asked, code: c.code, display: c.display || c.code, exact: c.code === asked.replace(/\D/g, ''),
+    sl: c.sl, en: c.en ?? null, slIsCroatian: !!c.slIsCroatian,
+    slNote: c.slIsCroatian ? nhmSI.slNote : null,
+    chapter, chapterName: chapter ? (nhmSI.chapterIndex[chapter]?.sl ?? null) : null,
+    chapterNote: chapter && !nhmSI.chapterIndex[chapter] ? nhmSI.structureNote : null,
+    path: nhmChain(i),
+    consignmentNote: c.consignmentNote ?? null,
+    footnote: c.footnote ?? null,
+    // The coded rows below, so a six-digit code shows its eight-digit
+    // subdivisions. Headings that carry no code of their own are stepped
+    // through rather than listed, since they are nothing a note can cite.
+    subdivisions: nhmSubdivisions(i)
   });
 });
 

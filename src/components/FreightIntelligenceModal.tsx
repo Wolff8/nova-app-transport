@@ -27,7 +27,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [registerQuery, setRegisterQuery] = useState('');
-  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params' | 'freightStations'>('vkm');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params' | 'freightStations' | 'commodities'>('vkm');
   const [paramTable, setParamTable] = useState<any>(null);
   const [paramsNetworkOnly, setParamsNetworkOnly] = useState(false);
   const [glossary, setGlossary] = useState<any>(null);
@@ -38,6 +38,10 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   // one station's entry the user has opened.
   const [diumData, setDiumData] = useState<any>(null);
   const [diumStation, setDiumStation] = useState<any>(null);
+  // NHM: the commodity code a consignment note carries, and the one code the
+  // user has opened.
+  const [nhmData, setNhmData] = useState<any>(null);
+  const [nhmCode, setNhmCode] = useState<any>(null);
   const [registerResults, setRegisterResults] = useState<any>(null);
   const [networkRef, setNetworkRef] = useState<any>(null);
   const [feedHealth, setFeedHealth] = useState<any>(null);
@@ -1494,7 +1498,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   { k: 'vehicles', label: 'Tipi vozil (ERATV)' },
                   { k: 'terms', label: 'Izrazje (IATE)' },
                   { k: 'params', label: 'Parametri in TSI (ERA)' },
-                  { k: 'freightStations', label: 'Tovorne postaje (DIUM)' }
+                  { k: 'freightStations', label: 'Tovorne postaje (DIUM)' },
+                  { k: 'commodities', label: 'Blagovne šifre (NHM)' }
                 ].map(t => (
                   <button
                     key={t.k}
@@ -1511,6 +1516,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       }
                       if (t.k === 'freightStations' && !diumData) {
                         fetch('/api/dium/slovenia').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setDiumData(j); }).catch(() => {});
+                      }
+                      if (t.k === 'commodities' && !nhmData) {
+                        fetch('/api/freight/nhm?rail=1').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setNhmData(j); }).catch(() => {});
                       }
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
@@ -1538,6 +1546,12 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                         .then(r => r.json()).then(setGlossary).catch(() => {});
                       return;
                     }
+                    if (registerKind === 'commodities') {
+                      setNhmCode(null);
+                      fetch(`/api/freight/nhm?q=${encodeURIComponent(registerQuery)}`)
+                        .then(r => r.json()).then(setNhmData).catch(() => {});
+                      return;
+                    }
                     if (registerKind === 'freightStations') {
                       setDiumStation(null);
                       fetch(`/api/dium/slovenia?q=${encodeURIComponent(registerQuery)}`)
@@ -1560,7 +1574,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   <input
                     value={registerQuery}
                     onChange={e => setRegisterQuery(e.target.value)}
-                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : registerKind === 'terms' ? 'Izraz (npr. profil, hitrost, ETCS)' : registerKind === 'params' ? 'Številka ali ime parametra (npr. 2.1.2, pantograph)' : registerKind === 'freightStations' ? 'Ime postaje, industrijskega tira ali šifra (npr. Koper, Cinkarna)' : 'Ime prevoznika (npr. Metrans, Adria)'}
+                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : registerKind === 'terms' ? 'Izraz (npr. profil, hitrost, ETCS)' : registerKind === 'params' ? 'Številka ali ime parametra (npr. 2.1.2, pantograph)' : registerKind === 'freightStations' ? 'Ime postaje, industrijskega tira ali šifra (npr. Koper, Cinkarna)' : registerKind === 'commodities' ? 'Blagovna šifra ali ime blaga (npr. 992110, premog, prazen vagon)' : 'Ime prevoznika (npr. Metrans, Adria)'}
                     className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                   <button type="submit" className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors cursor-pointer shrink-0">
@@ -1569,7 +1583,121 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </form>
               )}
 
-              {registerKind === 'freightStations' ? (
+              {registerKind === 'commodities' ? (
+                nhmData ? (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                          Blagovne šifre NHM ({nhmData.counts.withCode})
+                        </h4>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {nhmData.counts.nhmLevel} šestmestnih · {nhmData.counts.railChapters} železniških · velja od {nhmData.effective}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">{nhmData.note}</p>
+                      <p className="text-[10px] font-mono text-slate-500 break-words">{nhmData.source} · {nhmData.publisher}</p>
+                      <p className="text-[10px] text-amber-300/80">{nhmData.slNote}</p>
+                    </div>
+
+                    {nhmCode && (
+                      <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold text-white">
+                              {nhmCode.slIsCroatian ? nhmCode.en : nhmCode.sl}
+                            </div>
+                            <div className="text-[10px] font-mono text-amber-200/70">
+                              NHM {nhmCode.display}
+                              {!nhmCode.exact && ` · iskano ${nhmCode.asked}, najden nadrejeni zapis`}
+                            </div>
+                          </div>
+                          <button onClick={() => setNhmCode(null)} className="text-[10px] text-slate-400 hover:text-white cursor-pointer shrink-0">zapri</button>
+                        </div>
+                        {nhmCode.slIsCroatian && (
+                          <p className="text-[10px] text-amber-300/80 border-l-2 border-amber-500/40 pl-2">
+                            V viru je v slovenskem stolpcu te šifre hrvaško besedilo („{nhmCode.sl}"), zato je zgoraj naveden angleški zapis.
+                          </p>
+                        )}
+                        {nhmCode.en && !nhmCode.slIsCroatian && (
+                          <div className="text-[11px] text-slate-300">{nhmCode.en}</div>
+                        )}
+                        {nhmCode.path?.length > 1 && (
+                          <div className="border-t border-white/10 pt-2">
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">Uvrstitev</div>
+                            <div className="text-[10.5px] leading-snug text-slate-300">
+                              {nhmCode.path.map((p: any, i: number) => (
+                                <span key={i}>
+                                  {i > 0 && <span className="text-slate-600"> › </span>}
+                                  <span className={i === nhmCode.path.length - 1 ? 'text-white' : ''}>{p.sl}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {nhmCode.chapterNote && (
+                          <p className="text-[10px] text-slate-400 border-l-2 border-slate-700 pl-2">{nhmCode.chapterNote}</p>
+                        )}
+                        {nhmCode.consignmentNote && (
+                          <div className="border-t border-white/10 pt-2">
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">Tovorni list CIM in carina</div>
+                            <p className="text-[10.5px] leading-snug text-slate-300">{nhmCode.consignmentNote}</p>
+                          </div>
+                        )}
+                        {nhmCode.footnote && (
+                          <p className="text-[10px] text-slate-400 border-l-2 border-slate-700 pl-2">{nhmCode.footnote}</p>
+                        )}
+                        {nhmCode.subdivisions?.length > 0 && (
+                          <div className="border-t border-white/10 pt-2">
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">
+                              Podrazdelitve ({nhmCode.subdivisions.length})
+                            </div>
+                            <div className="space-y-0.5">
+                              {nhmCode.subdivisions.map((d: any) => (
+                                <button
+                                  key={d.code}
+                                  onClick={() => fetch(`/api/freight/nhm/${d.code}`).then(r => (r.ok ? r.json() : null)).then(j => { if (j && !j.error) setNhmCode(j); }).catch(() => {})}
+                                  className="w-full text-left text-[10.5px] text-slate-300 hover:text-white cursor-pointer flex gap-2"
+                                >
+                                  <span className="font-mono text-slate-500 shrink-0">{d.display}</span>
+                                  <span className="truncate">{d.sl}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      {nhmData.codes.map((c: any) => (
+                        <button
+                          key={c.code}
+                          onClick={() => {
+                            setNhmCode(null);
+                            fetch(`/api/freight/nhm/${c.code}`).then(r => (r.ok ? r.json() : null)).then(j => { if (j && !j.error) setNhmCode(j); }).catch(() => {});
+                          }}
+                          className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-amber-500/40 transition-colors cursor-pointer flex items-start justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-white truncate">{c.slIsCroatian ? c.en : c.sl}</div>
+                            {c.en && !c.slIsCroatian && <div className="text-[10px] text-slate-400 truncate">{c.en}</div>}
+                          </div>
+                          <span className="font-mono text-[10px] text-slate-500 shrink-0">{c.display}</span>
+                        </button>
+                      ))}
+                      {nhmData.codes.length === 0 && (
+                        <p className="text-[11px] text-slate-400">V nomenklaturi NHM ni šifre ali blaga, ki bi ustrezalo iskanju.</p>
+                      )}
+                      {nhmData.truncated && (
+                        <p className="text-[10px] text-slate-500">Prikazanih je prvih 200 zadetkov; zožite iskanje.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400">Berem nomenklaturo NHM…</p>
+                )
+              ) : registerKind === 'freightStations' ? (
                 diumData ? (
                   <div className="space-y-3">
                     <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
