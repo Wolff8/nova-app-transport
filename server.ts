@@ -6742,7 +6742,7 @@ app.get('/api/train/trip', async (req, res) => {
                 const hasPassed = timeRef ? timeRef.getTime() < now : false;
 
                 return {
-                    stopName: s.stop?.name || `Postaja ${idx + 1}`,
+                    stopName: rinfOfficialName(s.stop?.name) || `Postaja ${idx + 1}`,
                     stationId: s.stop?.id,
                     lat: s.stop?.location?.latitude,
                     lon: s.stop?.location?.longitude,
@@ -6799,7 +6799,7 @@ app.get('/api/train/trip', async (req, res) => {
 
                                 const tf = (d: Date) => d.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Ljubljana' });
                                 return {
-                                    stopName: st.name,
+                                    stopName: rinfOfficialName(st.name),
                                     stationId: `st_${st.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
                                     lat: st.lat,
                                     lon: st.lon,
@@ -7076,7 +7076,7 @@ app.get('/api/train/trip', async (req, res) => {
             const aStr = actualTime.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Ljubljana' });
 
             return {
-                stopName: stop.name,
+                stopName: rinfOfficialName(stop.name),
                 stationId: `${trainRegion}_${stop.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
                 lat: stop.lat,
                 lon: stop.lon,
