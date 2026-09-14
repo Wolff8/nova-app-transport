@@ -60,6 +60,24 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   // RNE RFC KPIs: last year's international freight trains per Slovenian
   // border, dwell times, punctuality — official annual aggregates from TIS.
   const [rfcKpis, setRfcKpis] = useState<any>(null);
+  // The data panels live several tabs deep, and the tab strip used to scroll
+  // sideways with nothing to show it did — so half the tabs were never seen.
+  // A jump sets the tab (and register kind) and scrolls to the panel once it
+  // has rendered.
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
+  const jumpTo = (tab: typeof activeTab, anchor: string | null, kind?: typeof registerKind) => {
+    setActiveTab(tab);
+    if (kind) setRegisterKind(kind);
+    setPendingAnchor(anchor);
+  };
+  useEffect(() => {
+    if (!pendingAnchor) return;
+    const t = window.setTimeout(() => {
+      document.getElementById(pendingAnchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setPendingAnchor(null);
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [pendingAnchor, activeTab, capacityStrategy, rfcKpis, sursFlows]);
   const [activeTrains, setActiveTrains] = useState<any[]>([]);
   const [freightPayload, setFreightPayload] = useState<any>(null);
   const [murskaSobotaData, setMurskaSobotaData] = useState<any>(null);
@@ -324,7 +342,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
         </div>
 
         {/* Tab Navigation Strip */}
-        <div className="px-5 border-b border-slate-800/80 bg-slate-950/60 flex items-center gap-1 overflow-x-auto custom-scrollbar shrink-0 py-2">
+        <div className="px-5 border-b border-slate-800/80 bg-slate-950/60 flex items-center gap-1 flex-wrap shrink-0 py-2">
           <button
             onClick={() => setActiveTab('trains')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -334,7 +352,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
             }`}
           >
             <Train size={14} className="text-amber-400" />
-            <span>Objavljene tovorne poti ({freightPayload?.totalActiveOnTracks ?? 0} v vožnji)</span>
+            <span>Objavljene poti ({freightPayload?.totalActiveOnTracks ?? 0} v vožnji)</span>
           </button>
 
           <button
@@ -429,7 +447,38 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
         {/* Modal Scrollable Content Body */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
-          
+
+          {/* Where the official datasets are. Every chip names its source and
+              jumps straight to the panel; counts appear once that source has
+              loaded, so nothing here is claimed before it is on screen. */}
+          <div className="flex items-center gap-1.5 flex-wrap text-[10.5px]">
+            <span className="text-slate-500 font-mono uppercase tracking-wider mr-1">Uradni podatki:</span>
+            <button onClick={() => jumpTo('corridors', 'panel-rfc-kpis')}
+              className="px-2 py-0.5 rounded-md border border-violet-500/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 cursor-pointer font-semibold">
+              RNE RFC KPI · tovorni vlaki na mejah{rfcKpis?.sloveniaBordersByStation ? ` (${Object.keys(rfcKpis.sloveniaBordersByStation).length} prehodi)` : ''}
+            </button>
+            <button onClick={() => jumpTo('corridors', 'panel-capacity')}
+              className="px-2 py-0.5 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 cursor-pointer font-semibold">
+              SŽ-I vlakovne poti {capacityStrategy?.timetable || '2026'}{capacityStrategy?.mainLines ? ` (${capacityStrategy.mainLines.length} odsekov)` : ''}
+            </button>
+            <button onClick={() => jumpTo('modalsplit', 'panel-surs')}
+              className="px-2 py-0.5 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 cursor-pointer font-semibold">
+              SURS tokovi tovora{sursFlows?.latestYear ? ` ${sursFlows.latestYear}` : ''}
+            </button>
+            <button onClick={() => jumpTo('registers', null, 'freightStations')}
+              className="px-2 py-0.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 cursor-pointer font-semibold">
+              DIUM SI · tovorne postaje
+            </button>
+            <button onClick={() => jumpTo('registers', null, 'commodities')}
+              className="px-2 py-0.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 cursor-pointer font-semibold">
+              NHM 2026 · blago
+            </button>
+            <button onClick={() => jumpTo('registers', null, 'rcc')}
+              className="px-2 py-0.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 cursor-pointer font-semibold">
+              RCC · združljivost lokomotiv
+            </button>
+          </div>
+
           {/* TAB 0: ACTIVE FREIGHT TRAINS (REAL TIMETABLE-SYNCHRONIZED SŽ ENGINE) */}
           {activeTab === 'trains' && (
             <div className="space-y-6 animate-in fade-in duration-150">
@@ -1354,7 +1403,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 const rows = capacityStrategy.mainLines as any[];
                 const maxF = Math.max(1, ...rows.map(r => r.freightTotal || 0));
                 return (
-                  <div className="p-4 rounded-xl bg-slate-900/70 border border-amber-500/25 space-y-3">
+                  <div id="panel-capacity" className="p-4 rounded-xl bg-slate-900/70 border border-amber-500/25 space-y-3 scroll-mt-4">
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <div>
                         <h3 className="text-sm font-bold text-white">Uradna ponudba vlakovnih poti — SŽ-Infrastruktura, vozni red {capacityStrategy.timetable}</h3>
@@ -1438,7 +1487,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 const borders = Object.entries(rfcKpis.sloveniaBordersByStation || {}) as [string, any[]][];
                 const maxTrains = Math.max(1, ...borders.flatMap(([, arr]) => arr.map(b => b.trains?.['2024'] || 0)));
                 return (
-                  <div className="p-4 rounded-xl bg-slate-900/70 border border-violet-500/25 space-y-3">
+                  <div id="panel-rfc-kpis" className="p-4 rounded-xl bg-slate-900/70 border border-violet-500/25 space-y-3 scroll-mt-4">
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <div>
                         <h3 className="text-sm font-bold text-white">Mednarodni tovorni vlaki na slovenskih mejah — uradni KPI koridorjev RFC (2024)</h3>
@@ -1667,7 +1716,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   from the national statistical office, by partner country —
                   what the Eurostat share above does not break out. */}
               {sursFlows && (
-                <div className="space-y-3 pt-2">
+                <div id="panel-surs" className="space-y-3 pt-2 scroll-mt-4">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <h3 className="font-bold text-white text-sm">Kam gre slovenski železniški tovor ({sursFlows.latestYear})</h3>
                     <span className="text-[10px] font-mono text-slate-400">vir: SURS · {sursFlows.unit}</span>
