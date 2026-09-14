@@ -7833,12 +7833,14 @@ app.post('/api/log', express.json(), (req, res) => {
     motis: { ok: boolean; vehicles: number; error: string | null };
     travic: { ok: boolean; vehicles: number; error: string | null };
     mav: { vehicles: number };
+    sz: { vehicles: number };
     lastTotal: number; lastDiscardedAsDegraded: boolean; lastError: string | null;
   } = {
     builds: 0, lastFinishedAt: null, lastDurationMs: null,
     motis: { ok: false, vehicles: 0, error: null },
     travic: { ok: false, vehicles: 0, error: null },
     mav: { vehicles: 0 },
+    sz: { vehicles: 0 },
     lastTotal: 0, lastDiscardedAsDegraded: false, lastError: null
   };
 
@@ -7939,6 +7941,96 @@ app.post('/api/log', express.json(), (req, res) => {
 
   // Warm the cache so the first client poll already has Hungarian trains.
   setTimeout(() => { getMavTrains(); }, 1500);
+
+  /**
+   * Live Slovenian passenger trains from SŽ's own tracking.
+   *
+   * MOTIS and TRAVIC carry Slovenian domestic trains only sparsely, and often
+   * without a train number; SŽ track their own passenger trains and expose the
+   * live position, next stop with an ETA, and the reported delay. That feed has
+   * no public API of its own, so it is read through api.modra.ninja, a
+   * community scraper of the SŽ page — provenance is stated on every record.
+   *
+   * Passenger only: the feed carries LP/RG/IC/EC/AVT services and rail-
+   * replacement buses, never freight. It does not locate a freight train, and
+   * nothing here claims to.
+   */
+  const SZ_RANG_SL: Record<string, string> = {
+    LP: 'lokalni potniški', LPV: 'lokalni potniški', RG: 'regionalni', REG: 'regionalni',
+    IC: 'InterCity', ICS: 'InterCity Slovenija (nagibni)', EC: 'EuroCity', MV: 'mednarodni',
+    MO: 'mednarodni', EN: 'EuroNight', AVT: 'avtovlak', BUS: 'nadomestni avtobus'
+  };
+  let szCache: { data: any[]; ts: number } = { data: [], ts: 0 };
+  let szRefreshing = false;
+  const SZ_TTL_MS = 20000;
+  const SZ_SOURCE = 'SŽ – Potniški promet (živi položaj) prek api.modra.ninja';
+
+  async function refreshSzTrains(): Promise<void> {
+    try {
+      const response = await fetch('https://api.modra.ninja/sz/lokacije', {
+        headers: { 'User-Agent': 'nova-app-transport', 'Cache-Control': 'no-cache' },
+        signal: AbortSignal.timeout(8000)
+      });
+      if (!response.ok) return;
+      const list: any[] = await response.json();
+      if (!Array.isArray(list)) return;
+
+      const trains = list.map((t: any) => {
+        const lat = Number(t.lat), lon = Number(t.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        const trainNum = String(t.st_vlaka ?? '').trim();
+        const rang = String(t.rang_vlaka ?? '').toUpperCase().trim();
+        const isBus = t.bus === true || rang === 'BUS';
+        const relation = String(t.relacija ?? '').trim();
+        const [origin, destination] = relation.split('-').map((s: string) => s.trim());
+        const delayMin = Math.round(Number(t.zamuda_min) || 0);
+        const rangSl = SZ_RANG_SL[rang] || rang || null;
+        return {
+          id: `sz_${trainNum}_${rang}`,
+          tripId: trainNum,
+          name: trainNum ? `${rang || 'SŽ'} ${trainNum}` : 'SŽ vlak',
+          trainNum,
+          type: isBus ? 'bus' : 'train',
+          lat,
+          lon,
+          status: 'moving',
+          operator: 'SŽ-PP',
+          operatorFull: 'Slovenske železnice – Potniški promet',
+          countryCode: 'SI',
+          category: rang || null,
+          categorySl: rangSl,
+          delay: delayMin,
+          delayMin,
+          origin: origin || '',
+          destination: destination || '',
+          relation,
+          nextStation: String(t.naslednja_postaja ?? '').trim() || null,
+          nextStationEtaMin: Number.isFinite(Number(t.postaja_eta_min)) ? Number(t.postaja_eta_min) : null,
+          source: SZ_SOURCE
+        };
+      }).filter(Boolean) as any[];
+
+      if (trains.length > 0) szCache = { data: trains, ts: Date.now() };
+    } catch (e: any) {
+      console.warn('[SŽ] modra.ninja refresh failed:', e?.message);
+    }
+  }
+
+  function getSzTrains(): any[] {
+    if (!szRefreshing && Date.now() - szCache.ts > SZ_TTL_MS) {
+      szRefreshing = true;
+      refreshSzTrains().finally(() => { szRefreshing = false; });
+    }
+    return szCache.data;
+  }
+
+  // Warm the cache so the first client poll already has Slovenian trains.
+  setTimeout(() => { getSzTrains(); }, 1800);
+
+  app.get('/api/sz/live', (_req, res) => {
+    const data = getSzTrains();
+    res.json({ source: SZ_SOURCE, note: 'Živi položaji slovenskih potniških vlakov (in nadomestnih avtobusov). Ni tovornih vlakov.', count: data.length, trains: data });
+  });
 
   /**
    * ERA / UIC Organisation Codes register.
@@ -11718,14 +11810,19 @@ app.post('/api/log', express.json(), (req, res) => {
       if (!namedFromHafas.length) refreshHafas().catch(() => { /* the next snapshot tries again */ });
       const operatorKey = (v: any) => String(v?.operator || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 6);
       const numberedByOperator = new Map<string, any[]>();
-      for (const h of namedFromHafas) {
-        if (h?.type !== 'train' || !Number.isFinite(h.lat) || !Number.isFinite(h.lon)) continue;
-        if (!String(h.name || '').match(/\d/)) continue;
-        const k = operatorKey(h);
-        if (!k) continue;
+      const addNumbered = (v: any) => {
+        if (v?.type !== 'train' || !Number.isFinite(v.lat) || !Number.isFinite(v.lon)) return;
+        if (!String(v.name || '').match(/\d/)) return;
+        const k = operatorKey(v);
+        if (!k) return;
         if (!numberedByOperator.has(k)) numberedByOperator.set(k, []);
-        numberedByOperator.get(k)!.push(h);
-      }
+        numberedByOperator.get(k)!.push(v);
+      };
+      for (const h of namedFromHafas) addNumbered(h);
+      // SŽ's own numbered positions also let an unnumbered TRAVIC/MOTIS copy of
+      // the same Slovenian train be dropped, the same way HAFAS numbers do.
+      const szTrains = getSzTrains();
+      for (const s of szTrains) addNumbered(s);
       const DUP_KM = 6; // the threshold the HAFAS layer already uses for this
       const withoutHafasCopies = [...motisVehicles, ...travicVehicles].filter(v => {
         if (v?.type !== 'train') return true;
@@ -11751,7 +11848,13 @@ app.post('/api/log', express.json(), (req, res) => {
           .filter(Boolean)
       );
       const mavAdditions = getMavTrains().filter(t => !knownTrainNumbers.has(t.trainNum));
-      const allTransit = [...baseTransit, ...mavAdditions];
+      // SŽ's own live positions for Slovenian passenger trains, added where the
+      // other layers do not already carry that train number. SŽ track these
+      // authoritatively, so this fills in the domestic services MOTIS/TRAVIC
+      // miss and attaches the real reported delay.
+      const knownAfterMav = new Set([...knownTrainNumbers, ...mavAdditions.map(t => String(t.trainNum ?? '').trim())]);
+      const szAdditions = getSzTrains().filter(t => t.trainNum && !knownAfterMav.has(t.trainNum));
+      const allTransit = [...baseTransit, ...mavAdditions, ...szAdditions];
 
       // MOTIS and TRAVIC are both fetched with a short abort timeout, and a
       // single slow response used to empty the whole layer: the client replaces
@@ -11775,7 +11878,8 @@ app.post('/api/log', express.json(), (req, res) => {
       // storing that served a nearly empty map. A result less than half the size
       // of a still-fresh previous one is treated as a partial outage and
       // discarded; positions a few seconds old beat absent ones.
-      transitBuild.mav = { vehicles: Math.max(0, allTransit.length - baseTransit.length) };
+      transitBuild.mav = { vehicles: mavAdditions.length };
+      transitBuild.sz = { vehicles: szAdditions.length };
       transitBuild.lastTotal = allTransit.length;
       transitBuild.lastDiscardedAsDegraded = false;
       if (allTransit.length === 0) return;
