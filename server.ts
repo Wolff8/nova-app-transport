@@ -11769,6 +11769,7 @@ app.post('/api/log', express.json(), (req, res) => {
       cachedVehicles: transitCache.data.length,
       cacheAgeMs: transitCache.ts ? Date.now() - transitCache.ts : null,
       holavonat: { ...holaStatus, feedTs: holaCache.feedTs, cacheAgeMs: holaCache.ts ? Date.now() - holaCache.ts : null },
+      rinfSlovenia: rinfSI ? { ...rinfSI.counts, retrieved: rinfSI.retrieved } : null,
       note: 'motis/travic/mav povedo, koliko vozil je prispevalo posamezno zaledje pri zadnji gradnji. Nic pri motis in travic pomeni, da sta oba odpovedala in ostanejo samo madzarski vlaki.'
     });
   });
