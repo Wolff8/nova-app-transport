@@ -6052,7 +6052,7 @@ async function getOrFetchMotisTrip(
             }
 
             return {
-                stopName: st.name,
+                stopName: rinfOfficialName(st.name),
                 stationId: st.stopId || `sz_${st.name.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
                 lat: st.lat,
                 lon: st.lon,
@@ -6122,8 +6122,8 @@ async function getOrFetchMotisTrip(
             routeShortName: leg.routeShortName || cleanLine || `Vlak ${tripNum}`,
             trainNumber: tripNum,
             operator: op,
-            origin: leg.from?.name || 'Začetna postaja',
-            destination: leg.to?.name || 'Končna postaja',
+            origin: rinfOfficialName(leg.from?.name) || 'Začetna postaja',
+            destination: rinfOfficialName(leg.to?.name) || 'Končna postaja',
             departureTime: formatTime(leg.from?.scheduledDeparture || leg.from?.departure),
             arrivalTime: formatTime(leg.to?.scheduledArrival || leg.to?.arrival),
             delayMinutes: calculatedDelay,
@@ -6316,7 +6316,7 @@ function decodeGooglePolyline(str: string): [number, number][] {
 function holaStopovers(v: any) {
   const st: any[] = v?.trip?.stoptimes || [];
   return st.map((s, i) => ({
-    stopName: s.stop?.name || '',
+    stopName: rinfOfficialName(s.stop?.name),
     stationId: `mav_${String(s.stop?.name || i).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
     lat: s.stop?.lat ?? null, lon: s.stop?.lon ?? null,
     plannedDeparture: i < st.length - 1 ? secToHm(s.scheduledDeparture) : null,
@@ -7686,8 +7686,8 @@ const trains = combinedMovements
            })(),
            speed: 0, // Set to 0 so physics engine can calculate real speed based on movement
            operator: resolvedOperator,
-           origin: t.origin?.name || null,
-           destination: t.direction || 'Neznano',
+           origin: rinfOfficialName(t.origin?.name) || null,
+           destination: rinfOfficialName(t.direction) || 'Neznano',
            delay: delay,
            source: source,
            // No ERADIS/TAF-TSI feed exists for a live running train: ERADIS is
@@ -7705,7 +7705,7 @@ const trains = combinedMovements
            nextStopovers: t.nextStopovers && Array.isArray(t.nextStopovers) ? t.nextStopovers.slice(0, 2).map((s: any) => ({
              arrival: s.arrival,
              arrivalPlatform: s.arrivalPlatform || s.plannedArrivalPlatform,
-             stop: { name: s.stop?.name || s.stop?.station?.name || '' }
+             stop: { name: rinfOfficialName(s.stop?.name || s.stop?.station?.name) }
            })) : [],
            hasPolyline: Boolean(t.polyline),
            // The HAFAS product class, as the operator's timetable files it.
@@ -12519,6 +12519,44 @@ function rinfSISectionSummary(s: any) {
 const rinfSISections: any[] = rinfSI ? rinfSI.sections.map(rinfSISectionSummary) : [];
 const rinfSIBySection = new Map<string, any>(rinfSISections.map(s => [s.id, s]));
 const rinfSISourceLine = rinfSI ? `${rinfSI.source} · posnetek ${String(rinfSI.retrieved).slice(0, 10)} · ${rinfSI.validity?.[0] ?? ''}` : null;
+/**
+ * The official Slovenian spelling of a station name.
+ *
+ * ÖBB's timetable, which the HAFAS layer reads, holds Slovenian stations
+ * without their diacritics ("Sezana", "Hodos", "Ljubljana Siska") and in one
+ * case misspelt: it files Mačkovci on line 41 as "Maekovci", a place that
+ * exists nowhere in the register.
+ *
+ * A name is corrected only when stripping diacritics makes it match exactly
+ * one operational point in RINF, or when it appears in the short table of
+ * upstream misspellings below. Fuzzy matching is deliberately not used:
+ * measured against the live feed, an edit distance of one turned the
+ * Hungarian town Érd into Slovenian Verd and Luka into Loka.
+ */
+const rinfNormName = (v: string) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+/** Upstream misspellings, each checked against the register before adding. */
+const RINF_FEED_MISSPELLINGS: Record<string, string> = {
+  // Mačkovci, proga 41, km 53.1, UOPID SI43774.
+  'maekovci': 'Mačkovci'
+};
+const rinfOfficialByNorm = (() => {
+  const counts = new Map<string, Set<string>>();
+  for (const o of (rinfSI?.operationalPoints ?? [])) {
+    const k = rinfNormName(o.name);
+    counts.set(k, (counts.get(k) ?? new Set()).add(o.name));
+  }
+  const m = new Map<string, string>();
+  // An ambiguous spelling is left alone rather than guessed at.
+  for (const [k, names] of counts) if (names.size === 1) m.set(k, [...names][0]);
+  return m;
+})();
+function rinfOfficialName(name: string | null | undefined): string {
+  const raw = String(name ?? '').trim();
+  if (!raw) return raw;
+  const k = rinfNormName(raw);
+  return RINF_FEED_MISSPELLINGS[k] ?? rinfOfficialByNorm.get(k) ?? raw;
+}
+
 /**
  * How far a position may sit from a section's straight OP→OP link and still
  * be taken as being on it. Measured against the app's surveyed corridor
