@@ -807,7 +807,13 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   app.get('/api/overpass', (req, res) => {
     const type = req.query.type;
     if (type === 'yard') {
-      return res.json(FREIGHT_TERMINALS_REGISTRY);
+      // Same rule as /api/freight/terminals: the invented throughput figures
+      // stay out of the payload.
+      return res.json(FREIGHT_TERMINALS_REGISTRY.map((t: any) => {
+        const { capacityTonsPerDay, dailyBlockTrains, ...rest } = t;
+        void capacityTonsPerDay; void dailyBlockTrains;
+        return rest;
+      }));
     }
     if (type === 'warehouse') {
       return res.json(FREIGHT_WAREHOUSES_REGISTRY);
@@ -819,11 +825,20 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
   app.get('/api/freight/terminals', (req, res) => {
     // Each yard now carries whether the Commission actually designates it, so
     // a busy freight station is not silently presented as a TEN-T terminal.
+    // Per-terminal daily train counts and tonnage capacities were written into
+    // this file, not published by anyone (no terminal in Slovenia publishes
+    // either), so they are not sent. ERA's factsheet gives the national
+    // aggregates instead; those are served with the panel data.
     const allTerminals = [...FREIGHT_TERMINALS_REGISTRY, ...EUROPEAN_INTERMODAL_TERMINALS]
-      .map((t: any) => ({
-        ...t,
-        tenT: Number.isFinite(t.lat) && Number.isFinite(t.lon) ? tentStatusFor(t.lat, t.lon) : null
-      }));
+      .map((t: any) => {
+        const { capacityTonsPerDay, dailyBlockTrains, ...rest } = t;
+        void capacityTonsPerDay; void dailyBlockTrains;
+        return {
+          ...rest,
+          throughputNote: 'Dnevni promet in kapaciteta terminala nista javno objavljena.',
+          tenT: Number.isFinite(t.lat) && Number.isFinite(t.lon) ? tentStatusFor(t.lat, t.lon) : null
+        };
+      });
     res.json({
       timestamp: new Date().toISOString(),
       count: allTerminals.length,
@@ -3743,6 +3758,7 @@ console.log('TRAVIC returned', data.a ? data.a.length : 0, 'items');
         operatorTrainsNote: paths?.operatorTrainsNote ?? null,
         portServices: paths?.portServices ?? [],
         portServicesNote: paths?.portServicesNote ?? null,
+        countryStats: eraCountryStats,
         trains: [...runningTrains, ...terminalTrains],
         runningTrains,
         terminalTrains,
@@ -9569,6 +9585,18 @@ app.post('/api/log', express.json(), (req, res) => {
     corridor: string; catalogue?: string; daysOfWeek: number[] | null;
     timingPoints: CorridorPathTiming[]; foreignSections?: CorridorForeignSection[];
   };
+  // ERA's Railway Factsheet input data (July 2026 edition): national
+  // aggregates for Slovenia, each with the source ERA names for it. Served
+  // with the freight panel so the numbers there are published ones.
+  let eraCountryStats: any = null;
+  try {
+    const p = path.join(process.cwd(), 'src', 'data', 'eraFactsheetSI.json');
+    if (fs.existsSync(p)) {
+      eraCountryStats = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      console.log(`[ERA] Factsheet indicators for SI loaded: ${eraCountryStats.indicators?.length ?? 0}`);
+    }
+  } catch (e) { console.error('[ERA] factsheet load failed', e); }
+
   let corridorPathData: { paths: CorridorPath[]; [k: string]: any } | null = null;
   try {
     const p = path.join(process.cwd(), 'src', 'data', 'corridorFreightPaths.json');

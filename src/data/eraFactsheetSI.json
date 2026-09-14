@@ -1,0 +1,1573 @@
+{
+ "source": "ERA Railway Factsheets – information and input data, verzija 27. 7. 2026 (Agencija Evropske unije za železnice)",
+ "sourceUrl": "https://www.era.europa.eu/",
+ "country": "SI",
+ "retrieved": "2026-09-14",
+ "note": "Državni kazalniki za Slovenijo iz uradne preglednice ERA. Vir vsakega kazalnika je tisti, ki ga navaja ERA (Eurostat, ERADIS, EVR, RINF, RMMS, IRG-Rail, CSI). To so letni agregati, ne podatki o posameznih vlakih.",
+ "indicators": [
+  {
+   "sheet": "1_transport",
+   "variable": "Freight transport modal share",
+   "label": "Delež železnice v tovornem prometu",
+   "unit": "%",
+   "series": {
+    "2010": 31.8,
+    "2011": 34,
+    "2012": 32.8,
+    "2013": 34.8,
+    "2014": 36,
+    "2015": 35,
+    "2016": 33.8,
+    "2017": 36.3,
+    "2018": 35.5,
+    "2019": 36.3,
+    "2020": 35.1,
+    "2021": 33.5,
+    "2022": 32.7,
+    "2023": 30.2,
+    "2024": 31.1
+   },
+   "latest": {
+    "year": "2024",
+    "value": 31.1
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "1_transport",
+   "variable": "Freight transport tkm",
+   "label": "Tovorni promet (tkm)",
+   "unit": "million tkm",
+   "series": {
+    "2010": 3421,
+    "2011": 3752,
+    "2012": 3470,
+    "2013": 3799,
+    "2014": 4110,
+    "2015": 4175,
+    "2016": 4360,
+    "2017": 5128,
+    "2018": 5151,
+    "2019": 5292,
+    "2020": 4726,
+    "2021": 4937,
+    "2022": 4928,
+    "2023": 4629,
+    "2024": 4569
+   },
+   "latest": {
+    "year": "2024",
+    "value": 4569
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "1_transport",
+   "variable": "Passenger transport modal share",
+   "label": "Delež železnice v potniškem prometu",
+   "unit": "%",
+   "series": {
+    "2010": 2.5,
+    "2011": 2.3,
+    "2012": 2.3,
+    "2013": 2.3,
+    "2014": 2.1,
+    "2015": 2.1,
+    "2016": 2,
+    "2017": 1.8,
+    "2018": 1.8,
+    "2019": 1.8,
+    "2020": 1.4,
+    "2021": 2.1,
+    "2022": 2.4,
+    "2023": 2.6
+   },
+   "latest": {
+    "year": "2023",
+    "value": 2.6
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "1_transport",
+   "variable": "Passenger transport pkm",
+   "label": "Potniški promet (pkm)",
+   "unit": "million pkm",
+   "series": {
+    "2010": 729,
+    "2011": 689,
+    "2012": 659,
+    "2013": 679,
+    "2014": 620,
+    "2015": 628,
+    "2016": 611,
+    "2017": 570,
+    "2018": 568,
+    "2019": 572,
+    "2020": 338,
+    "2021": 504,
+    "2022": 645,
+    "2023": 742,
+    "2024": 886
+   },
+   "latest": {
+    "year": "2024",
+    "value": 886
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "CSM assessment bodies",
+   "label": "CSM assessment bodies",
+   "unit": "total number",
+   "series": {
+    "2026": 2
+   },
+   "latest": {
+    "year": "2026",
+    "value": 2
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "ECMs - Certification bodies",
+   "label": "ECMs - Certification bodies",
+   "unit": "total number",
+   "series": {
+    "2026": 1
+   },
+   "latest": {
+    "year": "2026",
+    "value": 1
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "ECMs - Certified organisations",
+   "label": "ECMs - Certified organisations",
+   "unit": "total number",
+   "series": {
+    "2026": 4
+   },
+   "latest": {
+    "year": "2026",
+    "value": 4
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Infrastructure managers",
+   "label": "Upravljavci infrastrukture",
+   "unit": "total number",
+   "series": {
+    "2026": 1
+   },
+   "latest": {
+    "year": "2026",
+    "value": 1
+   },
+   "source": "ERA/NSA (desk research)"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Licensed railway undertakings - Both freight & passenger",
+   "label": "Licencirani prevozniki – tovorni in potniški",
+   "unit": "total number",
+   "series": {
+    "2026": 1
+   },
+   "latest": {
+    "year": "2026",
+    "value": 1
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Licensed railway undertakings - Freight only",
+   "label": "Licencirani prevozniki – samo tovorni",
+   "unit": "total number",
+   "series": {
+    "2026": 12
+   },
+   "latest": {
+    "year": "2026",
+    "value": 12
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Licensed railway undertakings - Passenger only",
+   "label": "Licencirani prevozniki – samo potniški",
+   "unit": "total number",
+   "series": {
+    "2026": 1
+   },
+   "latest": {
+    "year": "2026",
+    "value": 1
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Notified bodies",
+   "label": "Notified bodies",
+   "unit": "total number",
+   "series": {
+    "2026": 4
+   },
+   "latest": {
+    "year": "2026",
+    "value": 4
+   },
+   "source": "NANDO"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Railway undertakings with safety certificate - Freight & passenger only",
+   "label": "Prevozniki z varnostnim spričevalom – tovorni in potniški",
+   "unit": "total number",
+   "series": {
+    "2026": 8
+   },
+   "latest": {
+    "year": "2026",
+    "value": 8
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Railway undertakings with safety certificate - Freight only",
+   "label": "Prevozniki z varnostnim spričevalom – samo tovorni",
+   "unit": "total number",
+   "series": {
+    "2026": 63
+   },
+   "latest": {
+    "year": "2026",
+    "value": 63
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Railway undertakings with safety certificate - Other (e.g. shunting)",
+   "label": "Railway undertakings with safety certificate - Other (e.g. shunting)",
+   "unit": "total number",
+   "series": {
+    "2026": 1
+   },
+   "latest": {
+    "year": "2026",
+    "value": 1
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "2_organisations",
+   "variable": "Railway undertakings with safety certificate - Passenger only",
+   "label": "Prevozniki z varnostnim spričevalom – samo potniški",
+   "unit": "total number",
+   "series": {
+    "2026": 6
+   },
+   "latest": {
+    "year": "2026",
+    "value": 6
+   },
+   "source": "ERADIS"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Diesel locomotives",
+   "label": "Dizelske lokomotive",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 40
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Diesel multiple-unit sets (cars)",
+   "label": "Diesel multiple-unit sets (cars)",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 246
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Diesel shunting engines",
+   "label": "Dizelske premikalne lokomotive",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 45
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Electric locomotives",
+   "label": "Električne lokomotive",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 86
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Electric multiple-unit sets (cars - except high speed)",
+   "label": "Electric multiple-unit sets (cars - except high speed)",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 233
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Electric multiple-unit sets (cars - high speed)",
+   "label": "Electric multiple-unit sets (cars - high speed)",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 9
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Special vehicles",
+   "label": "Special vehicles",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 106
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_1_traction_rst",
+   "variable": "Specialised trailers",
+   "label": "Specialised trailers",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 20
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "E - Ordinary open high-sided wagons",
+   "label": "E - Ordinary open high-sided wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 636
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "F - Special open high-sided wagons",
+   "label": "F - Special open high-sided wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 195
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "G - Ordinary covered wagons",
+   "label": "G - Ordinary covered wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 52
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "H - Special covered wagons",
+   "label": "H - Special covered wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 389
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "I - Temperature controlled wagons",
+   "label": "I - Temperature controlled wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 4
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "K - Ordinary flat wagons",
+   "label": "K - Ordinary flat wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 25
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "L - Special flat wagons",
+   "label": "L - Special flat wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 23
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "R - Ordinary flat wagons with bogies",
+   "label": "R - Ordinary flat wagons with bogies",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 145
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "S - Special flat wagons with bogies",
+   "label": "S - Special flat wagons with bogies",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 526
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "T - Wagons with opening roof",
+   "label": "T - Wagons with opening roof",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 477
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "U - Special wagons",
+   "label": "U - Special wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 147
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_2_wagons",
+   "variable": "Z - Tank wagons",
+   "label": "Z - Tank wagons",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 102
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_3_coaches",
+   "variable": "1st class vehicles",
+   "label": "1st class vehicles",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 1
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_3_coaches",
+   "variable": "1st or 1st/2nd class vehicles",
+   "label": "1st or 1st/2nd class vehicles",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 14
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_3_coaches",
+   "variable": "2nd class vehicles",
+   "label": "2nd class vehicles",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 40
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "3_3_coaches",
+   "variable": "Vehicles of special design and vans",
+   "label": "Vehicles of special design and vans",
+   "unit": "vozil (po letu izdelave, EVR)",
+   "latest": {
+    "year": "2026-06",
+    "value": 5
+   },
+   "source": "EVR (Evropski register vozil)"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "ERTMS Level 1 lines",
+   "label": "Proge z ERTMS L1",
+   "unit": "%",
+   "series": {
+    "2019": 34.45,
+    "2020": 34.45,
+    "2021": 34.45,
+    "2022": 35.48,
+    "2023": 35.48,
+    "2024": 36.94
+   },
+   "latest": {
+    "year": "2024",
+    "value": 36.94
+   },
+   "source": "ERA/Eurostat"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "ERTMS Level 2 lines",
+   "label": "ERTMS Level 2 lines",
+   "unit": "%",
+   "series": {
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 0,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "ERA/Eurostat"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "Electrified lines",
+   "label": "Elektrificirane proge",
+   "unit": "%",
+   "series": {
+    "2010": 41,
+    "2011": 41,
+    "2012": 41,
+    "2013": 41,
+    "2014": 41,
+    "2015": 41,
+    "2016": 41,
+    "2017": 50,
+    "2018": 50,
+    "2019": 50,
+    "2020": 50,
+    "2021": 50,
+    "2022": 50,
+    "2023": 50,
+    "2024": 50
+   },
+   "latest": {
+    "year": "2024",
+    "value": 50
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "High-speed lines",
+   "label": "High-speed lines",
+   "unit": "%",
+   "series": {
+    "2010": 0,
+    "2011": 0,
+    "2012": 0,
+    "2013": 0,
+    "2014": 0,
+    "2015": 0,
+    "2016": 0,
+    "2017": 0,
+    "2018": 0,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 0,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "Line kilometres",
+   "label": "Dolžina prog",
+   "unit": "km",
+   "series": {
+    "2010": 1228,
+    "2011": 1209,
+    "2012": 1209,
+    "2013": 1209,
+    "2014": 1209,
+    "2015": 1209,
+    "2016": 1209,
+    "2017": 1209,
+    "2018": 1209,
+    "2019": 1209,
+    "2020": 1209,
+    "2021": 1209,
+    "2022": 1208,
+    "2023": 1208,
+    "2024": 1208
+   },
+   "latest": {
+    "year": "2024",
+    "value": 1208
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "Single track lines",
+   "label": "Enotirne proge",
+   "unit": "%",
+   "series": {
+    "2010": 73,
+    "2011": 73,
+    "2012": 73,
+    "2013": 73,
+    "2014": 73,
+    "2015": 73,
+    "2016": 73,
+    "2017": 73,
+    "2018": 73,
+    "2019": 73,
+    "2020": 73,
+    "2021": 73,
+    "2022": 73,
+    "2023": 73,
+    "2024": 73
+   },
+   "latest": {
+    "year": "2024",
+    "value": 73
+   },
+   "source": "Eurostat"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "Total number of active level crossings",
+   "label": "Total number of active level crossings",
+   "unit": "count",
+   "series": {
+    "2010": 339,
+    "2011": 335,
+    "2012": 335,
+    "2013": 340,
+    "2014": 336,
+    "2015": 322,
+    "2016": 49,
+    "2017": 319,
+    "2018": 314,
+    "2019": 313,
+    "2020": 339,
+    "2021": 341,
+    "2022": 341,
+    "2023": 338,
+    "2024": 339
+   },
+   "latest": {
+    "year": "2024",
+    "value": 339
+   },
+   "source": "CSI"
+  },
+  {
+   "sheet": "4_1_lines",
+   "variable": "Total number of passive level crossings",
+   "label": "Total number of passive level crossings",
+   "unit": "count",
+   "series": {
+    "2010": 549,
+    "2011": 505,
+    "2012": 503,
+    "2013": 492,
+    "2014": 451,
+    "2015": 437,
+    "2016": 434,
+    "2017": 426,
+    "2018": 421,
+    "2019": 408,
+    "2020": 375,
+    "2021": 349,
+    "2022": 347,
+    "2023": 339,
+    "2024": 335
+   },
+   "latest": {
+    "year": "2024",
+    "value": 335
+   },
+   "source": "CSI"
+  },
+  {
+   "sheet": "4_2_stations",
+   "variable": "Freight terminals",
+   "label": "Tovorni terminali",
+   "unit": "count",
+   "series": {
+    "2025": 5
+   },
+   "latest": {
+    "year": "2025",
+    "value": 5
+   },
+   "source": "RINF"
+  },
+  {
+   "sheet": "4_2_stations",
+   "variable": "Stations",
+   "label": "Postaje",
+   "unit": "count",
+   "series": {
+    "2025": 279
+   },
+   "latest": {
+    "year": "2025",
+    "value": 279
+   },
+   "source": "RINF"
+  },
+  {
+   "sheet": "4_3_inf_funding",
+   "variable": "Infrastructure maintenance expenditure",
+   "label": "Infrastructure maintenance expenditure",
+   "unit": "bn EUR",
+   "series": {
+    "2016": 0.115,
+    "2018": 0.123,
+    "2020": 0.142,
+    "2022": 0.142
+   },
+   "latest": {
+    "year": "2022",
+    "value": 0.142
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "4_3_inf_funding",
+   "variable": "Infrastructure renewal expenditure",
+   "label": "Infrastructure renewal expenditure",
+   "unit": "bn EUR",
+   "series": {
+    "2016": 0.024,
+    "2018": 0.033,
+    "2020": 0.02,
+    "2022": 0.009
+   },
+   "latest": {
+    "year": "2022",
+    "value": 0.009
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "4_3_inf_funding",
+   "variable": "Infrastructure upgrade expenditure",
+   "label": "Infrastructure upgrade expenditure",
+   "unit": "bn EUR",
+   "series": {
+    "2016": 0.01,
+    "2018": 0.095,
+    "2020": 0.127,
+    "2022": 0.132
+   },
+   "latest": {
+    "year": "2022",
+    "value": 0.132
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "4_3_inf_funding",
+   "variable": "Infrastructure new expenditure",
+   "label": "Infrastructure new expenditure",
+   "unit": "bn EUR",
+   "series": {
+    "2016": 0.037,
+    "2018": 0.026,
+    "2020": 0.042,
+    "2022": 0.047
+   },
+   "latest": {
+    "year": "2022",
+    "value": 0.047
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Total significant accidents",
+   "label": "Resne nesreče",
+   "unit": "count",
+   "series": {
+    "2010": 21,
+    "2011": 11,
+    "2012": 14,
+    "2013": 13,
+    "2014": 15,
+    "2015": 14,
+    "2016": 11,
+    "2017": 11,
+    "2018": 14,
+    "2019": 10,
+    "2020": 5,
+    "2021": 10,
+    "2022": 10,
+    "2023": 17,
+    "2024": 4
+   },
+   "latest": {
+    "year": "2024",
+    "value": 4
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Total fatalities",
+   "label": "Total fatalities",
+   "unit": "count",
+   "series": {
+    "2010": 14,
+    "2011": 4,
+    "2012": 5,
+    "2013": 5,
+    "2014": 3,
+    "2015": 1,
+    "2016": 5,
+    "2017": 5,
+    "2018": 5,
+    "2019": 2,
+    "2020": 2,
+    "2021": 2,
+    "2022": 3,
+    "2023": 7,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Total serious injuries",
+   "label": "Total serious injuries",
+   "unit": "count",
+   "series": {
+    "2010": 12,
+    "2011": 12,
+    "2012": 6,
+    "2013": 10,
+    "2014": 8,
+    "2015": 13,
+    "2016": 4,
+    "2017": 3,
+    "2018": 10,
+    "2019": 14,
+    "2020": 3,
+    "2021": 7,
+    "2022": 5,
+    "2023": 10,
+    "2024": 1
+   },
+   "latest": {
+    "year": "2024",
+    "value": 1
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Significant accidents - persons",
+   "label": "Significant accidents - persons",
+   "unit": "count",
+   "series": {
+    "2010": 4,
+    "2011": 3,
+    "2012": 1,
+    "2013": 0,
+    "2014": 0,
+    "2015": 2,
+    "2016": 0,
+    "2017": 1,
+    "2018": 5,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 1,
+    "2023": 4,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Significant accidents - collisions",
+   "label": "Significant accidents - collisions",
+   "unit": "count",
+   "series": {
+    "2010": 0,
+    "2011": 1,
+    "2012": 1,
+    "2013": 0,
+    "2014": 4,
+    "2015": 1,
+    "2016": 1,
+    "2017": 1,
+    "2018": 0,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 1,
+    "2023": 0,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Significant accidents - derailments",
+   "label": "Significant accidents - derailments",
+   "unit": "count",
+   "series": {
+    "2010": 0,
+    "2011": 0,
+    "2012": 1,
+    "2013": 1,
+    "2014": 1,
+    "2015": 0,
+    "2016": 1,
+    "2017": 3,
+    "2018": 0,
+    "2019": 3,
+    "2020": 0,
+    "2021": 2,
+    "2022": 2,
+    "2023": 7,
+    "2024": 2
+   },
+   "latest": {
+    "year": "2024",
+    "value": 2
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Significant accidents - Level-crossing",
+   "label": "Significant accidents - Level-crossing",
+   "unit": "count",
+   "series": {
+    "2010": 16,
+    "2011": 6,
+    "2012": 8,
+    "2013": 11,
+    "2014": 9,
+    "2015": 10,
+    "2016": 8,
+    "2017": 6,
+    "2018": 9,
+    "2019": 7,
+    "2020": 5,
+    "2021": 7,
+    "2022": 6,
+    "2023": 6,
+    "2024": 1
+   },
+   "latest": {
+    "year": "2024",
+    "value": 1
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Accidents involving dangerous goods",
+   "label": "Accidents involving dangerous goods",
+   "unit": "count",
+   "series": {
+    "2010": 0,
+    "2011": 0,
+    "2012": 0,
+    "2013": 0,
+    "2014": 0,
+    "2015": 0,
+    "2016": 0,
+    "2017": 0,
+    "2018": 0,
+    "2019": 1,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 0,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Significant accident rate",
+   "label": "Significant accident rate",
+   "unit": "count/bn trainkm",
+   "series": {
+    "2010": 1.117,
+    "2011": 0.542,
+    "2012": 0.704,
+    "2013": 0.647,
+    "2014": 0.732,
+    "2015": 0.651,
+    "2016": 0.516,
+    "2017": 0.5,
+    "2018": 0.7,
+    "2019": 0.498,
+    "2020": 0.296,
+    "2021": 0.505,
+    "2022": 0.469,
+    "2023": 0.802,
+    "2024": 0.18
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0.18
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Fatality rate",
+   "label": "Fatality rate",
+   "unit": "count/bn trainkm",
+   "series": {
+    "2010": 0.745,
+    "2011": 0.197,
+    "2012": 0.251,
+    "2013": 0.249,
+    "2014": 0.146,
+    "2015": 0.047,
+    "2016": 0.235,
+    "2017": 0.227,
+    "2018": 0.25,
+    "2019": 0.1,
+    "2020": 0.118,
+    "2021": 0.101,
+    "2022": 0.141,
+    "2023": 0.33,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Serious injury rate",
+   "label": "Serious injury rate",
+   "unit": "count/bn trainkm",
+   "series": {
+    "2010": 0.638,
+    "2011": 0.591,
+    "2012": 0.302,
+    "2013": 0.498,
+    "2014": 0.39,
+    "2015": 0.605,
+    "2016": 0.188,
+    "2017": 0.136,
+    "2018": 0.5,
+    "2019": 0.697,
+    "2020": 0.178,
+    "2021": 0.354,
+    "2022": 0.235,
+    "2023": 0.472,
+    "2024": 0.045
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0.045
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Level-crossing accident rate",
+   "label": "Level-crossing accident rate",
+   "unit": "count/bn trainkm",
+   "series": {
+    "2010": 0.851,
+    "2011": 0.296,
+    "2012": 0.402,
+    "2013": 0.547,
+    "2014": 0.439,
+    "2015": 0.465,
+    "2016": 0.376,
+    "2017": 0.273,
+    "2018": 0.45,
+    "2019": 0.348,
+    "2020": 0.296,
+    "2021": 0.354,
+    "2022": 0.282,
+    "2023": 0.283,
+    "2024": 0.045
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0.045
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Staff accident rate",
+   "label": "Staff accident rate",
+   "unit": "count/bn trainkm",
+   "series": {
+    "2010": 0,
+    "2011": 0,
+    "2012": 0.05,
+    "2013": 0,
+    "2014": 0,
+    "2015": 0,
+    "2016": 0,
+    "2017": 0,
+    "2018": 0.05,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 0.189,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_1_safety",
+   "variable": "Staff fatalities",
+   "label": "Staff fatalities",
+   "unit": "",
+   "series": {
+    "2010": 0,
+    "2011": 0,
+    "2012": 1,
+    "2013": 0,
+    "2014": 0,
+    "2015": 0,
+    "2016": 0,
+    "2017": 0,
+    "2018": 1,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 4,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "CSI (skupni varnostni kazalniki)"
+  },
+  {
+   "sheet": "5_2_investig",
+   "variable": "Number of reported NIB accident investigations",
+   "label": "Number of reported NIB accident investigations",
+   "unit": "count",
+   "series": {
+    "2010": 6,
+    "2011": 6,
+    "2012": 1,
+    "2013": 0,
+    "2014": 0,
+    "2015": 0,
+    "2016": 0,
+    "2017": 0,
+    "2018": 0,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 2,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "ERAIL"
+  },
+  {
+   "sheet": "6_1_perf",
+   "variable": "Passenger - punctuality",
+   "label": "Točnost potniških vlakov",
+   "unit": "%",
+   "series": {
+    "2019": 93.51,
+    "2020": 93.074,
+    "2021": 93.329,
+    "2022": 91,
+    "2023": 89,
+    "2024": 90
+   },
+   "latest": {
+    "year": "2024",
+    "value": 90
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "6_1_perf",
+   "variable": "Freight - punctuality",
+   "label": "Točnost tovornih vlakov",
+   "unit": "%",
+   "series": {
+    "2019": 48.75,
+    "2020": 51.47,
+    "2021": 47.96,
+    "2022": 47,
+    "2023": 46,
+    "2024": 48
+   },
+   "latest": {
+    "year": "2024",
+    "value": 48
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "6_1_perf",
+   "variable": "Freight - domestic - average timetable speed",
+   "label": "Povprečna voznoredna hitrost tovornih vlakov – notranji",
+   "unit": "km/h",
+   "series": {
+    "2016": 70,
+    "2018": 70,
+    "2020": 70,
+    "2022": 70
+   },
+   "latest": {
+    "year": "2022",
+    "value": 70
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "6_1_perf",
+   "variable": "Freight - international - average timetable speed",
+   "label": "Povprečna voznoredna hitrost tovornih vlakov – mednarodni",
+   "unit": "km/h",
+   "series": {
+    "2016": 70,
+    "2018": 70,
+    "2020": 70,
+    "2022": 70
+   },
+   "latest": {
+    "year": "2022",
+    "value": 70
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "6_2_empl",
+   "variable": "Employees at infrastructure managers",
+   "label": "Zaposleni pri upravljavcu infrastrukture",
+   "unit": "count",
+   "series": {
+    "2015": 2181,
+    "2018": 2171,
+    "2020": 2052,
+    "2022": 2072
+   },
+   "latest": {
+    "year": "2022",
+    "value": 2072
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "6_2_empl",
+   "variable": "Employees at RUs",
+   "label": "Zaposleni pri prevoznikih",
+   "unit": "count",
+   "series": {
+    "2015": 2724,
+    "2018": 2685,
+    "2020": 2664,
+    "2022": 2663
+   },
+   "latest": {
+    "year": "2022",
+    "value": 2663
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "6_2_empl",
+   "variable": "Train drivers at RUs",
+   "label": "Strojevodje pri prevoznikih",
+   "unit": "count",
+   "series": {
+    "2015": 881,
+    "2018": 872,
+    "2020": 982,
+    "2022": 995
+   },
+   "latest": {
+    "year": "2022",
+    "value": 995
+   },
+   "source": "RMMS"
+  },
+  {
+   "sheet": "6_2_empl",
+   "variable": "Train drivers with EU license",
+   "label": "Train drivers with EU license",
+   "unit": "count",
+   "series": {
+    "2018": 1011,
+    "2020": 1242,
+    "2022": 1332
+   },
+   "latest": {
+    "year": "2022",
+    "value": 1332
+   },
+   "source": "RMMS / anketa NSA"
+  },
+  {
+   "sheet": "6_3_market",
+   "variable": "Domestic incumbent market share in the rail passenger market",
+   "label": "Domestic incumbent market share in the rail passenger market",
+   "unit": "%",
+   "series": {
+    "2018": 100,
+    "2019": 100,
+    "2020": 100,
+    "2021": 100,
+    "2022": 100,
+    "2023": 100,
+    "2024": 100
+   },
+   "latest": {
+    "year": "2024",
+    "value": 100
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "6_3_market",
+   "variable": "Foreign incumbent market share in the rail passenger market",
+   "label": "Foreign incumbent market share in the rail passenger market",
+   "unit": "%",
+   "series": {
+    "2018": 0,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 0
+   },
+   "latest": {
+    "year": "2023",
+    "value": 0
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "6_3_market",
+   "variable": "Non-incumbent market share in the rail passenger market",
+   "label": "Non-incumbent market share in the rail passenger market",
+   "unit": "%",
+   "series": {
+    "2018": 0,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 0,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "6_3_market",
+   "variable": "Domestic incumbent market share in the rail freight market",
+   "label": "Tržni delež prvotnega prevoznika – tovor",
+   "unit": "%",
+   "series": {
+    "2018": 85.2,
+    "2019": 83.2,
+    "2020": 81,
+    "2021": 77.8,
+    "2022": 78.3,
+    "2023": 76.4,
+    "2024": 72.1
+   },
+   "latest": {
+    "year": "2024",
+    "value": 72.1
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "6_3_market",
+   "variable": "Foreign incumbent market share in the rail freight market",
+   "label": "Foreign incumbent market share in the rail freight market",
+   "unit": "%",
+   "series": {
+    "2018": 0,
+    "2019": 0,
+    "2020": 0,
+    "2021": 0,
+    "2022": 0,
+    "2023": 0,
+    "2024": 0
+   },
+   "latest": {
+    "year": "2024",
+    "value": 0
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "6_3_market",
+   "variable": "Non-incumbent market share in the rail freight market",
+   "label": "Tržni delež novih prevoznikov – tovor",
+   "unit": "%",
+   "series": {
+    "2018": 14.8,
+    "2019": 16.8,
+    "2020": 19,
+    "2021": 22.2,
+    "2022": 21.7,
+    "2023": 23.6,
+    "2024": 27.9
+   },
+   "latest": {
+    "year": "2024",
+    "value": 27.9
+   },
+   "source": "IRG-Rail"
+  },
+  {
+   "sheet": "7_regulation",
+   "variable": "Infringement cases concerning rail",
+   "label": "Infringement cases concerning rail",
+   "unit": "total number",
+   "series": {
+    "2025": 1
+   },
+   "latest": {
+    "year": "2025",
+    "value": 1
+   },
+   "source": "Evropska komisija"
+  },
+  {
+   "sheet": "7_regulation",
+   "variable": "National technical rules",
+   "label": "National technical rules",
+   "unit": "total number",
+   "series": {
+    "2025": 15
+   },
+   "latest": {
+    "year": "2025",
+    "value": 15
+   },
+   "source": "RDD"
+  },
+  {
+   "sheet": "7_regulation",
+   "variable": "State aid notifications to the EC",
+   "label": "State aid notifications to the EC",
+   "unit": "total number",
+   "series": {
+    "2025": 1
+   },
+   "latest": {
+    "year": "2025",
+    "value": 1
+   },
+   "source": "DG COMP"
+  }
+ ]
+}

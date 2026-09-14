@@ -3,7 +3,7 @@ export interface LocomotiveDataSource {
   source: string;
   country: string;
   countryFlag: string;
-  status: 'ACTIVE' | 'CONNECTED';
+  status: 'ACTIVE' | 'CONNECTED' | 'REFERENCE';
   description: string;
   apiProtocol: string;
   protocol?: string;
@@ -13,8 +13,8 @@ export interface EnrichedLocomotive {
   id: string;
   series: string; // e.g. "Vectron MS 193 / ÖBB 1293 / GySEV 471"
   name: string; // Display name
-  evn: string; // 12-digit European Vehicle Number e.g. "91 55 0471 002-1 H-GYSEV"
-  eratvCode: string; // ERA type authorization
+  evn: string; // A specific vehicle is never known for a running train; always "konkretno vozilo ni objavljeno"
+  eratvCode: string; // ERATV type id where one was found in the public register, else says so
   countryCode: string; // "SI" | "AT" | "HU" | "CZ" | "DE" | "IT" | "HR" | "PL"
   countryName: string;
   countryFlag: string;
@@ -41,58 +41,13 @@ export interface EnrichedLocomotive {
 
 export const COMMON_DATA_SOURCES: Record<string, LocomotiveDataSource> = {
   era: {
-    name: 'ERA ERATV / EVR',
-    source: 'Evropska železniška agencija (ERA) – Register odobrenih tipov vozil & EVR',
-    country: 'Evropska Unija (EU)',
+    name: 'Tip vozila (javni viri) / ERATV',
+    source: 'Tehnične lastnosti tipa po javnih virih proizvajalca; koda tipa iz javnega registra ERATV (ERA) le tam, kjer je bila najdena',
+    country: 'Evropska unija (EU)',
     countryFlag: '🇪🇺',
-    status: 'ACTIVE',
-    description: 'Uradna registracija vozila po direktivi (EU) 2016/797, 12-mestna EVN oznaka, TSI skladnost.',
-    apiProtocol: 'SPARQL Linked Open Data (graph.data.era.europa.eu)'
-  },
-  obb: {
-    name: 'ÖBB Open Data / RCG TransFER',
-    source: 'ÖBB-Infrastruktur AG & Rail Cargo Group (Avstrija)',
-    country: 'Avstrija',
-    countryFlag: '🇦🇹',
-    status: 'CONNECTED',
-    description: 'Voznoredni podatki, vlečna vozila Siemens Taurus/Vectron in čezmejni koridorji (Šentilj, Jesenice, Tarvisio).',
-    apiProtocol: 'Open Rail Data Austria & HAFAS API'
-  },
-  mav: {
-    name: 'MÁV EMIG / VPE / GySEV',
-    source: 'MÁV Zrt. & GySEV Cargo (Madžarska / Avstrija)',
-    country: 'Madžarska',
-    countryFlag: '🇭🇺',
-    status: 'CONNECTED',
-    description: 'Nadzorni sistem EMIG, dodelitev tras VPE in sledenje tovornih vlakov prek mejne postaje Hodoš (Őrihodos).',
-    apiProtocol: 'MÁV Open Telematics & VPE Kapacitás'
-  },
-  cd: {
-    name: 'ČD Cargo / Správa železnic',
-    source: 'ČD Cargo a.s. & Správa železnic (Češka)',
-    country: 'Češka',
-    countryFlag: '🇨🇿',
-    status: 'CONNECTED',
-    description: 'Sledenje težkih industrijskih kompozicij (jeklo, avtomobili) po koridorju RFC 11 Amber do Luke Koper.',
-    apiProtocol: 'Správa železnic GTFS-RT & TAF-TSI'
-  },
-  sz: {
-    name: 'SŽ-Infrastruktura & SŽ-TP',
-    source: 'Slovenske železnice – Tovorni promet & Program omrežja RS',
-    country: 'Slovenija',
-    countryFlag: '🇸🇮',
-    status: 'ACTIVE',
-    description: 'Nacionalni register vlečnih vozil, vozni redi tovornega prometa in geometrija prog.',
-    apiProtocol: 'SŽ TIS & Program omrežja RS'
-  },
-  uic: {
-    name: 'UIC TAF-TSI / ISR',
-    source: 'Mednarodna železniška zveza (UIC) – International Service for Freight Train Tracing',
-    country: 'Mednarodno (UIC)',
-    countryFlag: '🇪🇺',
-    status: 'ACTIVE',
-    description: 'Elektronska izmenjava podatkov o sestavi tovornega vlaka in prehodih državnih meja v realnem času.',
-    apiProtocol: 'UIC Leaflet 404-2 / TAF TSI'
+    status: 'REFERENCE',
+    description: 'ERATV je register TIPOV vozil, ne posameznih vozil: ne pove, katero vozilo vleče ta vlak, in ne prinaša živih podatkov. Konkretna številka vozila (EVN) ni objavljena v nobenem javnem viru.',
+    apiProtocol: 'Javni iskalnik ERATV (eratv.era.europa.eu), ročno preverjeno 14. 9. 2026'
   }
 };
 
@@ -102,8 +57,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'gysev_vectron_193',
     series: 'Siemens Vectron AC/DC (GySEV 471)',
     name: 'GySEV 471 »Vectron« (Siemens Vectron MS)',
-    evn: '91 55 0471 002-1 H-GYSEV',
-    eratvCode: '11-094-0001-2-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: '11-057-0005-6-001-002 (družina Vectron X4-A koridor, varianta ni določena; preverjeno v javnem registru ERATV 14. 9. 2026)',
     countryCode: 'HU',
     countryName: 'Madžarska',
     countryFlag: '🇭🇺',
@@ -122,8 +77,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo'",
     weightTons: 87.0,
     lengthMeters: 18.98,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.mav, COMMON_DATA_SOURCES.uic],
-    compositionLine: 'GySEV 471 002 »Vectron« – Siemens Vectron AC/DC (6.400 kW, UIC 91 55 0471 002-1 H-GYSEV, 25 kV/15 kV/3 kV, ETCS L2)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'GySEV 471 »Vectron« – Siemens Vectron AC/DC (6.400 kW, 25 kV/15 kV/3 kV, ETCS L2)'
   },
 
   // 2. ÖBB Taurus 1216 (Austria)
@@ -131,8 +86,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'obb_taurus_1216',
     series: 'Siemens EuroSprinter ES64U4 (ÖBB 1216)',
     name: 'ÖBB 1216 »Taurus« (Siemens ES64U4)',
-    evn: '91 81 1216 019-0 A-ÖBB',
-    eratvCode: '11-042-0001-3-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: '11-026-0021-8-001-001 (ES64U4 Var. B, dovoljenje AT/DE/HR/SI; preverjeno v javnem registru ERATV 14. 9. 2026)',
     countryCode: 'AT',
     countryName: 'Avstrija',
     countryFlag: '🇦🇹',
@@ -151,8 +106,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo'",
     weightTons: 86.5,
     lengthMeters: 19.58,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.obb, COMMON_DATA_SOURCES.uic],
-    compositionLine: 'ÖBB 1216 019 »Taurus« – Siemens EuroSprinter ES64U4 (6.400 kW, UIC 91 81 1216 019-0 A-ÖBB, 15 kV/25 kV/3 kV, ETCS L2)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'ÖBB 1216 »Taurus« – Siemens EuroSprinter ES64U4 (6.400 kW, 15 kV/25 kV/3 kV, ETCS L2)'
   },
 
   // 3. ÖBB Vectron 1293 (Austria)
@@ -160,8 +115,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'obb_vectron_1293',
     series: 'Siemens Vectron MS (ÖBB 1293)',
     name: 'ÖBB 1293 »Vectron MS«',
-    evn: '91 81 1293 018-8 A-ÖBB',
-    eratvCode: '11-094-0001-2-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: '11-057-0005-6-001-002 (družina Vectron X4-A koridor, varianta ni določena; preverjeno v javnem registru ERATV 14. 9. 2026)',
     countryCode: 'AT',
     countryName: 'Avstrija',
     countryFlag: '🇦🇹',
@@ -180,8 +135,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo'",
     weightTons: 87.0,
     lengthMeters: 18.98,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.obb, COMMON_DATA_SOURCES.uic],
-    compositionLine: 'ÖBB 1293 018 »Vectron« – Večsistemska tovorna lokomotiva (6.400 kW, UIC 91 81 1293 018-8 A-ÖBB, ETCS Baseline 3)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'ÖBB 1293 »Vectron« – Večsistemska tovorna lokomotiva (6.400 kW, ETCS Baseline 3)'
   },
 
   // 4. ČD Cargo Vectron 383 (Czechia)
@@ -189,8 +144,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'cd_vectron_383',
     series: 'Siemens Vectron MS (ČD Cargo 383)',
     name: 'ČD Cargo 383 »Vectron MS«',
-    evn: '91 54 7383 005-6 CZ-CDC',
-    eratvCode: '11-094-0001-2-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: '11-057-0005-6-001-002 (družina Vectron X4-A koridor, varianta ni določena; preverjeno v javnem registru ERATV 14. 9. 2026)',
     countryCode: 'CZ',
     countryName: 'Češka',
     countryFlag: '🇨🇿',
@@ -209,8 +164,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo'",
     weightTons: 87.0,
     lengthMeters: 18.98,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.cd, COMMON_DATA_SOURCES.uic],
-    compositionLine: 'ČD Cargo 383 005 »Vectron« – Siemens Vectron MS (6.400 kW, UIC 91 54 7383 005-6 CZ-CDC, RFC 11 Amber, ETCS L2)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'ČD Cargo 383 »Vectron« – Siemens Vectron MS (6.400 kW, RFC 11 Amber, ETCS L2)'
   },
 
   // 5. Adria Transport Taurus 1216 (Slovenia / Port of Koper)
@@ -218,8 +173,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'adria_transport_1216',
     series: 'Siemens EuroSprinter ES64U4 (Adria Transport 1216)',
     name: 'Adria Transport 1216-920 »Taurus«',
-    evn: '91 81 1216 920-5 A-AT',
-    eratvCode: '11-042-0001-3-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: '11-026-0021-8-001-001 (ES64U4 Var. B, dovoljenje AT/DE/HR/SI; preverjeno v javnem registru ERATV 14. 9. 2026)',
     countryCode: 'SI',
     countryName: 'Slovenija / Avstrija',
     countryFlag: '🇸🇮',
@@ -238,8 +193,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo'",
     weightTons: 86.5,
     lengthMeters: 19.58,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.sz, COMMON_DATA_SOURCES.uic],
-    compositionLine: 'Adria Transport 1216-920 »Taurus« – Siemens ES64U4 (6.400 kW, UIC 91 81 1216 920-5 A-AT, Luka Koper, ETCS L2)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'Adria Transport 1216-920 »Taurus« – Siemens ES64U4 (6.400 kW, Luka Koper, ETCS L2)'
   },
 
   // 6. SŽ 541 Taurus (Slovenia)
@@ -247,8 +202,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'sz_taurus_541',
     series: 'SŽ serija 541 (Siemens ES64U4)',
     name: 'SŽ 541 »Taurus« (Siemens ES64U4)',
-    evn: '91 79 1 541 101-2 SI-SŽ',
-    eratvCode: '11-042-0001-3-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: 'v javnem registru ERATV ni najden (starejši tip ali drugo ime; iskano 14. 9. 2026)',
     countryCode: 'SI',
     countryName: 'Slovenija',
     countryFlag: '🇸🇮',
@@ -267,8 +222,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo'",
     weightTons: 87.0,
     lengthMeters: 19.58,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.sz, COMMON_DATA_SOURCES.uic],
-    compositionLine: 'SŽ 541-101 »Taurus« – Večsistemska električna lokomotiva (Siemens ES64U4, 6.400 kW, UIC 91 79 1 541 101-2 SI-SŽ)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'SŽ 541-101 »Taurus« – Večsistemska električna lokomotiva (Siemens ES64U4, 6.400 kW)'
   },
 
   // 7. SŽ 664 "Reagan" (Diesel heavy hauler)
@@ -276,8 +231,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'sz_reagan_664',
     series: 'SŽ serija 664 (General Motors EMD GT26CW-2)',
     name: 'SŽ 664 »Reagan« (EMD GT26CW-2)',
-    evn: '92 79 2 664 112-8 SI-SŽ',
-    eratvCode: '11-000-0064-2-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: 'v javnem registru ERATV ni najden (starejši tip ali drugo ime; iskano 14. 9. 2026)',
     countryCode: 'SI',
     countryName: 'Slovenija',
     countryFlag: '🇸🇮',
@@ -296,8 +251,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Co'Co'",
     weightTons: 113.0,
     lengthMeters: 20.73,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.sz],
-    compositionLine: 'SŽ 664-112 »Reagan« – Težka 6-osna dizel-električna lokomotiva (EMD 16-645E3, 2.250 KM, UIC 92 79 2 664 112-8 SI-SŽ)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'SŽ 664-112 »Reagan« – Težka 6-osna dizel-električna lokomotiva (EMD 16-645E3, 2.250 KM)'
   },
 
   // 8. MÁV 480 Traxx (Hungary)
@@ -305,8 +260,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'mav_traxx_480',
     series: 'Bombardier Traxx AC2 (MÁV 480)',
     name: 'MÁV 480 »Traxx AC2«',
-    evn: '91 55 0480 005-9 H-START',
-    eratvCode: '11-036-0001-2-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: 'v javnem registru ERATV ni najden (starejši tip ali drugo ime; iskano 14. 9. 2026)',
     countryCode: 'HU',
     countryName: 'Madžarska',
     countryFlag: '🇭🇺',
@@ -325,8 +280,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo'",
     weightTons: 84.0,
     lengthMeters: 18.90,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.mav, COMMON_DATA_SOURCES.uic],
-    compositionLine: 'MÁV 480 005 »Traxx« – Dvofrekvenčna električna lokomotiva (Bombardier Traxx AC2, 5.600 kW, UIC 91 55 0480 005-9 H-START)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'MÁV 480 »Traxx« – Dvofrekvenčna električna lokomotiva (Bombardier Traxx AC2, 5.600 kW)'
   },
 
   // 9. SŽ 363 "Brižita" (Alsthom)
@@ -334,8 +289,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'sz_brizita_363',
     series: 'SŽ serija 363 (Alsthom CC 3 kV)',
     name: 'SŽ 363 »Brižita« (Alsthom)',
-    evn: '91 79 1 363 019-3 SI-SŽ',
-    eratvCode: '11-000-0063-1-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: 'v javnem registru ERATV ni najden (starejši tip ali drugo ime; iskano 14. 9. 2026)',
     countryCode: 'SI',
     countryName: 'Slovenija',
     countryFlag: '🇸🇮',
@@ -354,8 +309,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "C'C'",
     weightTons: 114.0,
     lengthMeters: 19.50,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.sz],
-    compositionLine: 'SŽ 363-019 »Brižita« – Težka 6-osna električna lokomotiva (Alsthom, 2.750 kW, UIC 91 79 1 363 019-3 SI-SŽ, 3 kV DC)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'SŽ 363-019 »Brižita« – Težka 6-osna električna lokomotiva (Alsthom, 2.750 kW, 3 kV DC)'
   },
 
   // 10. Stadler FLIRT EMU (SŽ 510)
@@ -363,8 +318,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'sz_flirt_510',
     series: 'SŽ serija 510 (Stadler FLIRT 3 EMU)',
     name: 'SŽ 510 »Stadler FLIRT« (Električna garnitura)',
-    evn: '94 79 1 510 001-4 SI-SŽ',
-    eratvCode: '11-105-0001-4-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: 'v javnem registru ERATV ni najden (starejši tip ali drugo ime; iskano 14. 9. 2026)',
     countryCode: 'SI',
     countryName: 'Slovenija',
     countryFlag: '🇸🇮',
@@ -383,8 +338,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'2'2'2'Bo'",
     weightTons: 135.0,
     lengthMeters: 80.70,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.sz],
-    compositionLine: 'SŽ 510 »Stadler FLIRT« – 4-členska nizkopodna večsistemska električna garnitura (160 km/h, UIC 94 79 1 510 001-4 SI-SŽ)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'SŽ 510 »Stadler FLIRT« – 4-členska nizkopodna večsistemska električna garnitura (160 km/h)'
   },
 
   // 11. Stadler KISS EMU (SŽ 313)
@@ -392,8 +347,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'sz_kiss_313',
     series: 'SŽ serija 313 (Stadler KISS 3 Double-decker)',
     name: 'SŽ 313 »Stadler KISS« (Dvonadstropna garnitura)',
-    evn: '94 79 1 313 001-3 SI-SŽ',
-    eratvCode: '11-105-0002-3-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: 'v javnem registru ERATV ni najden (starejši tip ali drugo ime; iskano 14. 9. 2026)',
     countryCode: 'SI',
     countryName: 'Slovenija',
     countryFlag: '🇸🇮',
@@ -412,8 +367,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'Bo' + 2'2' + Bo'Bo'",
     weightTons: 215.0,
     lengthMeters: 79.84,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.sz],
-    compositionLine: 'SŽ 313 »Stadler KISS« – 3-členska dvonadstropna električna garnitura (4.000 kW, 592 potnikov, UIC 94 79 1 313 001-3 SI-SŽ)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'SŽ 313 »Stadler KISS« – 3-členska dvonadstropna električna garnitura (4.000 kW, 592 potnikov)'
   },
 
   // 12. ÖBB Desiro ML (4746 Cityjet)
@@ -421,8 +376,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     id: 'obb_cityjet_4746',
     series: 'Siemens Desiro ML (ÖBB 4746 Cityjet)',
     name: 'ÖBB 4746 »Cityjet« (Siemens Desiro ML)',
-    evn: '94 81 4746 052-1 A-ÖBB',
-    eratvCode: '11-098-0001-3-001',
+    evn: 'konkretno vozilo ni objavljeno',
+    eratvCode: '13-201-0001-7-001-001 (Desiro ML, dovoljenje AT/DE; preverjeno v javnem registru ERATV 14. 9. 2026)',
     countryCode: 'AT',
     countryName: 'Avstrija',
     countryFlag: '🇦🇹',
@@ -441,8 +396,8 @@ export const EUROPEAN_LOCOMOTIVES: EnrichedLocomotive[] = [
     axleArrangement: "Bo'2' + 2'2' + 2'Bo'",
     weightTons: 144.0,
     lengthMeters: 75.15,
-    dataSources: [COMMON_DATA_SOURCES.era, COMMON_DATA_SOURCES.obb],
-    compositionLine: 'ÖBB 4746 »Cityjet« – Siemens Desiro ML (2.600 kW, 160 km/h, UIC 94 81 4746 052-1 A-ÖBB, klimatski komfort)'
+    dataSources: [COMMON_DATA_SOURCES.era],
+    compositionLine: 'ÖBB 4746 »Cityjet« – Siemens Desiro ML (2.600 kW, 160 km/hÖBB, klimatski komfort)'
   }
 ];
 

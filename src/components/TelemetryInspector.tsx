@@ -1857,7 +1857,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                       </div>
                       <div className="bg-black/40 border border-line p-2 rounded-lg">
                         <span className="text-[10px] text-text-dim block uppercase font-mono">Dnevni pretok</span>
-                        <span className="text-emerald-400 font-bold font-mono">{node.rawPayload?.dailyBlockTrains || (node.rawPayload?.capacityTonsPerDay ? `${node.rawPayload.capacityTonsPerDay.toLocaleString('sl-SI')} t/dan` : '20-35 vlakov/dan')}</span>
+                        <span className="text-emerald-400 font-bold font-mono">{node.rawPayload?.dailyBlockTrains || (node.rawPayload?.capacityTonsPerDay ? `${node.rawPayload.capacityTonsPerDay.toLocaleString('sl-SI')} t/dan` : 'ni objavljeno')}</span>
                       </div>
                     </div>
 
@@ -2273,7 +2273,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                                   className="flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-mura/20 hover:bg-mura/30 text-wheat border border-mura/30 transition-colors shrink-0"
                                 >
                                   <Globe size={11} className="text-wheat" />
-                                  <span>{showCrossBorderData ? 'Skrij tujo telematiko' : '🌍 Tuji viri (ERA, ÖBB, MÁV, ČD)'}</span>
+                                  <span>{showCrossBorderData ? 'Skrij podatke o tipu' : 'Podatki o tipu vozila (ERATV)'}</span>
                                   {showCrossBorderData ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                                 </button>
                               </div>
@@ -2282,7 +2282,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                                 <div className="mt-2 p-2.5 rounded-lg bg-black/40 border border-mura/30 space-y-2 text-[10.5px] font-mono">
                                   <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                                     <div>
-                                      <span className="text-zinc-400 block text-[9px] uppercase">EVN / UIC registracija:</span>
+                                      <span className="text-zinc-400 block text-[9px] uppercase">Konkretno vozilo (EVN):</span>
                                       <span className="text-white font-semibold">{enrichedLoco.evn}</span>
                                     </div>
                                     <div>
@@ -2311,7 +2311,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
 
                                   <div className="pt-1.5 border-t border-white/10 space-y-1">
                                     <span className="text-[9.5px] text-zinc-400 font-semibold block uppercase tracking-wider">
-                                      Povezani tuji in mednarodni viri telematike:
+                                      Vir podatkov o tipu vozila (tip po prevozniku je ugibanje, ne podatek):
                                     </span>
                                     <div className="space-y-1">
                                       {enrichedLoco.dataSources.map((ds, dIdx) => (
@@ -2749,7 +2749,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                                       className="flex items-center gap-1 text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-mura/20 hover:bg-mura/30 text-wheat border border-mura/30 transition-colors shrink-0"
                                     >
                                       <Globe size={11} className="text-wheat" />
-                                      <span>{showCrossBorderData ? 'Skrij tujo telematiko' : '🌍 Tuji viri (ERA, ÖBB, MÁV, ČD)'}</span>
+                                      <span>{showCrossBorderData ? 'Skrij podatke o tipu' : 'Podatki o tipu vozila (ERATV)'}</span>
                                       {showCrossBorderData ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                                     </button>
                                   </div>
@@ -2769,7 +2769,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
 
                                     <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                                       <div>
-                                        <span className="text-zinc-400 block text-[9px] uppercase">EVN / UIC registracija:</span>
+                                        <span className="text-zinc-400 block text-[9px] uppercase">Konkretno vozilo (EVN):</span>
                                         <span className="text-white font-semibold">{enrichedLoco.evn}</span>
                                       </div>
                                       <div>
@@ -2798,7 +2798,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
 
                                     <div className="pt-1.5 border-t border-white/10 space-y-1">
                                       <span className="text-[9.5px] text-zinc-400 font-semibold block uppercase tracking-wider">
-                                        Povezani tuji in mednarodni viri telematike:
+                                        Vir podatkov o tipu vozila (tip po prevozniku je ugibanje, ne podatek):
                                       </span>
                                       <div className="space-y-1">
                                         {enrichedLoco.dataSources.map((ds, dIdx) => (

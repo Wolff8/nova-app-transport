@@ -590,6 +590,43 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 );
               })()}
 
+              {/* National aggregates from ERA's Railway Factsheet: published
+                  figures with the source ERA names, replacing the invented
+                  per-terminal throughput numbers this panel used to carry. */}
+              {Array.isArray(freightPayload?.countryStats?.indicators) && freightPayload.countryStats.indicators.length > 0 && (() => {
+                const cs = freightPayload.countryStats;
+                const pick = [
+                  'Freight transport modal share', 'Freight transport tkm', 'Licensed railway undertakings - Freight only',
+                  'Railway undertakings with safety certificate - Freight only', 'Domestic incumbent market share in the rail freight market',
+                  'Non-incumbent market share in the rail freight market', 'Freight - punctuality',
+                  'Freight - domestic - average timetable speed', 'Freight - international - average timetable speed',
+                  'Electric locomotives', 'Diesel locomotives', 'Freight terminals', 'Line kilometres', 'Single track lines',
+                  'Electrified lines', 'ERTMS Level 1 lines'
+                ];
+                const rows = pick.map(v => cs.indicators.find((i: any) => i.variable === v)).filter(Boolean);
+                const fmt = (i: any) => {
+                  const v = i.latest?.value;
+                  const num = typeof v === 'number' ? v.toLocaleString('sl-SI') : String(v ?? '—');
+                  const unit = i.unit === 'total number' || i.unit === 'count' ? '' : (i.unit?.startsWith('vozil') ? '' : ` ${i.unit}`);
+                  return `${num}${unit}`;
+                };
+                return (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-bold text-white">Slovenija v številkah – tovorni železniški promet (ERA Railway Factsheet)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {rows.map((i: any, k: number) => (
+                        <div key={k} className="p-2.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                          <div className="text-[10px] text-slate-400 leading-snug">{i.label}</div>
+                          <div className="text-lg font-bold font-mono text-emerald-300 mt-0.5">{fmt(i)}</div>
+                          <div className="text-[9.5px] font-mono text-slate-500">{i.latest?.year} · {i.source}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-snug">{cs.note} Vir: {cs.source}.</p>
+                  </div>
+                );
+              })()}
+
               {/* Murska Sobota & Prekmurje Spotlight Banner */}
               <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-950/40 via-slate-900/80 to-amber-950/40 border border-emerald-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
                 <div className="flex items-center gap-3">
@@ -1113,7 +1150,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                         </div>
                         <div>
                           <span className="text-slate-500 block text-[9.5px]">Frekvenca prometa:</span>
-                          <span className="text-amber-300 font-semibold">{terminal.dailyBlockTrains}</span>
+                          <span className="text-slate-400 font-semibold">{terminal.dailyBlockTrains || 'ni objavljeno'}</span>
                         </div>
                       </div>
 
