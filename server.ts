@@ -7765,11 +7765,18 @@ const trains = combinedMovements
       try {
         const mav = await getMavBorderTrains();
         if (mav.length) {
-          const mavNums = new Set(mav.map(m => String(m.id).replace(/^mav_/, '')));
+          const mavPos = new Map<string, [number, number]>(mav.map(m => [String(m.id).replace(/^mav_/, ''), [Number(m.lat), Number(m.lon)]]));
           mergedTrains = deduplicatedHafasTrains.filter(t => {
             const digits = String(t.name || '').match(/\d{2,}/)?.[0];
+            const pos = digits ? mavPos.get(digits) : undefined;
+            if (!pos) return true;
+            // HAFAS files GySEV's cross-border trains under ÖBB (R 9112
+            // Szombathely–Sopron), so the operator label alone does not
+            // identify the copy; the same number within 40 km does.
             const hungarian = /MÁV|MAV|GYSEV/i.test(String(t.operator || ''));
-            return !(hungarian && digits && mavNums.has(digits));
+            const dLat = (Number(t.lat) - pos[0]) * 110.5, dLon = (Number(t.lon) - pos[1]) * 111.3 * Math.cos((pos[0] * Math.PI) / 180);
+            const nearKm = Number.isFinite(dLat) && Number.isFinite(dLon) ? Math.hypot(dLat, dLon) : Infinity;
+            return !(hungarian || nearKm <= 40);
           }).concat(mav);
         }
       } catch (e) { console.error('[MÁV vonatinfo] merge failed:', (e as any)?.message || e); }
