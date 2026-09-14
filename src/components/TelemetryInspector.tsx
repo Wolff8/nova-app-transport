@@ -1220,8 +1220,8 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                             <div className="text-[10px] font-mono text-white/70 mb-1">Prevozniki z objavljenim urnikom na tej relaciji</div>
                             {pc.publishedServices.map((s: any, i: number) => (
                               <div key={i} className="text-[11.5px] text-white/90 leading-snug">
-                                <strong className="text-violet-200">{s.operator}</strong> · {s.matchedDirection || `${s.from} → ${s.to}`} · {s.frequency}
-                                <span className="block text-[9.5px] font-mono text-white/45">vir: {s.source}</span>
+                                <strong className="text-violet-200">{s.operator}</strong> · {s.matchedDirection || `${s.from} → ${s.to}`} · {s.frequency}{s.daysLabel ? ` · ${s.daysLabel}` : ''}
+                                <span className="block text-[9.5px] font-mono text-white/45">vir: {s.factsheet || s.source}{s.asOf ? ` · stanje ${s.asOf}` : ''}</span>
                               </div>
                             ))}
                             <p className="text-[9.5px] text-white/50 leading-snug mt-0.5">Ujemanje relacije, ne potrditev, da ta pot pripada temu prevozniku.</p>
@@ -1378,9 +1378,16 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                               {ps.map((s: any, i: number) => (
                                 <p key={i} className="mt-1 text-[10.5px] leading-snug text-amber-100/85">
                                   <strong className="text-amber-200">{s.operator}</strong>: {s.matchedDirection || `${s.from} → ${s.to}`}, {s.frequency || (s.perDay != null ? `${s.perDay}× na dan` : '')}
-                                  {Array.isArray(s.days) && s.days.length === 7 ? ' (vsak dan)' : ''}
+                                  {s.daysLabel ? ` · ${s.daysLabel}` : (Array.isArray(s.days) && s.days.length === 7 ? ' (vsak dan)' : '')}
                                   {s.transitHours ? ` · čas vožnje do ${s.transitHours} h` : ''}
                                   {s.route ? ` · pot ${s.route}` : ''}
+                                  {s.validUntil ? ` · velja do ${String(s.validUntil).split('-').reverse().join('. ')}` : ''}
+                                  {s.terminalTimes ? (
+                                    <span className="block text-[10px] text-amber-100/70">
+                                      {Object.entries(s.terminalTimes).filter(([k]) => k !== 'note').map(([k, v]: any) => `${k.replace(/([A-Z])/g, ' $1').replace(/ To /, ' → ').trim()}: check-in ${v.lastCheckIn}; prevzem ${v.readyForPickup}`).join(' · ')}
+                                      {' '}({s.terminalTimes.note})
+                                    </span>
+                                  ) : null}
                                   <span className="block text-[9.5px] font-mono text-amber-200/60">vir: {s.source}{s.retrieved ? ` · prebrano ${s.retrieved}` : ''}</span>
                                 </p>
                               ))}

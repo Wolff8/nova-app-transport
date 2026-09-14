@@ -158,6 +158,17 @@
     ]
    },
    "perWeek": 5,
+   "days": [1, 2, 3, 4, 5],
+   "daysLabel": "pon–pet (operativni dnevi, razen praznikov)",
+   "terminalTimes": {
+    "note": "Terminalski roki iz objavljenega voznega reda prevoznika, ne ure odhoda vlaka.",
+    "budapestToKoper": { "lastCheckIn": "operativni dan 14:00 (BILK)", "readyForPickup": "naslednji dan 21:00 (Luka Koper)" },
+    "koperToBudapest": { "lastCheckIn": "dan pred operativnim dnem 12:00 (Luka Koper); ponedeljek: petek 15:00", "readyForPickup": "naslednji dan 08:00 (BILK)" }
+   },
+   "terminals": "Rail Cargo Terminal – BILK Zrt., Budapest ↔ Luka Koper d.d.",
+   "validUntil": "2026-12-31",
+   "asOf": "december 2025",
+   "factsheet": "https://www.railcargo.com/tr/dms/factsheets/factsheet-transfer-budapest-koper-en.pdf",
    "bothWays": true,
    "route": "Hodoš – Ljubljana",
    "transitHours": null,
@@ -265,6 +276,17 @@
     ]
    },
    "perWeek": "do 5",
+   "days": [1, 2, 3, 4, 5],
+   "daysLabel": "pon–pet, odhodi po potrebi (odvisno od obsega)",
+   "terminalTimes": {
+    "note": "Terminalski roki iz objavljenega voznega reda prevoznika, ne ure odhoda vlaka.",
+    "koperToVillach": { "lastCheckIn": "operativni dan 10:00 (Luka Koper)", "readyForPickup": "naslednji dan 08:00 (Villach Süd CCT); petek: ponedeljek 08:00" },
+    "villachToKoper": { "lastCheckIn": "dan pred operativnim dnem 18:00 (Villach Süd CCT)", "readyForPickup": "naslednji dan 16:00 (Luka Koper)" }
+   },
+   "terminals": "Terminal Service Austria, Villach Süd CCT (Fürnitz) ↔ Luka Koper d.d.; antene Dunaj Freudenau/Süd, Linz, Salzburg, Wolfurt (2–3 dni)",
+   "validUntil": "2026-12-31",
+   "asOf": "januar 2026",
+   "factsheet": "https://www.railcargo.com/en/dms/factsheets/factsheet-transfer-villach-koper-antennen-en.pdf",
    "bothWays": true,
    "route": "Jesenice – Ljubljana",
    "transitHours": null,
