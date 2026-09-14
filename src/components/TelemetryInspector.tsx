@@ -17,6 +17,34 @@ import {
   generateCrossBorderFreightStatus 
 } from '../data/crossBorderFreightRegistry';
 import { FreightCompositionSchematic } from './FreightCompositionSchematic';
+import trainImages from '../data/trainImages.json';
+
+/** A Commons photograph of a vehicle class, with its author and licence. */
+const TrainClassPhoto: React.FC<{ imageKey: string; why: string }> = ({ imageKey, why }) => {
+  const img: any = (trainImages as any).images?.[imageKey];
+  if (!img) return null;
+  return (
+    <figure className="rounded-lg overflow-hidden border border-white/10 bg-black/40">
+      <img src={img.thumbUrl} alt={img.label} loading="lazy" className="w-full h-auto block" style={{ maxHeight: 170, objectFit: 'cover' }} />
+      <figcaption className="px-2 py-1.5 text-[9.5px] leading-snug text-white/65">
+        <span className="text-white/90 font-medium">{img.label}</span> — fotografija vozila te serije, ne tega vlaka. {why}
+        <span className="block font-mono text-white/45">
+          foto: {img.author || 'neznan avtor'} · {img.license || 'licenca ni navedena'} · <a href={img.pageUrl} target="_blank" rel="noopener noreferrer" className="underline">Wikimedia Commons</a>
+        </span>
+      </figcaption>
+    </figure>
+  );
+};
+/** Catalogue reference-locomotive labels → photo keys. */
+const locoImageKey = (label: string): string | null => {
+  const s = String(label || '');
+  if (/\b541\b/.test(s)) return 'SZ-541';
+  if (/\b363\b/.test(s)) return 'SZ-363';
+  if (/\b310\b/.test(s)) return 'SZ-310';
+  if (/\b312\b/.test(s)) return 'SZ-312';
+  if (/\b510\b/.test(s)) return 'SZ-510';
+  return null;
+};
 import { PassengerCompositionSchematic } from './PassengerCompositionSchematic';
 import { enrichPassengerCoach, EnrichedPassengerCoach } from '../data/passengerCoachRegistry';
 
@@ -1246,13 +1274,20 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                               <text x={pad + m * sx} y={H - 1} fontSize="6" fill="rgba(255,255,255,0.55)" textAnchor={m === 0 ? 'start' : (m >= L - 50 ? 'end' : 'middle')} fontFamily="ui-monospace, monospace">{m} m</text>
                             </g>
                           ))}
-                          {/* locomotive(s) */}
-                          {Array.from({ length: locoCount }).map((_, i) => (
-                            <g key={i}>
-                              <rect x={pad + i * LOCO_M * sx} y={12} width={Math.max(2, LOCO_M * sx - 1)} height={16} rx="2" fill="#f97316" />
-                              <rect x={pad + i * LOCO_M * sx + 1.5} y={14} width={Math.max(1, LOCO_M * sx - 4)} height={4} fill="rgba(255,255,255,0.35)" />
-                            </g>
-                          ))}
+                          {/* locomotive(s): body with sloped cab ends, cab windows, pantograph, wheels */}
+                          {Array.from({ length: locoCount }).map((_, i) => {
+                            const x0 = pad + i * LOCO_M * sx, w = Math.max(3, LOCO_M * sx - 1), y0 = 12, h = 16;
+                            const nose = Math.min(2.5, w * 0.12);
+                            return (
+                              <g key={i}>
+                                <path d={`M${x0 + nose},${y0} H${x0 + w - nose} L${x0 + w},${y0 + 4} V${y0 + h - 3} H${x0} V${y0 + 4} Z`} fill="#f97316" stroke="#fdba74" strokeWidth="0.5" />
+                                <rect x={x0 + 1.5} y={y0 + 3} width={Math.max(1, w * 0.18)} height={4} rx="0.6" fill="rgba(15,23,42,0.75)" />
+                                <rect x={x0 + w - 1.5 - Math.max(1, w * 0.18)} y={y0 + 3} width={Math.max(1, w * 0.18)} height={4} rx="0.6" fill="rgba(15,23,42,0.75)" />
+                                <path d={`M${x0 + w * 0.35},${y0} l${w * 0.08},-3 h${w * 0.14} l${w * 0.08},3`} fill="none" stroke="#fdba74" strokeWidth="0.7" />
+                                {[0.18, 0.36, 0.64, 0.82].map((f, k) => <circle key={k} cx={x0 + w * f} cy={y0 + h - 1.5} r="1.6" fill="#0f172a" stroke="#fdba74" strokeWidth="0.6" />)}
+                              </g>
+                            );
+                          })}
                           {/* wagon envelope: hatched, because the catalogue fixes the length, not the wagons */}
                           <defs>
                             <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -1260,11 +1295,17 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                             </pattern>
                           </defs>
                           <rect x={pad + locoCount * LOCO_M * sx} y={13} width={Math.max(2, (L - locoCount * LOCO_M) * sx)} height={14} rx="2" fill="url(#hatch)" stroke="rgba(253,186,116,0.7)" strokeWidth="0.8" strokeDasharray="3 2" />
+                          {/* coupling between the locomotive and the envelope */}
+                          <line x1={pad + locoCount * LOCO_M * sx - 1} y1={21} x2={pad + locoCount * LOCO_M * sx + 1} y2={21} stroke="#fdba74" strokeWidth="1.2" />
                           <text x={pad + locoCount * LOCO_M * sx + ((L - locoCount * LOCO_M) * sx) / 2} y={22.5} fontSize="6.5" fill="#fff" textAnchor="middle" fontFamily="ui-monospace, monospace">
                             vagoni do {n(L - locoCount * LOCO_M)} m · sestava ni objavljena
                           </text>
                           <text x={pad + (locoCount * LOCO_M * sx) / 2} y={9} fontSize="6" fill="#fdba74" textAnchor="middle" fontFamily="ui-monospace, monospace">{locoCount > 1 ? `${locoCount}×` : ''}lok.</text>
                         </svg>
+                        {!primary.fromLineLimit && (() => {
+                          const key = (primary.referenceLocoLabels || []).map(locoImageKey).find(Boolean);
+                          return key ? <TrainClassPhoto imageKey={key} why={`Katalog to serijo navaja kot referenčno lokomotivo poti (${secs[0].parameterSet}).`} /> : null;
+                        })()}
                         {!primary.fromLineLimit && (
                           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10.5px]">
                             <div className="text-white/70">Največja dolžina vlaka</div><div className="font-mono text-white">{n(primary.maxTrainLengthM)} m</div>
@@ -2335,6 +2376,14 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                       <a href={vagonwebMeta.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200 underline underline-offset-2">
                         Odpri sestavo tega vlaka na VagonWEB v svojem brskalniku ↗
                       </a>
+                    )}
+                    {/* The one SŽ train type whose vehicle is fixed by definition:
+                        ICS runs with the series 310 Pendolino sets. Other types
+                        share several fleets, so they get no picture. */}
+                    {/^ICS\b/i.test(String(node.rawPayload?.category || node.title || '')) && (
+                      <div className="pt-1">
+                        <TrainClassPhoto imageKey="SZ-310" why="Vlaki vrste ICS (InterCity Slovenija) vozijo z nagibnimi garniturami serije 310." />
+                      </div>
                     )}
                   </div>
                 )}
