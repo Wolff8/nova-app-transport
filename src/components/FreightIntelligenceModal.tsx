@@ -48,6 +48,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [terminalsData, setTerminalsData] = useState<any[]>([]);
   const [corridorsData, setCorridorsData] = useState<any>(null);
   const [modalSplitData, setModalSplitData] = useState<any>(null);
+  // SURS official rail-freight flows by partner country (annual tonnage).
+  const [sursFlows, setSursFlows] = useState<any>(null);
   const [activeTrains, setActiveTrains] = useState<any[]>([]);
   const [freightPayload, setFreightPayload] = useState<any>(null);
   const [murskaSobotaData, setMurskaSobotaData] = useState<any>(null);
@@ -181,6 +183,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
         });
     };
     loadModalSplit(2);
+
+    fetch('/api/freight/surs-flows')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data && data.loadedInSlovenia) setSursFlows(data); })
+      .catch(() => {});
 
     // Initial UIC decoder lookup
     runUicDecoder('SGGRSS');
@@ -1479,6 +1486,57 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                     Tonski kilometri zgoraj so uradna statistika Eurostata.
                     {' '}<span className="text-amber-400/90">Ta dva faktorja pa nimata navedenega vira</span> — sta privzeti vrednosti,
                     zato je izračunani prihranek CO2 ocena in ne podatek.
+                  </p>
+                </div>
+              )}
+
+              {/* SURS: where the freight actually goes. Real annual tonnage
+                  from the national statistical office, by partner country —
+                  what the Eurostat share above does not break out. */}
+              {sursFlows && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className="font-bold text-white text-sm">Kam gre slovenski železniški tovor ({sursFlows.latestYear})</h3>
+                    <span className="text-[10px] font-mono text-slate-400">vir: SURS · {sursFlows.unit}</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {[
+                      { title: 'Naloženo v SI → namembna država', rows: sursFlows.loadedInSlovenia.countries, total: sursFlows.loadedInSlovenia.totalThousand, bar: 'bg-amber-400' },
+                      { title: 'Razloženo v SI ← država nakladanja', rows: sursFlows.unloadedInSlovenia.countries, total: sursFlows.unloadedInSlovenia.totalThousand, bar: 'bg-sky-400' },
+                      { title: 'Tranzit skozi SI (od → do)', pairs: sursFlows.transit.pairs, total: sursFlows.transit.totalThousand, bar: 'bg-violet-400' }
+                    ].map((col, ci) => {
+                      const items: { label: string; v: number }[] = col.pairs
+                        ? col.pairs.map((p: any) => ({ label: `${p.from} → ${p.to}`, v: p.tonnesThousand }))
+                        : col.rows.map((r: any) => ({ label: r.country, v: r.tonnesThousand }));
+                      const max = items.length ? items[0].v : 1;
+                      return (
+                        <div key={ci} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                          <div className="text-[11px] font-semibold text-slate-300 leading-tight min-h-[28px]">{col.title}</div>
+                          <div className="space-y-1">
+                            {items.slice(0, 8).map((it, i) => (
+                              <div key={i} className="space-y-0.5">
+                                <div className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                                  <span className="text-slate-300 truncate">{it.label}</span>
+                                  <span className="font-mono text-white shrink-0">{Number(it.v).toLocaleString('sl-SI')}</span>
+                                </div>
+                                <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${col.bar}`} style={{ width: `${Math.max(3, (it.v / max) * 100)}%` }}></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {col.total != null && (
+                            <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-800">
+                              skupaj {Number(col.total).toLocaleString('sl-SI')} tis. ton
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed border-t border-slate-800 pt-2">
+                    {sursFlows.note} Vir: {sursFlows.source} (SiStat {Object.values(sursFlows.matrices).join(', ')}).
+                    To so letne tone, ne položaji vlakov — natančnejša slika tokov, ne lokacija posameznega vlaka.
                   </p>
                 </div>
               )}

@@ -11833,6 +11833,7 @@ app.post('/api/log', express.json(), (req, res) => {
       rinfSlovenia: rinfSI ? { ...rinfSI.counts, retrieved: rinfSI.retrieved } : null,
       diumSlovenia: diumSI ? { ...diumSI.counts, edition: diumSI.edition, retrieved: diumSI.retrieved } : null,
       nhmCommodities: nhmSI ? { ...nhmSI.counts, effective: nhmSI.effective, retrieved: nhmSI.retrieved } : null,
+      sursRailFreight: sursFreight ? { latestYear: sursFreight.latestYear, retrieved: sursFreight.retrieved } : null,
       eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
       iateGlossary: iateGlossary ? { ...iateGlossary.counts, retrieved: iateGlossary.retrieved } : null,
       eraParameterXref: eraParamXref ? eraParamXref.counts : null,
@@ -12858,6 +12859,28 @@ app.get('/api/freight/nhm/:code', (req, res) => {
     // through rather than listed, since they are nothing a note can cite.
     subdivisions: nhmSubdivisions(i)
   });
+});
+
+/**
+ * SURS official rail-freight statistics, pulled by
+ * scripts/surs_rail_freight.mjs from the national statistical office's
+ * SiStat cubes. Annual tonnage — real, sourced, not a train position and not
+ * an estimate. It answers where Slovenian rail freight is loaded and unloaded
+ * (by partner country) and what commodities move, which the Eurostat split
+ * the app already carries does not break out for Slovenia.
+ */
+let sursFreight: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'sursRailFreight.json');
+  if (fs.existsSync(p)) {
+    sursFreight = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[SURS] Rail freight:', sursFreight.latestYear, '· loaded/unloaded/transit by country + commodity');
+  }
+} catch (e: any) { console.warn('[SURS] sursRailFreight.json failed:', e?.message); }
+
+app.get('/api/freight/surs-flows', (_req, res) => {
+  if (!sursFreight) return res.status(503).json({ error: 'Statistika SURS ni naložena' });
+  res.json(sursFreight);
 });
 
 app.get('/api/dium/station/:code', (req, res) => {
