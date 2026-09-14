@@ -27,7 +27,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [registerQuery, setRegisterQuery] = useState('');
-  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles'>('vkm');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms'>('vkm');
+  const [glossary, setGlossary] = useState<any>(null);
   const [eratvData, setEratvData] = useState<any>(null);
   const [eratvDetail, setEratvDetail] = useState<any>(null);
   const [eratvLoading, setEratvLoading] = useState<string | null>(null);
@@ -1484,7 +1485,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   { k: 'vkm', label: 'Imetniki vozil (VKM)' },
                   { k: 'operators', label: 'Prevozniki (ERA)' },
                   { k: 'lines', label: 'Proge SŽ' },
-                  { k: 'vehicles', label: 'Tipi vozil (ERATV)' }
+                  { k: 'vehicles', label: 'Tipi vozil (ERATV)' },
+                  { k: 'terms', label: 'Izrazje (IATE)' }
                 ].map(t => (
                   <button
                     key={t.k}
@@ -1492,6 +1494,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       setRegisterKind(t.k as any); setRegisterResults(null); setEratvDetail(null);
                       if (t.k === 'vehicles' && !eratvData) {
                         fetch('/api/eratv/slovenia').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setEratvData(j); }).catch(() => {});
+                      }
+                      if (t.k === 'terms' && !glossary) {
+                        fetch('/api/glossary/rail').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setGlossary(j); }).catch(() => {});
                       }
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
@@ -1509,6 +1514,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 <form
                   onSubmit={e => {
                     e.preventDefault();
+                    if (registerKind === 'terms') {
+                      fetch(`/api/glossary/rail?q=${encodeURIComponent(registerQuery)}`)
+                        .then(r => r.json()).then(setGlossary).catch(() => {});
+                      return;
+                    }
                     if (registerKind === 'vehicles') {
                       setEratvDetail(null);
                       fetch(`/api/eratv/slovenia?q=${encodeURIComponent(registerQuery)}`)
@@ -1525,7 +1535,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   <input
                     value={registerQuery}
                     onChange={e => setRegisterQuery(e.target.value)}
-                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : 'Ime prevoznika (npr. Metrans, Adria)'}
+                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : registerKind === 'terms' ? 'Izraz (npr. profil, hitrost, ETCS)' : 'Ime prevoznika (npr. Metrans, Adria)'}
                     className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                   <button type="submit" className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors cursor-pointer shrink-0">
@@ -1534,7 +1544,50 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </form>
               )}
 
-              {registerKind === 'vehicles' ? (
+              {registerKind === 'terms' ? (
+                glossary ? (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                        Izrazje EU za železnico ({glossary.counts.withSlovene} od {glossary.counts.concepts} pojmov)
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Oznake ob registrskih podatkih so bile prevedene v aplikaciji. Tu je uradni izraz iz zbirke IATE in akt, iz katerega izhaja.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1">
+                      {glossary.entries.map((e: any) => (
+                        <div key={e.query} className="p-2.5 rounded-xl bg-slate-900/50 border border-slate-800">
+                          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                            <span className="text-[12px] font-semibold text-white">
+                              {e.slTerms?.length ? e.slTerms.map((t: any) => t.term).join(' · ') : <span className="text-slate-500">ni izraza</span>}
+                            </span>
+                            <span className="text-[9.5px] font-mono text-slate-400">{e.query}</span>
+                          </div>
+                          <div className="text-[9.5px] font-mono text-slate-500">v aplikaciji: {e.where}</div>
+                          {e.note ? <div className="text-[10px] text-amber-200/80 mt-1">{e.note}</div> : null}
+                          {e.definition ? <p className="text-[10.5px] text-slate-300 leading-snug mt-1">{e.definition}</p> : null}
+                          {(e.slTerms || []).flatMap((t: any) => t.references || []).slice(0, 2).map((r: any, i: number) => (
+                            <a key={i} href={r.url || undefined} target="_blank" rel="noreferrer" className="block text-[9.5px] font-mono text-sky-300/80 hover:text-sky-200 mt-0.5 truncate">
+                              vir izraza: {r.text}
+                            </a>
+                          ))}
+                          {e.iateUrl ? (
+                            <a href={e.iateUrl} target="_blank" rel="noreferrer" className="block text-[9.5px] font-mono text-slate-500 hover:text-slate-300 mt-0.5">
+                              zapis IATE {e.id}{e.domainFit ? ` · ${e.domainFit}` : ''}
+                            </a>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                    <a href={glossary.sourceUrl} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-sky-300/80 hover:text-sky-200 break-all block">
+                      vir: {glossary.source} · posnetek {String(glossary.retrieved).slice(0, 10)}
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">Nalagam pojmovnik…</p>
+                )
+              ) : registerKind === 'vehicles' ? (
                 eratvData ? (() => {
                   const d = eratvData;
                   const val = (x: any) => (Array.isArray(x) ? (x.length ? x.join(', ') : null) : (x ?? null));

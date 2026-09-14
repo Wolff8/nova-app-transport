@@ -11788,6 +11788,7 @@ app.post('/api/log', express.json(), (req, res) => {
       holavonat: { ...holaStatus, feedTs: holaCache.feedTs, cacheAgeMs: holaCache.ts ? Date.now() - holaCache.ts : null },
       rinfSlovenia: rinfSI ? { ...rinfSI.counts, retrieved: rinfSI.retrieved } : null,
       eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
+      iateGlossary: iateGlossary ? { ...iateGlossary.counts, retrieved: iateGlossary.retrieved } : null,
       note: 'motis/travic/mav povedo, koliko vozil je prispevalo posamezno zaledje pri zadnji gradnji. Nic pri motis in travic pomeni, da sta oba odpovedala in ostanejo samo madzarski vlaki.'
     });
   });
@@ -12780,6 +12781,33 @@ function eratvParseDetail(xml: string): any {
     codedRestrictions: g('3.1.2.3'), nonCodedRestrictions: g('3.1.2.4')
   };
 }
+
+/**
+ * The EU's own Slovene terms for the railway concepts this app shows, from
+ * IATE, built by scripts/iate_rail_glossary.mjs. Each term carries the act it
+ * comes from, so a label can be backed by a citation instead of a translation
+ * made here. A concept IATE has no rail-domain term for says so.
+ */
+let iateGlossary: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'iateRailGlossary.json');
+  if (fs.existsSync(p)) {
+    iateGlossary = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[IATE] Rail glossary:', iateGlossary.counts.withSlovene, 'of', iateGlossary.counts.concepts, 'concepts with a Slovene term');
+  }
+} catch (e: any) { console.warn('[IATE] iateRailGlossary.json failed:', e?.message); }
+
+app.get('/api/glossary/rail', (req, res) => {
+  if (!iateGlossary) return res.status(503).json({ error: 'Pojmovnik IATE ni naložen' });
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const entries = iateGlossary.entries.filter((e: any) => !q || [e.query, e.where, e.definition, ...(e.enTerms || []), ...(e.slTerms || []).map((t: any) => t.term)]
+    .some((v: any) => String(v ?? '').toLowerCase().includes(q)));
+  res.json({
+    source: iateGlossary.source, sourceUrl: iateGlossary.sourceUrl, note: iateGlossary.note,
+    retrieved: iateGlossary.retrieved, counts: iateGlossary.counts,
+    query: q || null, matched: entries.length, entries
+  });
+});
 
 app.get('/api/eratv/slovenia', (req, res) => {
   if (!eratvSI) return res.status(503).json({ error: 'Nabor ERATV ni naložen' });
