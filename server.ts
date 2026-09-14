@@ -6162,21 +6162,22 @@ async function getOrFetchMotisTrip(
  * panel for Hungarian trains, which HAFAS and MOTIS do not know.
  */
 const HOLA_URL = 'https://cdn.holavonat.is/train_data_v3.json';
-const HOLA_TTL_MS = 30000;
+const HOLA_TTL_MS = 60000; // the feed itself is rebuilt about once a minute
 let holaCache: { ts: number; feedTs: string | null; byNumber: Map<string, any> } = { ts: 0, feedTs: null, byNumber: new Map() };
 let holaInFlight: Promise<typeof holaCache> | null = null;
 /** Last fetch outcome, surfaced in /api/transit/diagnostics. */
-const holaStatus: { lastAttempt: string | null; lastOk: string | null; lastError: string | null; lastMs: number | null; phase: string | null; headersMs: number | null; httpStatus: number | null; encoding: string | null; bytes: number | null; variant: string | null; vehicles: number } =
-  { lastAttempt: null, lastOk: null, lastError: null, lastMs: null, phase: null, headersMs: null, httpStatus: null, encoding: null, bytes: null, variant: null, vehicles: 0 };
-async function holaFetchOnce(variant: 'compressed' | 'identity'): Promise<any> {
+type HolaVariant = 'gzip' | 'identity' | 'br';
+const holaStatus: { lastAttempt: string | null; lastOk: string | null; lastError: string | null; lastMs: number | null; phase: string | null; headersMs: number | null; httpStatus: number | null; encoding: string | null; bytes: number | null; variant: string | null; vehicles: number; variants: Record<string, { ms: number; error: string | null; at: string }> } =
+  { lastAttempt: null, lastOk: null, lastError: null, lastMs: null, phase: null, headersMs: null, httpStatus: null, encoding: null, bytes: null, variant: null, vehicles: 0, variants: {} };
+let holaGoodVariant: HolaVariant | null = null;
+async function holaFetchOnce(variant: HolaVariant): Promise<any> {
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 20000);
+  const timer = setTimeout(() => ctl.abort(), 45000);
   const t0 = Date.now();
   holaStatus.lastAttempt = new Date().toISOString();
   holaStatus.variant = variant; holaStatus.phase = 'connect'; holaStatus.headersMs = null; holaStatus.httpStatus = null; holaStatus.encoding = null; holaStatus.bytes = null;
   try {
-    const headers: Record<string, string> = { 'User-Agent': 'nova-app-transport (+https://nova-app-transport.onrender.com)', Accept: 'application/json' };
-    if (variant === 'identity') headers['Accept-Encoding'] = 'identity';
+    const headers: Record<string, string> = { 'User-Agent': 'nova-app-transport (+https://nova-app-transport.onrender.com)', Accept: 'application/json', 'Accept-Encoding': variant };
     const r = await fetch(HOLA_URL, { signal: ctl.signal, headers });
     holaStatus.phase = 'body'; holaStatus.headersMs = Date.now() - t0; holaStatus.httpStatus = r.status; holaStatus.encoding = r.headers.get('content-encoding');
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -6184,7 +6185,12 @@ async function holaFetchOnce(variant: 'compressed' | 'identity'): Promise<any> {
     holaStatus.phase = 'parse'; holaStatus.bytes = text.length;
     const j = JSON.parse(text);
     holaStatus.phase = 'done';
+    holaStatus.variants[variant] = { ms: Date.now() - t0, error: null, at: new Date().toISOString() };
     return j;
+  } catch (e: any) {
+    const err = String(e?.name === 'AbortError' ? `timeout in ${holaStatus.phase}` : (e?.cause?.code || e?.cause?.message || e?.message || e));
+    holaStatus.variants[variant] = { ms: Date.now() - t0, error: err, at: new Date().toISOString() };
+    throw new Error(err);
   } finally { clearTimeout(timer); holaStatus.lastMs = Date.now() - t0; }
 }
 async function getHolavonatIndex(): Promise<typeof holaCache> {
@@ -6192,13 +6198,16 @@ async function getHolavonatIndex(): Promise<typeof holaCache> {
   if (!holaInFlight) {
     holaInFlight = (async () => {
       try {
-        let j: any;
-        try { j = await holaFetchOnce('compressed'); }
-        catch (e: any) {
-          // A stalled compressed transfer is retried once as plain JSON.
-          console.error('[holavonat] compressed fetch failed:', e?.name === 'AbortError' ? 'timeout' : (e?.cause?.code || e?.message || e), 'phase', holaStatus.phase);
-          j = await holaFetchOnce('identity');
+        // The deployed host moves this 4 MB feed slowly; try the variant that
+        // last worked first, then the others.
+        const order: HolaVariant[] = ['gzip', 'identity', 'br'];
+        if (holaGoodVariant) order.splice(order.indexOf(holaGoodVariant), 1), order.unshift(holaGoodVariant);
+        let j: any = null, lastErr: any = null;
+        for (const variant of order) {
+          try { j = await holaFetchOnce(variant); holaGoodVariant = variant; break; }
+          catch (e: any) { lastErr = e; console.error('[holavonat]', variant, 'failed:', e?.message || e); }
         }
+        if (!j) throw lastErr || new Error('no variant succeeded');
         const byNumber = new Map<string, any>();
         const nowS = Date.now() / 1000;
         for (const v of (j.vehiclePositions || [])) {
@@ -6213,8 +6222,8 @@ async function getHolavonatIndex(): Promise<typeof holaCache> {
         holaStatus.lastOk = new Date().toISOString(); holaStatus.lastError = null; holaStatus.vehicles = byNumber.size;
         return holaCache;
       } catch (e: any) {
-        holaStatus.lastError = String(e?.name === 'AbortError' ? 'timeout' : (e?.cause?.code || e?.cause?.message || e?.message || e));
-        console.error('[holavonat] fetch failed:', holaStatus.lastError, 'phase', holaStatus.phase);
+        holaStatus.lastError = String(e?.message || e);
+        console.error('[holavonat] fetch failed:', holaStatus.lastError);
         return holaCache;
       } finally { holaInFlight = null; }
     })();
