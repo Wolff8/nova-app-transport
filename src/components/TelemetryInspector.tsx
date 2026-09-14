@@ -944,10 +944,10 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         </span>
                         {raw.lineSpeedKmh != null && (
                           <span
-                            title={raw.lineSpeedSection ? `Odsek ${raw.lineSpeedSection} — ERA RINF` : undefined}
-                            className="px-2 py-0.5 rounded-md text-[12px] font-mono bg-white/10 text-white/90"
+                            title={raw.lineSpeedSection ? `Odsek ${raw.lineSpeedSection} — ${raw.lineSpeedRule || 'ERA RINF'}` : undefined}
+                            className={`px-2 py-0.5 rounded-md text-[12px] font-mono ${raw.lineSpeedRule ? 'bg-rose-500/20 text-rose-100 border border-rose-500/40' : 'bg-white/10 text-white/90'}`}
                           >
-                            proga ≤ {raw.lineSpeedKmh} km/h
+                            {raw.lineSpeedRule ? 'tovorni ≤ ' : 'proga ≤ '}{raw.lineSpeedKmh} km/h
                           </span>
                         )}
                       </div>
@@ -994,9 +994,10 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                     <div className="mt-2 border-t border-white/10 pt-2 space-y-1">
                       {raw.lineSpeedKmh != null && (
                         <p className="text-[10px] leading-snug text-text-dim">
-                          <span className="text-white/80 font-mono">proga ≤ {raw.lineSpeedKmh} km/h</span>
-                          {raw.lineSpeedSection ? ` — odsek ${raw.lineSpeedSection}. ` : ' — '}
+                          <span className="text-white/80 font-mono">{raw.lineSpeedRule ? 'tovorni' : 'proga'} ≤ {raw.lineSpeedKmh} km/h</span>
+                          {raw.lineSpeedSection ? ` — ${raw.lineSpeedRule ? '' : 'odsek '}${raw.lineSpeedSection}. ` : ' — '}
                           {raw.lineSpeedBasis}
+                          {raw.lineSpeedRule ? <span className="block text-[9.5px] font-mono text-rose-200/70">vir: {raw.lineSpeedRule}</span> : null}
                         </p>
                       )}
                       {raw.legAverageKmh != null && (

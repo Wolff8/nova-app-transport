@@ -4254,7 +4254,13 @@ export class MapController {
       if (data.lineSpeedKmh != null) {
         metrics.push({ label: 'Progovna hitrost (odsek)', value: `≤ ${data.lineSpeedKmh}`, unit: 'km/h', highlight: true });
         if (data.lineSpeedSection) metrics.push({ label: '  ↳ odsek', value: data.lineSpeedSection, highlight: false });
-        metrics.push({ label: '  ↳ vir', value: 'ERA RINF — največja dovoljena hitrost proge, ne hitrost tega vlaka', highlight: false });
+        metrics.push({
+          label: '  ↳ vir',
+          value: data.lineSpeedRule
+            ? `${data.lineSpeedRule} — omejitev za tovorne vlake, položena čez ERA RINF; ne hitrost tega vlaka`
+            : 'ERA RINF — največja dovoljena hitrost proge, ne hitrost tega vlaka',
+          highlight: !!data.lineSpeedRule
+        });
       }
       if (data.speedClass) metrics.push({ label: 'Hitrostni razred vlaka', value: data.speedClass, highlight: false });
       if (data.legAverageKmh != null) {

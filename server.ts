@@ -9606,7 +9606,35 @@ app.post('/api/log', express.json(), (req, res) => {
     }
   } catch (e) { console.error('[RINF] line speed load failed', e); }
 
-  type CorridorSpeedBand = { fromKm: number; toKm: number; speedKmh: number; section: string };
+  type CorridorSpeedBand = { fromKm: number; toKm: number; speedKmh: number; section: string; rule?: string };
+
+  /**
+   * Freight-specific speed limits from the infrastructure manager's own
+   * network statement (Program omrežja 2023, Priloga 2F "Progovne hitrosti",
+   * SŽ-Infrastruktura). RINF carries the line's permitted speed for any train;
+   * these are the places where the statement says a FREIGHT train may do less.
+   * Only the rules the annex states with kilometre posts are here, and the
+   * posts are the annex's own; they are placed on the corridor by linear
+   * interpolation between two named operational points whose posts the annex
+   * also gives. The 2026 statement folds the speeds into Priloga 2A, whose
+   * columns do not extract reliably, so the 2023 annex is the edition used.
+   */
+  const FREIGHT_SPEED_RULES: {
+    corridors: string[]; anchors: [[string, number], [string, number]];
+    fromSz: number; toSz: number; capKmh: number; label: string; source: string;
+  }[] = (() => {
+    const SRC = 'Program omrežja 2023 – Priloga 2F Progovne hitrosti (SŽ-Infrastruktura)';
+    const P20 = ['ljubljana-jesenice'];
+    const P50 = ['koper-hodos', 'koper-spielfeld', 'koper-dobova', 'opicina-dobova'];
+    const P62 = ['koper-hodos', 'koper-spielfeld', 'koper-dobova'];
+    return [
+      { corridors: P20, anchors: [['Ljubljana Šiška', 567.3], ['Medvode', 578.2]], fromSz: 567.7, toSz: 572.4, capKmh: 80, label: 'proga 20, km 567,7–572,4 (Ljubljana Šiška – Ljubljana Vižmarje): tovorni vlaki največ 80 km/h', source: SRC },
+      { corridors: P20, anchors: [['Medvode', 578.2], ['Kranj', 594.5]], fromSz: 577.5, toSz: 586.9, capKmh: 80, label: 'proga 20, km 577,5–586,9 (Medvode – Škofja Loka): tovorni vlaki največ 80 km/h', source: SRC },
+      { corridors: P20, anchors: [['Lesce-Bled', 616.8], ['Jesenice', 629.7]], fromSz: 615.8, toSz: 622.9, capKmh: 80, label: 'proga 20, km 615,8–622,9 (Lesce-Bled – Žirovnica): tovorni vlaki največ 80 km/h', source: SRC },
+      { corridors: P50, anchors: [['Brezovica', 573.8], ['Preserje', 580.6]], fromSz: 575.55, toSz: 579.5, capKmh: 80, label: 'proga 50, Brezovica – Preserje, km 575+550–579+500 (po tiru 576+700–578+000): tovorni vlaki največ 80 km/h', source: SRC },
+      { corridors: P62, anchors: [['Hrastovlje', 14.4], ['Rižana', 21.4]], fromSz: 27.9, toSz: 31.5, capKmh: 40, label: 'proga 62, uvoz na postajo Koper tovorna od km 27,9: 40 km/h', source: SRC }
+    ];
+  })();
   type CorridorTrack = {
     track: [number, number][]; totalKm: number; kmAt: Record<string, number>;
     speedBands: CorridorSpeedBand[];
@@ -9804,7 +9832,31 @@ app.post('/api/log', express.json(), (req, res) => {
     }
     const namedPoints = [...namedSeen].map(([name, km]) => ({ name, km })).sort((a, b) => a.km - b.km);
 
+    // The network statement's freight-specific limits, laid over RINF. Each
+    // rule's kilometre posts are converted to corridor kilometres through two
+    // named points whose posts the annex gives, then clipped to the corridor.
+    let rulesApplied = 0;
+    for (const r of FREIGHT_SPEED_RULES) {
+      if (!r.corridors.includes(corridor)) continue;
+      const a = namedSeen.get(r.anchors[0][0]), b = namedSeen.get(r.anchors[1][0]);
+      if (a == null || b == null) continue;
+      const szA = r.anchors[0][1], szB = r.anchors[1][1];
+      if (szB === szA) continue;
+      const toCorridor = (sz: number) => a + (sz - szA) * (b - a) / (szB - szA);
+      let k1 = toCorridor(r.fromSz), k2 = toCorridor(r.toSz);
+      if (k1 > k2) [k1, k2] = [k2, k1];
+      k1 = Math.max(0, k1); k2 = Math.min(totalKm, k2);
+      if (k2 - k1 < 0.1) continue;
+      speedBands.push({ fromKm: k1, toKm: k2, speedKmh: r.capKmh, section: r.label, rule: r.source });
+      for (let k = Math.floor(k1); k <= Math.ceil(k2) && k < speedByKm.length; k++) {
+        if (k >= 0) speedByKm[k] = Math.min(speedByKm[k], r.capKmh);
+      }
+      rulesApplied++;
+    }
+    speedBands.sort((x, y) => (x.toKm - x.fromKm) - (y.toKm - y.fromKm));
+
     const result: CorridorTrack = { track, totalKm, kmAt: {}, speedBands, dists, cumulative, speedByKm, namedPoints };
+    if (rulesApplied) console.log(`[SŽ 2F] corridor ${corridor}: ${rulesApplied} freight speed rule(s) applied`);
     corridorTrackCache.set(corridor, result);
     console.log(`[RFC6] corridor ${corridor}: ${Math.round(totalKm)} km, ${speedBands.length} sections with a published line speed, ${namedPoints.length} named points`);
   }
@@ -9854,8 +9906,14 @@ app.post('/api/log', express.json(), (req, res) => {
 
   /** Permitted line speed where a train is, or null if no section covers it. */
   function lineSpeedAt(geo: CorridorTrack, km: number): CorridorSpeedBand | null {
-    for (const b of geo.speedBands) if (km >= b.fromKm && km <= b.toKm) return b;
-    return null;
+    // The lowest limit in force here: a freight rule from the network
+    // statement beats the RINF line speed it sits inside, and a station throat
+    // beats the open line around it.
+    let best: CorridorSpeedBand | null = null;
+    for (const b of geo.speedBands) {
+      if (km >= b.fromKm && km <= b.toKm && (!best || b.speedKmh < best.speedKmh)) best = b;
+    }
+    return best;
   }
 
   /**
@@ -10134,7 +10192,7 @@ app.post('/api/log', express.json(), (req, res) => {
             }
             return out;
           })(),
-          basis: 'Skrajni legi, ki ju dopuščata objavljena časa in progovna hitrost (ERA RINF, omejeno na 100 km/h za razred H1). Točka na mapi je sorazmerna interpolacija znotraj tega pasu, ne meritev.'
+          basis: 'Skrajni legi, ki ju dopuščata objavljena časa in progovna hitrost (ERA RINF, omejeno na 100 km/h za razred H1, z omejitvami za tovorne vlake iz Programa omrežja SŽ, Priloga 2F). Točka na mapi je sorazmerna interpolacija znotraj tega pasu, ne meritev.'
         };
       }
 
@@ -10170,7 +10228,10 @@ app.post('/api/log', express.json(), (req, res) => {
         // from the lineside, and what the map now shows.
         lineSpeedKmh,
         lineSpeedSection: band?.section ?? null,
-        lineSpeedBasis: 'Največja dovoljena progovna hitrost odseka (ERA RINF). Ni hitrost tega vlaka.',
+        lineSpeedRule: band?.rule ?? null,
+        lineSpeedBasis: band?.rule
+          ? `Omejitev za tovorne vlake iz Programa omrežja SŽ (Priloga 2F, izdaja 2023), položena čez progovno hitrost ERA RINF. Ni hitrost tega vlaka.`
+          : 'Največja dovoljena progovna hitrost odseka (ERA RINF). Ni hitrost tega vlaka.',
         positionBand,
         // 'dwell' while standing at a published stop, 'run' between points.
         phase,
