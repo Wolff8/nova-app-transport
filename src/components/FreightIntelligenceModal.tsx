@@ -60,6 +60,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   // RNE RFC KPIs: last year's international freight trains per Slovenian
   // border, dwell times, punctuality — official annual aggregates from TIS.
   const [rfcKpis, setRfcKpis] = useState<any>(null);
+  // Eurostat: what is carried (NST 2007), quarterly tonnes, intermodal units
+  // and partner countries — the server's summary of the full cubes.
+  const [eurostat, setEurostat] = useState<any>(null);
   // The data panels live several tabs deep, and the tab strip used to scroll
   // sideways with nothing to show it did — so half the tabs were never seen.
   // A jump sets the tab (and register kind) and scrolls to the panel once it
@@ -225,6 +228,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     fetch('/api/freight/rfc-kpis')
       .then(res => (res.ok ? res.json() : null))
       .then(data => { if (data && data.corridors) setRfcKpis(data); })
+      .catch(() => {});
+
+    fetch('/api/freight/eurostat')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data && (data.commodities || data.quarterly)) setEurostat(data); })
       .catch(() => {});
 
     // Initial UIC decoder lookup
@@ -464,6 +472,10 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
             <button onClick={() => jumpTo('modalsplit', 'panel-surs')}
               className="px-2 py-0.5 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 cursor-pointer font-semibold">
               SURS tokovi tovora{sursFlows?.latestYear ? ` ${sursFlows.latestYear}` : ''}
+            </button>
+            <button onClick={() => jumpTo('modalsplit', 'panel-eurostat')}
+              className="px-2 py-0.5 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 cursor-pointer font-semibold">
+              Eurostat · blago, četrtletja, intermodal{eurostat?.quarterly?.latestQuarter ? ` (do ${eurostat.quarterly.latestQuarter})` : ''}
             </button>
             <button onClick={() => jumpTo('registers', null, 'freightStations')}
               className="px-2 py-0.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 cursor-pointer font-semibold">
@@ -1762,6 +1774,129 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   </p>
                 </div>
               )}
+
+              {/* Eurostat: what the freight is (NST 2007 groups), quarter by
+                  quarter, intermodal units, and both partner-country
+                  directions. Everything SURS above does not break out. */}
+              {eurostat && (() => {
+                const n = (v: any) => (v == null ? '—' : Number(v).toLocaleString('sl-SI'));
+                const cm = eurostat.commodities, qt = eurostat.quarterly, im = eurostat.intermodal;
+                const maxC = Math.max(1, ...((cm?.groups || []).map((g: any) => g.tonnesThousand || 0)));
+                const maxQ = Math.max(1, ...((qt?.rows || []).flatMap((r: any) => [r.tonnesThousand || 0, r.yearEarlier || 0])));
+                const maxI = Math.max(1, ...((im?.byYear || []).map((r: any) => r.tonnesThousand || 0)));
+                return (
+                  <div id="panel-eurostat" className="space-y-3 pt-2 scroll-mt-4">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h3 className="font-bold text-white text-sm">Kaj, kdaj in s kom vozi železniški tovor v Sloveniji (Eurostat)</h3>
+                      <span className="text-[10px] font-mono text-slate-400">vir: Eurostat · tisoč ton · {eurostat.licence}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      {cm && (
+                        <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="text-[11px] font-semibold text-slate-300">Vrste blaga (NST 2007), {cm.year}</div>
+                            <div className="text-[10px] font-mono text-slate-400">skupaj {n(cm.total?.tonnesThousand)} · {cm.prevYear}: {n(cm.totalTenYearsAgo)}</div>
+                          </div>
+                          <div className="space-y-1">
+                            {cm.groups.slice(0, 12).map((g: any) => (
+                              <div key={g.code} className="space-y-0.5" title={`${g.code} · ${g.label} · ${n(g.tkmMio)} mio t·km`}>
+                                <div className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                                  <span className="text-slate-300 truncate">{g.labelSl || g.label}</span>
+                                  <span className="font-mono text-white shrink-0">
+                                    {n(g.tonnesThousand)}
+                                    {g.tonnesThousandTenYearsAgo != null && g.tonnesThousandTenYearsAgo > 0 && (
+                                      <span className={`ml-1.5 text-[9.5px] ${g.tonnesThousand >= g.tonnesThousandTenYearsAgo ? 'text-emerald-300' : 'text-rose-300'}`}>
+                                        {g.tonnesThousand >= g.tonnesThousandTenYearsAgo ? '+' : ''}{Math.round(((g.tonnesThousand - g.tonnesThousandTenYearsAgo) / g.tonnesThousandTenYearsAgo) * 100)} % / 10 let
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full bg-amber-400" style={{ width: `${Math.max(2, ((g.tonnesThousand || 0) / maxC) * 100)}%` }}></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {cm.labelSlTranslatedByApp && (
+                            <div className="text-[9.5px] text-slate-500 pt-1 border-t border-slate-800">Slovenska imena skupin so prevod aplikacije; kode in vrednosti so Eurostatove (rail_go_grpgood, posodobljeno {cm.updated}).</div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        {qt && (
+                          <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <div className="text-[11px] font-semibold text-slate-300">Po četrtletjih, do {qt.latestQuarter}</div>
+                              <div className="text-[10px] font-mono text-slate-400">svetlo: isto četrtletje leto prej</div>
+                            </div>
+                            <div className="flex items-end gap-1 h-24">
+                              {qt.rows.map((r: any) => (
+                                <div key={r.quarter} className="flex-1 flex items-end gap-px h-full" title={`${r.quarter}: ${n(r.tonnesThousand)} tis. t (leto prej ${n(r.yearEarlier)})`}>
+                                  <div className="flex-1 rounded-t bg-sky-900/70" style={{ height: `${((r.yearEarlier || 0) / maxQ) * 100}%` }}></div>
+                                  <div className="flex-1 rounded-t bg-sky-400" style={{ height: `${((r.tonnesThousand || 0) / maxQ) * 100}%` }}></div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex justify-between text-[9px] font-mono text-slate-500">
+                              <span>{qt.rows[0]?.quarter}</span>
+                              <span>{qt.rows[qt.rows.length - 1]?.quarter}: {n(qt.rows[qt.rows.length - 1]?.tonnesThousand)} tis. t</span>
+                            </div>
+                          </div>
+                        )}
+                        {im && (
+                          <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                            <div className="text-[11px] font-semibold text-slate-300">Kontejnerji in zamenljiva tovorišča, {im.latestYear}</div>
+                            <div className="flex items-end gap-1 h-14">
+                              {im.byYear.map((r: any) => (
+                                <div key={r.year} className="flex-1 flex flex-col items-center justify-end h-full" title={`${r.year}: ${n(r.tonnesThousand)} tis. t`}>
+                                  <div className="w-full rounded-t bg-violet-400" style={{ height: `${((r.tonnesThousand || 0) / maxI) * 100}%` }}></div>
+                                  <span className="text-[8.5px] font-mono text-slate-500">{String(r.year).slice(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] font-mono text-slate-300">
+                              {im.split.map((s: any) => <span key={s.code}>{s.label}: <span className="text-white">{n(s.tonnesThousand)}</span></span>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {(eurostat.loadingCountry || eurostat.unloadingCountry) && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {[
+                          { t: `Mednarodno: država nakladanja → SI, ${eurostat.loadingCountry?.year}`, d: eurostat.loadingCountry, bar: 'bg-sky-400' },
+                          { t: `Mednarodno: SI → država razkladanja, ${eurostat.unloadingCountry?.year}`, d: eurostat.unloadingCountry, bar: 'bg-amber-400' }
+                        ].filter(x => x.d).map((x, i) => {
+                          const max = x.d.rows[0]?.tonnesThousand || 1;
+                          return (
+                            <div key={i} className="p-3 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
+                              <div className="text-[11px] font-semibold text-slate-300">{x.t}</div>
+                              {x.d.rows.map((r: any) => (
+                                <div key={r.code} className="space-y-0.5">
+                                  <div className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                                    <span className="text-slate-300 truncate">{r.label}</span>
+                                    <span className="font-mono text-white shrink-0">{n(r.tonnesThousand)}</span>
+                                  </div>
+                                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${x.bar}`} style={{ width: `${Math.max(2, (r.tonnesThousand / max) * 100)}%` }}></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-slate-400 leading-relaxed border-t border-slate-800 pt-2">
+                      Eurostat, kocke rail_go_grpgood, rail_go_quartal, rail_go_contwgt, rail_go_intcmgn, rail_go_intgong (prebrano {String(eurostat.retrieved).slice(0, 10)}).
+                      Letne in četrtletne tone, kot jih poroča SURS Eurostatu — statistika tokov, ne položaji vlakov.
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

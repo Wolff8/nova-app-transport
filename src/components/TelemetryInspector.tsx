@@ -48,6 +48,9 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
   const [showFreightDetails, setShowFreightDetails] = useState(true);
   const [selectedWagon, setSelectedWagon] = useState<EnrichedFreightWagon | null>(null);
   const [freightWagonViewMode, setFreightWagonViewMode] = useState<'schematic' | 'detailed' | 'compact'>('schematic');
+  // What the registers say about the line under a published freight path:
+  // border KPIs, the path offer, TCRs, DIUM entries. Fetched per path.
+  const [pathContext, setPathContext] = useState<any>(null);
   const [selectedPassengerCoach, setSelectedPassengerCoach] = useState<EnrichedPassengerCoach | null>(null);
   const [passengerWagonViewMode, setPassengerWagonViewMode] = useState<'schematic' | 'list'>('schematic');
   const [showCrossBorderData, setShowCrossBorderData] = useState<boolean>(false);
@@ -135,6 +138,18 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     node?.rawPayload?.type === 'corridor_freight_path' ||
     node?.rawPayload?.isModelled === true
   );
+
+  const modelledPapId = isModelledFreight ? String(node?.rawPayload?.papId || '') : '';
+  useEffect(() => {
+    setPathContext(null);
+    if (!modelledPapId) return;
+    let alive = true;
+    fetch(`/api/freight/path-context/${encodeURIComponent(modelledPapId)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (alive && d) setPathContext(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [modelledPapId]);
 
   const isFreightTrain = !isStation && !isModelledFreight && Boolean(
     node?.type === 'freight_train' ||
@@ -1185,6 +1200,95 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                     </div>
                   )}
 
+                  {/* The registers, keyed to this path: who publishes trains on
+                      its relation, what the border it crosses carried last
+                      year, how many paths an hour the line offers, what works
+                      touch it, and what the daljinar says about the stations
+                      it is between. Each block names its source. */}
+                  {pathContext && (() => {
+                    const pc = pathContext;
+                    const n = (v: any) => (v == null ? '—' : Number(v).toLocaleString('sl-SI'));
+                    const fmt = (v: any) => (v == null ? 'nesist.' : String(v).replace('.', ','));
+                    const hasAny = (pc.publishedServices?.length || pc.borders?.length || pc.capacity?.sections?.length || pc.capacity?.border?.length || pc.works?.length || pc.dium?.length);
+                    if (!hasAny) return null;
+                    return (
+                      <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.06] p-3 space-y-2.5">
+                        <div className="text-[10px] uppercase font-mono tracking-wider text-violet-300">Registri o tej poti</div>
+
+                        {pc.publishedServices?.length ? (
+                          <div>
+                            <div className="text-[10px] font-mono text-white/70 mb-1">Prevozniki z objavljenim urnikom na tej relaciji</div>
+                            {pc.publishedServices.map((s: any, i: number) => (
+                              <div key={i} className="text-[11.5px] text-white/90 leading-snug">
+                                <strong className="text-violet-200">{s.operator}</strong> · {s.matchedDirection || `${s.from} → ${s.to}`} · {s.frequency}
+                                <span className="block text-[9.5px] font-mono text-white/45">vir: {s.source}</span>
+                              </div>
+                            ))}
+                            <p className="text-[9.5px] text-white/50 leading-snug mt-0.5">Ujemanje relacije, ne potrditev, da ta pot pripada temu prevozniku.</p>
+                          </div>
+                        ) : null}
+
+                        {pc.borders?.length ? (
+                          <div>
+                            <div className="text-[10px] font-mono text-white/70 mb-1">Mejni prehod na tej poti · mednarodni tovorni vlaki na leto (RNE RFC KPI)</div>
+                            {pc.borders.map((bd: any, i: number) => (
+                              <div key={i} className="text-[11.5px] text-white/90 leading-snug">
+                                <strong className="text-violet-200">{bd.siStation}</strong> · {bd.corridor}: {['2022', '2023', '2024'].map(y => bd.trains?.[y] != null ? `${y}: ${n(bd.trains[y])}` : null).filter(Boolean).join(' · ')}
+                                {bd.dwellMin?.actual != null ? ` · zadrževanje na meji ${bd.dwellMin.actual} min (načrt ${bd.dwellMin.planned ?? '—'})` : ''}
+                              </div>
+                            ))}
+                            <p className="text-[9.5px] text-white/50 leading-snug mt-0.5">Lanski števec vseh vlakov koridorja na tem prehodu, ne položaj tega vlaka. Vir: {pc.sources?.borders}</p>
+                          </div>
+                        ) : null}
+
+                        {(pc.capacity?.sections?.length || pc.capacity?.border?.length) ? (
+                          <div>
+                            <div className="text-[10px] font-mono text-white/70 mb-1">Ponudba vlakovnih poti na uro in smer — SŽ-Infrastruktura, VR {pc.capacity.timetable}</div>
+                            {pc.capacity.sections.map((m: any, i: number) => (
+                              <div key={i} className="text-[11.5px] text-white/90 leading-snug">
+                                <strong className="text-violet-200">{m.section}</strong>: tovor {fmt(m.freightInternational)} mednar. + {fmt(m.freightNational)} nac. · potniški {fmt(m.passengerLongDistance)} + {fmt(m.passengerRegional)}
+                              </div>
+                            ))}
+                            {pc.capacity.border.map((s: any, i: number) => (
+                              <div key={'b' + i} className="text-[11.5px] text-white/90 leading-snug">
+                                <strong className="text-violet-200">{s.section}</strong>: tovor {fmt(s.freightInternational)}{s.harmonised === false ? ' · ni usklajeno s sosednjim upravljavcem' : ''}
+                              </div>
+                            ))}
+                            <p className="text-[9.5px] text-white/50 leading-snug mt-0.5">Rezervabilne poti, ne vlaki; »nesist.« = nesistematične. Vir: {pc.sources?.capacity}</p>
+                          </div>
+                        ) : null}
+
+                        {pc.works?.length ? (
+                          <div>
+                            <div className="text-[10px] font-mono text-white/70 mb-1">Dela in zapore, ki se dotikajo točk te poti (TCR)</div>
+                            {pc.works.slice(0, 6).map((w: any, i: number) => (
+                              <div key={i} className="text-[11.5px] text-white/90 leading-snug">
+                                <span className={`px-1 rounded text-[9.5px] font-mono mr-1 ${w.status === 'v teku' ? 'bg-amber-500/30 text-amber-100' : 'bg-white/10 text-white/70'}`}>{w.status}</span>
+                                <strong className="text-violet-200">{w.from}{w.to && w.to !== w.from ? ` – ${w.to}` : ''}</strong> · {w.dateFrom} – {w.dateTo}{w.description ? ` · ${w.description}` : ''}{w.reason ? ` (${w.reason})` : ''}
+                              </div>
+                            ))}
+                            <p className="text-[9.5px] text-white/50 leading-snug mt-0.5">Vir: {Array.isArray(pc.works[0]?.sources) ? pc.works[0].sources.join('; ') : pc.sources?.works}</p>
+                          </div>
+                        ) : null}
+
+                        {pc.dium?.length ? (
+                          <div>
+                            <div className="text-[10px] font-mono text-white/70 mb-1">Postaji, med katerima je vlak — daljinar DIUM SI</div>
+                            {pc.dium.map((s: any) => (
+                              <div key={s.code} className="text-[11.5px] text-white/90 leading-snug">
+                                <strong className="text-violet-200">{s.name}</strong> · koda {s.code}
+                                {s.specialMarkers?.length ? ` · oznake ${s.specialMarkers.join(' ')}` : ''}
+                                {s.generalMarkers?.length ? ` · ${s.generalMarkers.join(' ')}` : ''}
+                                {s.loadingPlaces ? ` · ${s.loadingPlaces} nakladalnih mest` : ''}
+                              </div>
+                            ))}
+                            <p className="text-[9.5px] text-white/50 leading-snug mt-0.5">Vir: {pc.sources?.dium}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
+
                   {/* Operator: the catalogue names none, so the register speaks */}
                   {oc?.candidates?.length ? (
                     <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
@@ -1411,6 +1515,29 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                           </strong>
                         </div>
                       </div>
+
+                      {/* SŽ's own live feed says where the train is heading next
+                          and how late it is; shown whenever the feed carries it,
+                          so a train with no HAFAS journey still has live facts. */}
+                      {node.rawPayload?.nextStation && (
+                        <div className="col-span-2 p-2.5 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/25 flex items-center justify-between gap-2 flex-wrap">
+                          <div className="min-w-0">
+                            <div className="text-[9.5px] uppercase font-mono text-emerald-300">Naslednja postaja (SŽ, v živo)</div>
+                            <div className="text-[13px] font-bold text-white truncate">{node.rawPayload.nextStation}</div>
+                          </div>
+                          <div className="text-right text-[11px] font-mono">
+                            {node.rawPayload.nextStationEtaMin != null && (
+                              <div className="text-white">čez <strong>{node.rawPayload.nextStationEtaMin}</strong> min</div>
+                            )}
+                            {node.rawPayload.delayMin != null && (
+                              <div className={Number(node.rawPayload.delayMin) > 0 ? 'text-amber-300' : 'text-emerald-300'}>
+                                {Number(node.rawPayload.delayMin) > 0 ? `zamuda ${node.rawPayload.delayMin} min` : 'brez zamude'}
+                              </div>
+                            )}
+                            {node.rawPayload.categorySl && <div className="text-text-dim">{node.rawPayload.categorySl}</div>}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Destination: KAM */}
                       <div className="p-2.5 rounded-lg bg-white/[0.03] border border-white/5 space-y-1">

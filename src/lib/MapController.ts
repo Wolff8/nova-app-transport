@@ -1,7 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import type { FeatureCollection as GeoJSONFeatureCollection } from 'geojson';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths, loadRailWorks } from './api';
+import { loadArso, loadSmartCity, fetchPackets, loadSwitches, loadSignals, loadSpat, loadHydro, loadPower, loadMoms, loadOpenAQ, loadEuroRail, loadAir, loadAircraft, loadQuakes, loadEVCharging, loadTransit, loadBrezAvtaBusLocations, loadTTN, loadOpenSense, fetchWithTimeout, loadWeather, loadHafas, loadAprs, loadLoraMesh, loadSparql, loadOverpass, loadSensorCommunity, loadGitHub , loadTraffic , loadRinf, loadRinfNetwork, loadAnalyticsDelays, loadEraTunnels, loadRegionalStations, loadFreightTrains, loadTentRailways, loadBorderCrossings, loadCorridorFreightPaths, loadRailWorks, loadOsmFreightGeometry } from './api';
 import { TelemetryNode, TelemetryLogEntry } from '../types';
 import { GtfsRealtimeIngestionService, GtfsRtVehicle } from './gtfsRealtimeIngestion';
 import { getEnrichedLocomotiveData } from '../data/europeanLocomotiveRegistry';
@@ -1300,6 +1300,16 @@ export class MapController {
               ['concat', ' · proga ≤', ['get', 'lineSpeedKmh'], ' km/h'],
               ''],
             '\n', ['get', 'direction'],
+            // Who runs it, where a source says. An operator-published train
+            // carries its operator; a catalogue path shows the operator whose
+            // published timetable matches the relation, marked ≈ because the
+            // catalogue itself names nobody.
+            ['case',
+              ['all', ['has', 'operator'], ['!=', ['get', 'operator'], '']],
+              ['concat', '\n', ['get', 'operator']],
+              ['all', ['has', 'publishedOperator'], ['!=', ['get', 'publishedOperator'], '']],
+              ['concat', '\n≈ ', ['get', 'publishedOperator'], ' (urnik prevoznika)'],
+              ''],
             // How far the position can be out. Without it the icon claims a
             // precision the catalogue does not have.
             ['case',
@@ -1392,6 +1402,36 @@ export class MapController {
         paint: { 'text-color': '#fde68a', 'text-halo-color': '#0f172a', 'text-halo-width': 1.4 }
       });
 
+      // OpenStreetMap's sidings, spurs, industrial branches and yards: where
+      // freight is actually loaded and marshalled. Reference geometry (ODbL),
+      // drawn thin and only from zoom 10 so it reads as infrastructure, not
+      // as traffic. Stations are only those OSM names that match the DIUM
+      // freight-station directory.
+      this.map.addSource('osm_freight_lines', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      this.map.addLayer({
+        id: 'osm_freight_lines', type: 'line', source: 'osm_freight_lines', minzoom: 10,
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': ['case', ['==', ['get', 'usage'], 'industrial'], '#fb923c', ['==', ['get', 'service'], 'yard'], '#fbbf24', '#f59e0b'],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 14, 2.2],
+          'line-opacity': 0.75
+        }
+      });
+      this.map.addSource('osm_freight_points', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      this.map.addLayer({
+        id: 'osm_freight_points', type: 'circle', source: 'osm_freight_points', minzoom: 9,
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'kind'], 'station'], 4, 5],
+          'circle-color': ['case', ['==', ['get', 'kind'], 'station'], '#fde68a', '#f59e0b'],
+          'circle-stroke-width': 1.5, 'circle-stroke-color': '#0f172a', 'circle-opacity': 0.9
+        }
+      });
+      this.map.addLayer({
+        id: 'osm_freight_points_label', type: 'symbol', source: 'osm_freight_points', minzoom: 11,
+        layout: { 'text-field': ['get', 'name'], 'text-size': 10, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-optional': true },
+        paint: { 'text-color': '#fde68a', 'text-halo-color': '#0f172a', 'text-halo-width': 1.3 }
+      });
+
       // Reference geometry, not live data: fetch once, as soon as the layer
       // exists, rather than waiting on the thirty-second data tick.
       if (!this.tentRailwaysLoaded) {
@@ -1407,6 +1447,23 @@ export class MapController {
         loadRailWorks().then(gj => {
           const src = this.map?.getSource('rail_works') as maplibregl.GeoJSONSource | undefined;
           if (src && gj?.features?.length) src.setData(gj);
+        }).catch(() => {});
+        loadOsmFreightGeometry().then(d => {
+          if (!d || !this.map) return;
+          const lines = this.map.getSource('osm_freight_lines') as maplibregl.GeoJSONSource | undefined;
+          if (lines && d.sidings?.features?.length) lines.setData(d.sidings);
+          const pts = this.map.getSource('osm_freight_points') as maplibregl.GeoJSONSource | undefined;
+          if (pts) {
+            const features: any[] = [];
+            // Unnamed landuse=railway polygons are every embankment and depot
+            // in the country; only tagged yards and named areas are points.
+            for (const y of d.yards || []) {
+              if (y.kind !== 'yard' && !y.name) continue;
+              features.push({ type: 'Feature', id: `osmyard_${y.osmId}`, geometry: { type: 'Point', coordinates: [y.lon, y.lat] }, properties: { id: `osmyard_${y.osmId}`, kind: 'yard', name: y.name || 'Ranžirni / tovorni tiri', osmKind: y.kind, operator: y.operator, osmId: y.osmId, osmType: y.osmType } });
+            }
+            for (const s of d.stations || []) if (s.diumCode) features.push({ type: 'Feature', id: `osmst_${s.osmId}`, geometry: { type: 'Point', coordinates: [s.lon, s.lat] }, properties: { id: `osmst_${s.osmId}`, kind: 'station', name: s.name, diumCode: s.diumCode, diumName: s.diumName, matchedBy: s.matchedBy, uicRef: s.uicRef, railwayRef: s.railwayRef, osmId: s.osmId, osmType: 'node' } });
+            pts.setData({ type: 'FeatureCollection', features });
+          }
         }).catch(() => {});
       }
 
@@ -1491,7 +1548,7 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings', 'rail_works', 'rail_works_point', 'rail_works_label']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings', 'rail_works', 'rail_works_point', 'rail_works_label', 'osm_freight_points', 'osm_freight_lines']
         });
         
         if (features.length) {
@@ -1666,6 +1723,12 @@ export class MapController {
     if (layerKey === 'freight_paths') {
       toggle('freight_paths');
       toggle('freight_paths_label');
+      return;
+    }
+    if (layerKey === 'osm_freight') {
+      toggle('osm_freight_lines');
+      toggle('osm_freight_points');
+      toggle('osm_freight_points_label');
       return;
     }
     if (layerKey === 'freight_trains') {
@@ -3518,6 +3581,36 @@ export class MapController {
   public buildTelemetryNode(type: string, data: any, coords: [number, number]): TelemetryNode {
     const metrics: any[] = [];
 
+    // OSM freight infrastructure: a siding, spur, yard or freight station.
+    // Static geometry, so none of the vehicle metrics apply either.
+    if (type === 'osm_freight_lines' || type === 'osm_freight_points') {
+      const isLine = type === 'osm_freight_lines';
+      const kindSl: Record<string, string> = { yard: 'ranžirni / postajni tovorni tir', siding: 'stranski tir', spur: 'industrijski tir (spur)', station: 'tovorna postaja (DIUM SI)' };
+      const what = isLine
+        ? (data.usage === 'industrial' ? 'industrijska proga' : (kindSl[data.service] || data.service || 'tir'))
+        : (kindSl[data.kind] || data.osmKind || 'območje');
+      metrics.push({ label: 'Vrsta', value: what, highlight: true });
+      if (data.name) metrics.push({ label: 'Ime (OSM)', value: data.name, highlight: false });
+      if (data.operator) metrics.push({ label: 'Upravljavec (OSM)', value: data.operator, highlight: false });
+      if (data.electrified) metrics.push({ label: 'Elektrifikacija (OSM)', value: data.electrified === 'no' ? 'ne' : data.electrified, highlight: false });
+      if (data.diumCode) metrics.push({ label: 'DIUM SI koda', value: `${data.diumCode} · ${data.diumName}${data.matchedBy === 'name' ? ' (ujemanje po imenu)' : ''}`, highlight: true, id: 'dium-code' });
+      if (data.uicRef) metrics.push({ label: 'UIC ref (OSM)', value: data.uicRef, highlight: false });
+      if (data.railwayRef) metrics.push({ label: 'Kratica postaje (OSM)', value: data.railwayRef, highlight: false });
+      metrics.push({ label: 'OSM objekt', value: `${data.osmType || (isLine ? 'way' : 'node')}/${data.osmId}`, highlight: false });
+      metrics.push({ label: 'Vir', value: '© OpenStreetMap contributors, ODbL 1.0', highlight: false });
+      metrics.push({ label: 'Podlaga', value: 'Geometrija infrastrukture iz OSM — kje se tovor naklada in ranžira, ne kje je kateri vlak.', highlight: false });
+      return {
+        id: data.id || `osm_${data.osmId}`,
+        title: data.name || what,
+        category: isLine ? 'OSM TOVORNI TIR / INDUSTRIJSKA PROGA' : (data.kind === 'station' ? 'OSM TOVORNA POSTAJA (DIUM SI)' : 'OSM RANŽIRNO / TOVORNO OBMOČJE'),
+        type: 'osm_freight',
+        coordinates: coords,
+        timestamp: new Date(),
+        metrics,
+        rawPayload: { ...data, freight: data.diumCode ? { code: data.diumCode } : undefined }
+      };
+    }
+
     // A restriction is not a vehicle: none of the speed/status/GPS-age
     // metrics below apply, so its node is built here and returned.
     if (type === 'rail_works' || data.type === 'rail_work') {
@@ -4616,6 +4709,7 @@ export const LAYER_META: Record<string, { label: string; color: string; category
   tent_railways:  { label: 'TEN-T proge (tovor / potniki)', color: '#a78bfa', category: 'sz' },
   border_crossings: { label: 'Mejni prehodi (RINF)', color: '#f472b6', category: 'sz' },
   rail_works:     { label: 'Dela na progi / zapore (TCR koridorjev)', color: '#f59e0b', category: 'sz' },
+  osm_freight:    { label: 'Tovorni tiri, industrijske proge & ranžirna območja (OSM)', color: '#fbbf24', category: 'sz' },
   sensorcommunity:{ label: 'Sensor.Community (Nokia/Siemens/Air)', color: '#14b8a6', category: 'iot' },
   github:         { label: 'GitHub Open Source (Smart City)', color: '#e2e8f0', category: 'logistics' },
   openaq:         { label: 'OpenAQ (.gov zrak)', color: '#14b8a6', category: 'env' },

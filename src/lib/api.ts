@@ -796,6 +796,20 @@ export async function loadRailWorks(errors?: string[]): Promise<any> {
     return null;
 }
 
+/** OSM sidings, spurs, yards and named stations for Slovenia — reference geometry, fetched once. */
+export async function loadOsmFreightGeometry(errors?: string[]): Promise<any> {
+    try {
+        const res = await fetch('/api/osm/freight-geometry');
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.sidings) return data;
+        }
+    } catch (e) {
+        if (errors) errors.push('OSM freight geometry error');
+    }
+    return null;
+}
+
 export async function loadBorderCrossings(errors?: string[]): Promise<any> {
     try {
         const res = await fetch('/api/rinf/border-crossings');

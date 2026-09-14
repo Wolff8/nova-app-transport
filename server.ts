@@ -10746,6 +10746,9 @@ app.post('/api/log', express.json(), (req, res) => {
         // not a booking: it says who publishes trains on the relation this
         // path serves, not that this path is theirs.
         publishedServices: publishedServicesFor(p.relation),
+        // The first such operator, for the map label — prefixed there with
+        // ≈ so it reads as a relation match, not the train's operator.
+        publishedOperator: publishedServicesFor(p.relation)?.[0]?.operator ?? null,
         daysOfWeek: p.daysOfWeek,
         daysKnown,
         validFrom: (p as any).validFrom ?? null,
@@ -10855,6 +10858,61 @@ app.post('/api/log', express.json(), (req, res) => {
     if (atMin != null) body.simulatedTime = at;
     else corridorPathsCache = { body, ts: Date.now() };
     res.json(body);
+  });
+
+  /**
+   * What the registers say about the line a published path runs on: the RFC
+   * KPIs at the border it crosses, SŽ-Infrastruktura's path offer on the
+   * sections between its timing points, the TCRs that touch those points,
+   * the DIUM entries of the stations it is between, and the operators whose
+   * published timetables match its relation. Each block names its source;
+   * nothing is inferred beyond matching station names.
+   */
+  app.get('/api/freight/path-context/:papId', (req, res) => {
+    const paths = currentCorridorPaths();
+    const b = ((paths?.board ?? []) as any[]).find(x => String(x.papId) === String(req.params.papId));
+    if (!b) return res.status(404).json({ error: 'Pot ni v katalogu' });
+    const norm = (s: any) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const tps: any[] = b.timingPoints || [];
+    const names = tps.map(t => norm(t.location)).filter(Boolean);
+    const has = (n: any) => { const q = norm(n); return !!q && names.some(x => x === q || x.startsWith(q + ' ') || q.startsWith(x + ' ') || x.includes(q)); };
+
+    const borders: any[] = [];
+    if (rfcKpis) for (const c of rfcKpis.corridors) for (const bd of c.borders || []) if (has(bd.siStation)) borders.push({ corridor: c.id, corridorName: c.name, ...bd });
+
+    const capacity = szCapacity ? {
+      timetable: szCapacity.timetable,
+      unit: szCapacity.unit,
+      nullMeaning: szCapacity.nullMeaning,
+      sourceUrl: szCapacity.sourceUrl,
+      sections: (szCapacity.mainLines as any[]).filter(m => has(m.from) && has(m.to)),
+      border: (szCapacity.borderSections as any[]).filter(s => has(s.siStation))
+    } : null;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const works = ((lineWorksData?.works ?? []) as any[])
+      .filter(w => w.dateTo && w.dateTo >= today && (has(w.fromPoint?.name || w.from) || has(w.toPoint?.name || w.to)))
+      .map(w => ({ id: w.id, line: w.line, from: w.from, to: w.to, dateFrom: w.dateFrom, dateTo: w.dateTo, timeOfDay: w.timeOfDay, reason: w.reason, description: w.description, impacts: w.impacts, sources: w.sources, status: w.dateFrom <= today ? 'v teku' : 'načrtovano' }))
+      .sort((a, c) => String(a.dateFrom).localeCompare(String(c.dateFrom)));
+
+    // The DIUM entries for the stations the train is between (or standing at).
+    const wanted = [b.positionBand?.fromName, b.positionBand?.toName, b.dwell?.location].filter(Boolean).map(norm);
+    const dium = diumSI ? (diumSI.stations as any[])
+      .filter(s => wanted.some(w => norm(s.name) === w))
+      .map(s => ({ code: s.code, uic: s.uic, name: s.name, generalMarkers: s.generalMarkers, specialMarkers: s.specialMarkers, loadingPlaces: (diumSI.loadingPlaces as any[]).filter(l => l.station === s.code).length })) : [];
+
+    res.json({
+      papId: b.papId, trainNumber: b.trainNumber ?? null, relation: b.relationLabel ?? b.relation,
+      borders, capacity, works, dium,
+      diumLegend: diumSI?.legend ?? null,
+      publishedServices: b.publishedServices ?? null,
+      sources: {
+        borders: rfcKpis?.source ?? null,
+        capacity: szCapacity?.source ?? null,
+        works: lineWorksData?.source ?? null,
+        dium: diumSI?.source ?? null
+      }
+    });
   });
 
   app.get('/api/freight/modelled-positions', (req, res) => {
@@ -12987,6 +13045,146 @@ try {
 app.get('/api/freight/surs-flows', (_req, res) => {
   if (!sursFreight) return res.status(503).json({ error: 'Statistika SURS ni naložena' });
   res.json(sursFreight);
+});
+
+/**
+ * Eurostat's rail-freight cubes for Slovenia (src/data/eurostatRailFreightSI.json,
+ * fetched by scripts/eurostat_rail_freight.mjs from the JSON-stat API): what
+ * moves (NST 2007 commodity groups), when (quarterly tonnes), how (intermodal
+ * units) and with whom (loading / unloading country). The file is 400 KB of
+ * every year since 2003; the client gets the latest year and a short history,
+ * computed here once. Values are Eurostat's, in thousand tonnes and million
+ * tonne-km; nothing is scaled or estimated.
+ */
+let eurostatRail: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'eurostatRailFreightSI.json');
+  if (fs.existsSync(p)) {
+    eurostatRail = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[Eurostat] Rail freight SI:', Object.keys(eurostatRail.cubes || {}).length, 'cubes · commodities', eurostatRail.cubes?.grpgood?.latestYear, '· quarterly', eurostatRail.cubes?.quarterly?.latestQuarter);
+  }
+} catch (e: any) { console.warn('[Eurostat] eurostatRailFreightSI.json failed:', e?.message); }
+
+const EUROSTAT_AGGREGATES = new Set(['EU27_2020', 'EU28', 'EU27_2007', 'EU15', 'WORLD', 'UNK', 'TOTAL', 'EXT_EU27_2020', 'EXT_EU28']);
+let eurostatSummaryCache: any = null;
+function eurostatSummary(): any | null {
+  if (!eurostatRail) return null;
+  if (eurostatSummaryCache) return eurostatSummaryCache;
+  const c = eurostatRail.cubes || {};
+  const num = (v: any) => (v == null ? null : Number(v));
+
+  // Commodities: latest year, tonnes and tonne-km side by side, TOTAL kept apart.
+  const g = c.grpgood;
+  let commodities: any = null;
+  if (g?.rows?.length) {
+    const year = g.latestYear;
+    const byCode = new Map<string, any>();
+    for (const r of g.rows) {
+      if (r.year !== year) continue;
+      const e = byCode.get(r.nst07) || { code: r.nst07, label: r.label, labelSl: r.labelSl, tonnesThousand: null, tkmMio: null };
+      if (r.unit === 'THS_T') e.tonnesThousand = num(r.value);
+      if (r.unit === 'MIO_TKM') e.tkmMio = num(r.value);
+      byCode.set(r.nst07, e);
+    }
+    const total = byCode.get('TOTAL') || null;
+    const groups = [...byCode.values()].filter(e => e.code !== 'TOTAL').sort((a, b) => (b.tonnesThousand || 0) - (a.tonnesThousand || 0));
+    // The same groups a decade earlier, so the shift in what is carried shows.
+    const prevYear = String(Number(year) - 10);
+    const prevTotal = g.rows.find((r: any) => r.year === prevYear && r.nst07 === 'TOTAL' && r.unit === 'THS_T');
+    for (const e of groups) {
+      const pr = g.rows.find((r: any) => r.year === prevYear && r.nst07 === e.code && r.unit === 'THS_T');
+      e.tonnesThousandTenYearsAgo = pr ? num(pr.value) : null;
+    }
+    commodities = { year, prevYear, total, totalTenYearsAgo: prevTotal ? num(prevTotal.value) : null, groups, labelSlTranslatedByApp: !!g.labelSlTranslatedByApp, sourceUrl: g.sourceUrl, updated: g.updated };
+  }
+
+  // Quarterly tonnes: the last twelve quarters plus the same quarter a year
+  // earlier for each, so seasonality and trend can both be read.
+  const q = c.quarterly;
+  let quarterly: any = null;
+  if (q?.rows?.length) {
+    const t = q.rows.filter((r: any) => r.unit === 'THS_T').sort((a: any, b: any) => String(a.quarter).localeCompare(String(b.quarter)));
+    const lookup = new Map(t.map((r: any) => [r.quarter, num(r.value)]));
+    const last = t.slice(-12).map((r: any) => ({ quarter: r.quarter, tonnesThousand: num(r.value), yearEarlier: lookup.get(`${Number(r.year) - 1}-${r.q}`) ?? null }));
+    quarterly = { latestQuarter: q.latestQuarter, rows: last, sourceUrl: q.sourceUrl, updated: q.updated };
+  }
+
+  // Intermodal units: containers & swap bodies by year (all coverage), and the
+  // latest year's split national / international / transit.
+  const im = c.intermodal;
+  let intermodal: any = null;
+  if (im?.rows?.length) {
+    const years = [...new Set(im.rows.map((r: any) => r.year))].sort() as string[];
+    const byYear = years.slice(-8).map(y => {
+      const row = im.rows.find((r: any) => r.year === y && r.tra_cov === 'TOTAL' && r.cargo === 'CNT_SWP' && r.unit === 'THS_T');
+      return { year: y, tonnesThousand: row ? num(row.value) : null };
+    });
+    const latest = years[years.length - 1];
+    const split = Object.entries(im.transportCoverage || {}).filter(([k]) => k !== 'TOTAL').map(([k, label]) => {
+      const row = im.rows.find((r: any) => r.year === latest && r.tra_cov === k && r.cargo === 'CNT_SWP' && r.unit === 'THS_T');
+      return { code: k, label, tonnesThousand: row ? num(row.value) : null };
+    }).filter(s => s.tonnesThousand != null);
+    intermodal = { latestYear: latest, byYear, split, cargoLabel: im.cargoTypes?.CNT_SWP || 'Containers and swap bodies', note: im.note || null, sourceUrl: im.sourceUrl, updated: im.updated };
+  }
+
+  // Partner countries, both directions, latest year, aggregates dropped.
+  const partners = (cube: any) => {
+    if (!cube?.rows?.length) return null;
+    const year = cube.latestYear;
+    const rows = cube.rows.filter((r: any) => r.year === year && r.unit === 'THS_T' && !EUROSTAT_AGGREGATES.has(r.country) && Number(r.value) > 0)
+      .map((r: any) => ({ code: r.country, label: cube.countries?.[r.country] || r.country, tonnesThousand: num(r.value) }))
+      .sort((a: any, b: any) => b.tonnesThousand - a.tonnesThousand).slice(0, 10);
+    return { year, direction: cube.direction || null, rows, sourceUrl: cube.sourceUrl, updated: cube.updated };
+  };
+
+  eurostatSummaryCache = {
+    source: eurostatRail.source,
+    licence: eurostatRail.licence,
+    licenceUrl: eurostatRail.licenceUrl || null,
+    retrieved: eurostatRail.retrieved,
+    note: eurostatRail.note || null,
+    units: { THS_T: 'tisoč ton', MIO_TKM: 'milijon tonskih kilometrov' },
+    commodities, quarterly, intermodal,
+    loadingCountry: partners(c.intlByLoadingCountry),
+    unloadingCountry: partners(c.intlByUnloadingCountry)
+  };
+  return eurostatSummaryCache;
+}
+
+app.get('/api/freight/eurostat', (_req, res) => {
+  const s = eurostatSummary();
+  if (!s) return res.status(503).json({ error: 'Statistika Eurostat ni naložena' });
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.json(s);
+});
+
+app.get('/api/freight/eurostat/raw', (_req, res) => {
+  if (!eurostatRail) return res.status(503).json({ error: 'Statistika Eurostat ni naložena' });
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.json(eurostatRail);
+});
+
+/**
+ * OpenStreetMap's freight geometry for Slovenia (src/data/osmFreightGeometrySI.json,
+ * built by scripts/osm_freight_geometry.mjs): yard, siding and spur tracks,
+ * industrial branches, yard areas, and the stations OSM names — matched by
+ * name to the DIUM freight-station directory where they agree. This is
+ * where freight is loaded and marshalled; it is not where any train is.
+ * ODbL, © OpenStreetMap contributors.
+ */
+let osmFreight: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'osmFreightGeometrySI.json');
+  if (fs.existsSync(p)) {
+    osmFreight = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[OSM] freight geometry:', JSON.stringify(osmFreight.counts));
+  }
+} catch (e: any) { console.warn('[OSM] osmFreightGeometrySI.json failed:', e?.message); }
+
+app.get('/api/osm/freight-geometry', (_req, res) => {
+  if (!osmFreight) return res.status(503).json({ error: 'OSM geometrija ni naložena' });
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.json(osmFreight);
 });
 
 /**

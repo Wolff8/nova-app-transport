@@ -168,7 +168,7 @@ export interface AppState {
 
 export interface TelemetryNode {
   id: string;
-  type: 'weather' | 'train' | 'freight_train' | 'freight_paths' | 'foreign_train' | 'bus' | 'tram' | 'station' | 'rinf_station' | 'rinf' | 'rinf_network' | 'rinf_track' | 'drone' | 'lorawan' | 'nbiot' | 'rail_sensors' | 'traffic_sensors' | 'logistics_sensors' | 'air' | 'aircraft' | 'bike' | 'micromobility' | 'micromobility_trip' | 'car' | 'ev' | 'traffic_counter' | 'signal' | 'rail_station' | 'quake' | 'location' | 'hafas' | 'aprs' | 'loramesh' | 'sparql' | 'warehouse' | 'yard' | 'sensorcommunity' | 'arso' | 'smartcity' | 'switch' | 'rail_signal' | 'freight' | 'spat' | 'hydro' | 'power' | 'moms' | 'openaq' | 'ttn' | 'opensense' | 'eurorail' | 'github' | 'rail_work';
+  type: 'weather' | 'train' | 'freight_train' | 'freight_paths' | 'foreign_train' | 'bus' | 'tram' | 'station' | 'rinf_station' | 'rinf' | 'rinf_network' | 'rinf_track' | 'drone' | 'lorawan' | 'nbiot' | 'rail_sensors' | 'traffic_sensors' | 'logistics_sensors' | 'air' | 'aircraft' | 'bike' | 'micromobility' | 'micromobility_trip' | 'car' | 'ev' | 'traffic_counter' | 'signal' | 'rail_station' | 'quake' | 'location' | 'hafas' | 'aprs' | 'loramesh' | 'sparql' | 'warehouse' | 'yard' | 'sensorcommunity' | 'arso' | 'smartcity' | 'switch' | 'rail_signal' | 'freight' | 'spat' | 'hydro' | 'power' | 'moms' | 'openaq' | 'ttn' | 'opensense' | 'eurorail' | 'github' | 'rail_work' | 'osm_freight';
   title: string;
   subtitle?: string;
   category: string;
