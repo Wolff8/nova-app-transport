@@ -11939,6 +11939,7 @@ app.post('/api/log', express.json(), (req, res) => {
       nhmCommodities: nhmSI ? { ...nhmSI.counts, effective: nhmSI.effective, retrieved: nhmSI.retrieved } : null,
       sursRailFreight: sursFreight ? { latestYear: sursFreight.latestYear, retrieved: sursFreight.retrieved } : null,
       szCapacityStrategy: szCapacity ? { timetable: szCapacity.timetable, mainLines: szCapacity.mainLines.length, borderSections: szCapacity.borderSections.length } : null,
+      rfcKpis: rfcKpis ? { corridors: rfcKpis.corridors.map((c: any) => c.id), retrieved: rfcKpis.retrieved } : null,
       eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
       iateGlossary: iateGlossary ? { ...iateGlossary.counts, retrieved: iateGlossary.retrieved } : null,
       eraParameterXref: eraParamXref ? eraParamXref.counts : null,
@@ -13041,6 +13042,40 @@ function szCapacityLinesFor(fromName: string, toName: string): string[] {
   }
   return [...chain].sort((x, y) => Number(x) - Number(y));
 }
+
+/**
+ * RNE's yearly "Commonly applicable RFC KPIs" for the three freight corridors
+ * through Slovenia (RFC 5 Baltic–Adriatic, RFC 6 Mediterranean, RFC 11
+ * Amber), transcribed from the reports RNE publishes
+ * (src/data/rfcKpisSlovenia.json).
+ *
+ * This is the one public, official window onto actual international freight
+ * volumes at Slovenia's borders: trains per border per year, train-km,
+ * planned-vs-real dwell time at the crossing, corridor punctuality, PaP offer
+ * and take-up. The operational figures come from RNE's TIS — the system whose
+ * live feed is closed — as annual aggregates the corridors publish. Nothing
+ * here is a train position; it is last year's count, sourced.
+ */
+let rfcKpis: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'rfcKpisSlovenia.json');
+  if (fs.existsSync(p)) {
+    rfcKpis = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[RFC KPI]', rfcKpis.corridors.map((c: any) => c.id).join('/'), '· trains per Slovenian border, punctuality, PaP offer');
+  }
+} catch (e: any) { console.warn('[RFC KPI] rfcKpisSlovenia.json failed:', e?.message); }
+
+app.get('/api/freight/rfc-kpis', (_req, res) => {
+  if (!rfcKpis) return res.status(503).json({ error: 'KPI koridorjev RFC niso naloženi' });
+  // The Slovenian borders, gathered across corridors, so the map and the
+  // panel can show "how many international freight trains crossed here last
+  // year" per crossing — each corridor's figure kept as it published it.
+  const byBorder: Record<string, any[]> = {};
+  for (const c of rfcKpis.corridors) for (const b of c.borders || []) {
+    (byBorder[b.siStation] ||= []).push({ corridor: c.id, corridorName: c.name, ...b });
+  }
+  res.json({ ...rfcKpis, sloveniaBordersByStation: byBorder });
+});
 
 app.get('/api/freight/capacity-strategy', (_req, res) => {
   if (!szCapacity) return res.status(503).json({ error: 'Strategija zmogljivosti SŽ-Infrastruktura ni naložena' });

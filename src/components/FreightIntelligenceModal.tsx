@@ -57,6 +57,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   // SŽ-Infrastruktura Capacity Strategy 2026: bookable train paths per hour
   // per section, passenger vs freight — the supply side of freight capacity.
   const [capacityStrategy, setCapacityStrategy] = useState<any>(null);
+  // RNE RFC KPIs: last year's international freight trains per Slovenian
+  // border, dwell times, punctuality — official annual aggregates from TIS.
+  const [rfcKpis, setRfcKpis] = useState<any>(null);
   const [activeTrains, setActiveTrains] = useState<any[]>([]);
   const [freightPayload, setFreightPayload] = useState<any>(null);
   const [murskaSobotaData, setMurskaSobotaData] = useState<any>(null);
@@ -199,6 +202,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     fetch('/api/freight/capacity-strategy')
       .then(res => (res.ok ? res.json() : null))
       .then(data => { if (data && data.mainLines) setCapacityStrategy(data); })
+      .catch(() => {});
+
+    fetch('/api/freight/rfc-kpis')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data && data.corridors) setRfcKpis(data); })
       .catch(() => {});
 
     // Initial UIC decoder lookup
@@ -1417,6 +1425,75 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
                     <p className="text-[9.5px] leading-snug text-slate-500">
                       {capacityStrategy.note} Vir: {capacityStrategy.source}; {capacityStrategy.validation}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* RNE RFC KPIs: the only public, official count of international
+                  freight trains at Slovenia's borders — last year's totals from
+                  TIS, per corridor, as each corridor published them. */}
+              {rfcKpis && (() => {
+                const n = (v: any) => v == null ? '—' : Number(v).toLocaleString('sl-SI');
+                const borders = Object.entries(rfcKpis.sloveniaBordersByStation || {}) as [string, any[]][];
+                const maxTrains = Math.max(1, ...borders.flatMap(([, arr]) => arr.map(b => b.trains?.['2024'] || 0)));
+                return (
+                  <div className="p-4 rounded-xl bg-slate-900/70 border border-violet-500/25 space-y-3">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div>
+                        <h3 className="text-sm font-bold text-white">Mednarodni tovorni vlaki na slovenskih mejah — uradni KPI koridorjev RFC (2024)</h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5">RFC 5 Baltik–Jadran · RFC 6 Mediteran · RFC 11 Amber · letni agregati iz RNE TIS, kot jih objavlja vsak koridor</p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-mono bg-violet-500/15 text-violet-300 border border-violet-500/30">lanski števec, ne položaj</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {borders.map(([station, arr]) => (
+                        <div key={station} className="space-y-1">
+                          <div className="text-[11px] font-semibold text-slate-200">{station} <span className="text-slate-500 font-normal">· {arr[0].border} ({arr[0].countries})</span></div>
+                          {arr.map((b: any) => (
+                            <div key={b.corridor} className="space-y-0.5">
+                              <div className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                                <span className="text-slate-400">{b.corridor} <span className="text-slate-600">{b.corridorName}</span></span>
+                                <span className="font-mono text-slate-200">
+                                  <span className="text-slate-500">{n(b.trains?.['2022'])} · {n(b.trains?.['2023'])} · </span>
+                                  <span className="text-violet-300">{n(b.trains?.['2024'])}</span>
+                                  {b.change2024Pct != null && <span className={b.change2024Pct >= 0 ? ' text-emerald-400' : ' text-rose-400'}> {b.change2024Pct >= 0 ? '+' : ''}{String(b.change2024Pct).replace('.', ',')} %</span>}
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-violet-400" style={{ width: `${Math.max(2, ((b.trains?.['2024'] || 0) / maxTrains) * 100)}%` }} />
+                              </div>
+                              <div className="text-[9.5px] text-slate-500 flex flex-wrap gap-x-3">
+                                {b.trainKm2024 != null && <span>{n(b.trainKm2024)} vlak-km (2024)</span>}
+                                {b.dwellMin2024 && <span>zadrževanje na meji: načrt {b.dwellMin2024.planned} min · dejansko <span className={b.dwellMin2024.real > b.dwellMin2024.planned ? 'text-amber-300' : 'text-emerald-300'}>{b.dwellMin2024.real} min</span></span>}
+                                {b.cossAllocationPct?.['2024'] != null && <span>C-OSS dodelil: {String(b.cossAllocationPct['2024']).replace('.', ',')}{typeof b.cossAllocationPct['2024'] === 'number' ? ' %' : ''}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-slate-800 pt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {rfcKpis.corridors.map((c: any) => {
+                        const p = c.operations?.punctualityPct || {};
+                        return (
+                          <div key={c.id} className="p-2 rounded-lg bg-slate-950/60 border border-slate-800 space-y-0.5">
+                            <div className="text-[10.5px] font-semibold text-slate-200">{c.id} · {c.name}</div>
+                            <div className="text-[10px] text-slate-400">vlakov na koridorju 2024: <span className="font-mono text-slate-200">{n(c.operations?.trains?.['2024'])}</span>{c.operations?.trainKmMio?.['2024'] != null && <> · {String(c.operations.trainKmMio['2024']).replace('.', ',')} mio vlak-km</>}</div>
+                            <div className="text-[10px] text-slate-400">točnost ≤30 min 2024: vstop <span className="font-mono text-slate-200">{p.entryWithin30?.['2024']} %</span> · izstop <span className="font-mono text-slate-200">{p.exitWithin30?.['2024']} %</span></div>
+                            {c.capacity?.preBookedRatioPct?.['TT2026'] != null && <div className="text-[10px] text-slate-400">PaP TT2026: ponujeno {String(c.capacity.offeredPapMioPathKm?.['TT2026']).replace('.', ',')} mio poti-km, vnaprej rezervirano {String(c.capacity.preBookedRatioPct['TT2026']).replace('.', ',')} %</div>}
+                            {(c.papPlannedSpeedKmh || []).slice(0, 2).map((s: any) => (
+                              <div key={s.section} className="text-[9.5px] text-slate-500">PaP {s.section} ({s.lengthKm} km): {String(s.TT2026 ?? s.TT2025).replace('.', ',')} km/h</div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-[9.5px] leading-snug text-slate-500">
+                      {rfcKpis.definitions?.trainsPerBorder} {rfcKpis.definitions?.rfcTrain} Vir: {rfcKpis.source}.
                     </p>
                   </div>
                 );

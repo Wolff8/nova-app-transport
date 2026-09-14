@@ -1,0 +1,143 @@
+{
+  "source": "RailNetEurope – Commonly applicable RFC KPIs, letna poročila tovornih koridorjev (RFC 5 Baltik–Jadran, RFC 6 Mediteran, RFC 11 Amber)",
+  "publisher": "RailNetEurope (RNE) / koridorji RFC",
+  "sourceUrls": {
+    "RFC5": "https://rne.eu/wp-content/uploads/RFC5-DEC-2025.pdf",
+    "RFC6": "https://rne.eu/wp-content/uploads/RFC6-DEC-2025.pdf",
+    "RFC11": "https://rne.eu/wp-content/uploads/RFC11-MAY-2025.pdf"
+  },
+  "retrieved": "2026-09-14",
+  "note": "Uradni letni KPI koridorjev za tovorni promet, ki potekajo skozi Slovenijo. Obratovalni KPI (št. vlakov, poti-km, točnost, zadrževanje) temeljijo na podatkih RNE TIS — istem sistemu, ki v živo ni javen; tu so njegovi javno objavljeni letni agregati. Vrednosti so prepisane iz poročil; nič ni dodano. Isti mejni prehod se v dveh koridorjih lahko šteje različno (npr. Sežana v RFC5 in RFC6) — vsak koridor je naveden tako, kot je objavil, brez uskladitve.",
+  "definitions": {
+    "rfcTrain": "Tovorni vlak, ki prečka vsaj eno državno mejo in vozi v celoti ali delno po odsekih koridorja (definicija RNE; metoda se je 2024 spremenila, zato številke 2024 niso primerljive s prejšnjimi leti).",
+    "punctuality": "Delež vlakov z zamudo ≤ 30 min oz. ≤ 15 min na vstopu v koridor (izvor) in izstopu iz koridorja (cilj).",
+    "papPlannedSpeed": "Povprečna načrtovana hitrost vnaprej pripravljenih poti (PaP) na relaciji; kvalitativni kazalnik, ker vozni časi vključujejo komercialne in obratovalne postanke.",
+    "cossAllocation": "Delež zmogljivosti, ki jo je na mejni točki dodelil koridorski One-Stop-Shop (C-OSS), glede na vso dodeljeno zmogljivost. Kjer je pristojnih več C-OSS, je navedena kombinirana vrednost, kot v poročilu.",
+    "trainsPerBorder": "Iz sistemov upravljavcev infrastrukture; vsota po mejah ne ustreza skupnemu številu vlakov koridorja (vlak, ki prečka več mej, se šteje večkrat)."
+  },
+  "sloveniaBorders": ["Sežana", "Šentilj", "Hodoš", "Dobova"],
+  "corridors": [
+    {
+      "id": "RFC5",
+      "name": "Baltik–Jadran (Baltic–Adriatic)",
+      "report": "Yearly Report, december 2025",
+      "sloveniaSections": "Spielfeld-Straß – Šentilj – Maribor – Ljubljana – Koper; Villa Opicina – Sežana",
+      "capacity": {
+        "unit": "mio poti-km",
+        "offeredPapMioPathKm": { "TT2024": 6.3, "TT2025": 6.32, "TT2026": 6.8 },
+        "requestedPapMioPathKm": { "TT2024": 2.3, "TT2025": 2.1, "TT2026": 3.1 },
+        "preBookedPapMioPathKm": { "TT2024": 2.3, "TT2025": 2.1, "TT2026": 3.1 },
+        "preBookedRatioPct": { "TT2024": 36.5, "TT2025": 33.4, "TT2026": 45.0 },
+        "papRequests": { "TT2024": 26, "TT2025": 21, "TT2026": 34 },
+        "papConflicts": { "TT2024": 2, "TT2025": 0, "TT2026": 2 },
+        "reserveOfferedMioPathKm": { "TT2024": 3.50, "TT2025": 3.03, "TT2026": 2.52 }
+      },
+      "operations": {
+        "trains": { "2022": 88522, "2023": 91084, "2024": 82269 },
+        "trainKmMio": { "2024": 29.6 },
+        "punctualityPct": {
+          "entryWithin30": { "2022": 43.0, "2023": 46.0, "2024": 42.0 },
+          "exitWithin30": { "2022": 31.0, "2023": 34.0, "2024": 30.0 },
+          "entryWithin15": { "2022": 37.0, "2023": 40.0, "2024": 36.0 },
+          "exitWithin15": { "2022": 26.0, "2023": 29.0, "2024": 26.0 }
+        }
+      },
+      "papPlannedSpeedKmh": [
+        { "section": "Spielfeld-Straß – Koper", "lengthKm": 330.9, "TT2024": 35.9, "TT2025": 39.2, "TT2026": 38.3 },
+        { "section": "Břeclav – Spielfeld-Straß", "lengthKm": 338.2, "TT2024": 51.3, "TT2025": 50.3, "TT2026": 49.0 },
+        { "section": "Bratislava-Petržalka – Spielfeld-Straß", "lengthKm": 295.6, "TT2024": 47.9, "TT2025": 47.9, "TT2026": 48.4 }
+      ],
+      "borders": [
+        { "border": "Spielfeld-Straß – Šentilj", "siStation": "Šentilj", "countries": "AT–SI", "rinfBorderCode": "EU00113",
+          "trains": { "2022": 9154, "2023": 7910, "2024": 8344 }, "change2024Pct": 5.48, "trainKm2024": 3711032,
+          "cossAllocationPct": { "2022": 9.8, "2023": "2,6 % (RFC10) + 7,6 % (RFC5) = 10,2 %", "2024": "4,1 % (RFC10) + 7,5 % (RFC5) = 11,6 %" } },
+        { "border": "Villa Opicina – Sežana", "siStation": "Sežana", "countries": "IT–SI", "rinfBorderCode": "EU00151",
+          "trains": { "2022": 7522, "2023": 7940, "2024": 9651 }, "change2024Pct": 21.55, "trainKm2024": 3872215,
+          "cossAllocationPct": { "2022": 13.0, "2023": 10.0, "2024": 14.0 } }
+      ],
+      "otherBordersTrains2024": { "Thörl-Maglern – Tarvisio (AT–IT)": 18117, "Kittsee – Bratislava-Petržalka (AT–SK)": 12596, "Břeclav – Bernhardsthal (CZ–AT)": 8750, "Mosty u Jablunkova – Čadca (CZ–SK)": 10533, "PL–CZ skupaj": 24085 }
+    },
+    {
+      "id": "RFC6",
+      "name": "Mediteran (Mediterranean)",
+      "report": "Yearly Report, december 2025",
+      "sloveniaSections": "Villa Opicina – Sežana – Ljubljana – Dobova / Hodoš; Koper – Ljubljana; Ljubljana – Zagreb – Ferencváros",
+      "capacity": {
+        "unit": "mio poti-km",
+        "offeredPapMioPathKm": { "TT2024": 16.5, "TT2025": 19.1, "TT2026": 19.0 },
+        "requestedPapMioPathKm": { "TT2024": 8.7, "TT2025": 9.0, "TT2026": 7.2 },
+        "preBookedPapMioPathKm": { "TT2024": 8.9, "TT2025": 9.0, "TT2026": 7.15 },
+        "preBookedRatioPct": { "TT2024": 51.6, "TT2025": 47.1, "TT2026": 37.7 },
+        "papRequests": { "TT2024": 88, "TT2025": 87, "TT2026": 100 },
+        "papConflicts": { "TT2024": 6, "TT2025": 0, "TT2026": 4 },
+        "reserveOfferedMioPathKm": { "TT2024": 2.34, "TT2025": 2.23, "TT2026": 4.51 }
+      },
+      "operations": {
+        "trains": { "2022": 24984, "2023": 24823, "2024": 24966 },
+        "trainKmMio": { "2024": 12.61 },
+        "punctualityPct": {
+          "entryWithin30": { "2022": 55.0, "2023": 52.7, "2024": 52.0 },
+          "exitWithin30": { "2022": 41.0, "2023": 39.0, "2024": 41.0 },
+          "entryWithin15": { "2022": 49.0, "2023": 47.7, "2024": 47.0 },
+          "exitWithin15": { "2022": 37.0, "2023": 34.9, "2024": 37.0 }
+        }
+      },
+      "papPlannedSpeedKmh": [
+        { "section": "Koper – Záhony", "lengthKm": 1016, "TT2025": 40.0, "TT2026": 40.0 },
+        { "section": "Ljubljana – Zagreb – Ferencváros", "lengthKm": 510, "TT2025": 32.0, "TT2026": 37.0 },
+        { "section": "Portogruaro – Gyékényes", "lengthKm": 777, "TT2024": 33.0, "TT2025": 38.0, "TT2026": 35.0 }
+      ],
+      "borders": [
+        { "border": "Villa Opicina – Sežana", "siStation": "Sežana", "countries": "IT–SI", "rinfBorderCode": "EU00151",
+          "trains": { "2022": 7522, "2023": 7612, "2024": 9265 }, "change2024Pct": 21.71, "trainKm2024": 3872215,
+          "dwellMin2024": { "planned": 64, "real": 134 },
+          "cossAllocationPct": { "2022": 13.0, "2023": 10.0, "2024": 14.0 } },
+        { "border": "Hodoš – Őriszentpéter", "siStation": "Hodoš", "countries": "SI–HU", "rinfBorderCode": "EU00185",
+          "trains": { "2022": 6297, "2023": 6492, "2024": 7104 }, "change2024Pct": 9.42, "trainKm2024": 2837014,
+          "dwellMin2024": { "planned": 77, "real": 135 },
+          "cossAllocationPct": { "2022": 26.0, "2023": 65.0, "2024": 50.5 } },
+        { "border": "Dobova – Savski Marof", "siStation": "Dobova", "countries": "SI–HR", "rinfBorderCode": "EU00216",
+          "trains": { "2022": 7058, "2023": 8009, "2024": 8404 }, "change2024Pct": 4.93, "trainKm2024": 3213605,
+          "dwellMin2024": { "planned": 96, "real": 228 },
+          "cossAllocationPct": { "2022": 15.0, "2023": "1,6 % (RFC10); skupaj 11,6 %", "2024": "2,4 % (RFC10); skupaj 12,6 %" } }
+      ],
+      "otherBordersTrains2024": { "Botovo – Gyékényes (HR–HU)": 6054, "Cerbère – Port-Bou (FR–ES) + Perpignan – Figueres": 4223, "Modane – Bardonecchia (FR–IT)": "zaprtje proge 2024" },
+      "otherBordersDwellMin2024": { "Botovo – Gyékényes": { "planned": 173, "real": 250 }, "Perpignan – Figueres Vilafant": { "planned": 16, "real": 12 }, "Cerbère – Port-Bou": { "planned": 0, "real": 1 } }
+    },
+    {
+      "id": "RFC11",
+      "name": "Amber",
+      "report": "Report, maj 2025",
+      "sloveniaSections": "Hodoš – Pragersko – Ljubljana – Koper tovorna",
+      "capacity": {
+        "unit": "mio poti-km",
+        "offeredPapMioPathKm": { "TT2024": 3.6, "TT2025": 3.9, "TT2026": 2.7 },
+        "requestedPapMioPathKm": { "TT2024": 0.6, "TT2025": 0.9, "TT2026": 0.3 },
+        "preBookedPapMioPathKm": { "TT2024": 0.5, "TT2025": 0.9, "TT2026": 0.3 },
+        "preBookedRatioPct": { "TT2024": 13.3, "TT2025": 22.6, "TT2026": 11.2 },
+        "papRequests": { "TT2024": 10, "TT2025": 10, "TT2026": 5 },
+        "papConflicts": { "TT2024": 5, "TT2025": 2, "TT2026": 0 }
+      },
+      "operations": {
+        "trains": { "2022": 21448, "2023": 18484, "2024": 23009 },
+        "trainKmMio": { "2023": 6.07, "2024": 6.99 },
+        "punctualityPct": {
+          "entryWithin30": { "2022": 36.0, "2023": 37.0, "2024": 30.0 },
+          "exitWithin30": { "2022": 26.0, "2023": 26.0, "2024": 32.0 },
+          "entryWithin15": { "2022": 35.0, "2023": 35.0, "2024": 28.0 },
+          "exitWithin15": { "2022": 24.0, "2023": 25.0, "2024": 30.0 }
+        }
+      },
+      "papPlannedSpeedKmh": [
+        { "section": "Hodoš – Koper tovorna", "lengthKm": 405.5, "TT2024": 42.7, "TT2025": 40.69, "TT2026": 40.28 },
+        { "section": "Szombathely-Rendező – Hodoš", "lengthKm": 96.4, "TT2024": 27.5, "TT2025": 31.26, "TT2026": 28.48 }
+      ],
+      "borders": [
+        { "border": "Hodoš – Őriszentpéter", "siStation": "Hodoš", "countries": "HU–SI", "rinfBorderCode": "EU00185",
+          "trains": { "2022": 6297, "2023": 6544, "2024": 7104 }, "change2024Pct": 8.6,
+          "cossAllocationPct": { "2022": 26.0, "2023": 65.0, "2024": 50.5 } }
+      ],
+      "otherBordersTrains2024": { "SK–HU skupaj": 19261, "PL–SK skupaj": 2025 }
+    }
+  ]
+}
