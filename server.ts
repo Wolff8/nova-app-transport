@@ -12446,6 +12446,187 @@ let eraTracksLastFetch = 0;
 
 const ERA_CACHE_TTL = 3600 * 1000 * 12; // 12 hours cache for static European rail infrastructure
 
+/**
+ * ERA RINF, the Slovenian named graph (infrastructure manager 0079,
+ * SŽ-Infrastruktura), pulled by scripts/rinf_extract_slovenia.mjs (NODE_USE_ENV_PROXY=1 node scripts/rinf_extract_slovenia.mjs) from the
+ * rinf-plus SPARQL endpoint. Operational points carry the TAF TSI primary
+ * location code, the line and kilometre, and the partner point across the
+ * border; sections of line carry the per-track parameters a route check
+ * looks at (speed, gauging profile, load category, electrification, ETCS,
+ * train protection, freight corridors); tunnels carry length and position.
+ * The register describes infrastructure, never a particular train.
+ */
+let rinfSI: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'rinfSlovenia.json');
+  if (fs.existsSync(p)) {
+    rinfSI = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[RINF] Slovenia dataset:', JSON.stringify(rinfSI.counts), 'retrieved', rinfSI.retrieved);
+  }
+} catch (e: any) { console.warn('[RINF] rinfSlovenia.json failed:', e?.message); }
+const rinfSIByUopid = new Map<string, any>(rinfSI ? rinfSI.operationalPoints.map((o: any) => [o.uopid, o]) : []);
+const RINF_OP_TYPE_SL: Record<string, string> = {
+  'station': 'postaja', 'small station': 'manjša postaja', 'passenger stop': 'postajališče', 'border point': 'mejna točka (d.m.)',
+  'junction': 'cepišče', 'freight terminal': 'tovorni terminal', 'shunting yard': 'ranžirna postaja', 'depot or workshop': 'depo / delavnica',
+  'train technical services': 'tehnične službe za vlake'
+};
+const RINF_COUNTRY_SL: Record<string, string> = { AUT: 'Avstrija', HUN: 'Madžarska', HRV: 'Hrvaška', ITA: 'Italija' };
+const rinfSIUnion = (tracks: any[], k: string) => [...new Set(tracks.flatMap((t: any) => t[k] || []))];
+function rinfSISectionSummary(s: any) {
+  const a = rinfSIByUopid.get(s.from), b = rinfSIByUopid.get(s.to);
+  const speeds = s.tracks.map((t: any) => t.maxSpeedKmh).filter((v: any) => Number.isFinite(v));
+  const radii = s.tracks.map((t: any) => t.minHorizontalRadiusM).filter((v: any) => Number.isFinite(v));
+  const alts = s.tracks.map((t: any) => t.maxAltitudeM).filter((v: any) => Number.isFinite(v));
+  const tunnels = rinfSI.tunnels.filter((t: any) => t.sectionIds.includes(s.id)).map((t: any) => ({ name: t.name, lengthM: t.lengthM, kmStart: t.kmStart }));
+  return {
+    id: s.id, line: s.line, fromUopid: s.from, toUopid: s.to,
+    fromName: a?.name ?? s.from, toName: b?.name ?? s.to,
+    from: a ? [a.lon, a.lat] : null, to: b ? [b.lon, b.lat] : null,
+    lengthKm: s.lengthKm, nature: s.nature,
+    trackCount: s.tracks.length, trackIds: s.tracks.map((t: any) => t.trackId).filter(Boolean),
+    maxSpeedKmh: speeds.length ? Math.max(...speeds) : null, minSpeedKmh: speeds.length ? Math.min(...speeds) : null,
+    gauging: rinfSIUnion(s.tracks, 'gauging'), loadCategories: rinfSIUnion(s.tracks, 'loadCategories'),
+    wheelSetGauge: s.tracks[0]?.wheelSetGauge ?? null,
+    energySupply: rinfSIUnion(s.tracks, 'energySupply'), contactLineType: rinfSIUnion(s.tracks, 'contactLineType'),
+    etcsLevels: rinfSIUnion(s.tracks, 'etcsLevels'), etcsBaselines: rinfSIUnion(s.tracks, 'etcsBaselines'),
+    legacyProtection: rinfSIUnion(s.tracks, 'legacyProtection'), otherProtection: rinfSIUnion(s.tracks, 'otherProtection'),
+    freightCorridors: rinfSIUnion(s.tracks, 'freightCorridors'),
+    minHorizontalRadiusM: radii.length ? Math.min(...radii) : null, maxAltitudeM: alts.length ? Math.max(...alts) : null,
+    hotAxleBoxDetector: s.tracks.some((t: any) => t.hotAxleBoxDetector === true),
+    levelCrossings: s.tracks.some((t: any) => t.levelCrossings === true),
+    gsmrVersion: s.tracks.map((t: any) => t.gsmrVersion).find(Boolean) ?? null,
+    tunnels
+  };
+}
+const rinfSISections: any[] = rinfSI ? rinfSI.sections.map(rinfSISectionSummary) : [];
+const rinfSIBySection = new Map<string, any>(rinfSISections.map(s => [s.id, s]));
+const rinfSISourceLine = rinfSI ? `${rinfSI.source} · posnetek ${String(rinfSI.retrieved).slice(0, 10)} · ${rinfSI.validity?.[0] ?? ''}` : null;
+/** Distance (m) from a point to a straight OP→OP link, and where along it. */
+function rinfSIPointToSegment(lat: number, lon: number, a: number[], b: number[]) {
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110540;
+  const px = (lon - a[0]) * kx, py = (lat - a[1]) * ky;
+  const vx = (b[0] - a[0]) * kx, vy = (b[1] - a[1]) * ky;
+  const len2 = vx * vx + vy * vy;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, (px * vx + py * vy) / len2)) : 0;
+  const dx = px - t * vx, dy = py - t * vy;
+  return { distanceM: Math.sqrt(dx * dx + dy * dy), fraction: t };
+}
+function rinfSINearest(lat: number, lon: number) {
+  let best: any = null;
+  for (const s of rinfSISections) {
+    if (!s.from || !s.to) continue;
+    const d = rinfSIPointToSegment(lat, lon, s.from, s.to);
+    if (!best || d.distanceM < best.distanceM) best = { section: s, ...d };
+  }
+  let nearestOp: any = null, nearestOpM = Infinity;
+  for (const o of rinfSI.operationalPoints) {
+    const d = rinfSIPointToSegment(lat, lon, [o.lon, o.lat], [o.lon, o.lat]).distanceM;
+    if (d < nearestOpM) { nearestOpM = d; nearestOp = o; }
+  }
+  return { best, nearestOp, nearestOpM };
+}
+const rinfSIStationNodes: any[] = rinfSI ? rinfSI.operationalPoints.map((o: any) => ({
+  id: `rinf-${o.uopid}`, uopid: o.uopid, name: o.name, lat: o.lat, lon: o.lon, type: 'rinf_station',
+  opType: o.type, opTypeSl: RINF_OP_TYPE_SL[o.type] || o.type, plc: o.plc, line: o.line, km: o.km,
+  borderCode: o.border?.code ?? null,
+  borderPartner: o.border?.partner ? `${o.border.partner.name} (${RINF_COUNTRY_SL[o.border.partner.country] || o.border.partner.country}, ${o.border.partner.uopid})` : null,
+  tracks: o.tracks, sidings: o.sidings, source: rinfSISourceLine
+})) : [];
+const rinfSINetworkFC = rinfSI ? {
+  type: 'FeatureCollection',
+  source: rinfSISourceLine,
+  note: 'Črta je ravna povezava med operativnima točkama odseka; register RINF ne objavlja poteka trase.',
+  features: rinfSISections.filter(s => s.from && s.to).map(s => ({
+    type: 'Feature', id: s.id,
+    properties: {
+      id: s.id, type: 'rinf_network', name: `Proga ${s.line}: ${s.fromName} – ${s.toName}`,
+      line: s.line, fromName: s.fromName, toName: s.toName, lengthKm: s.lengthKm, nature: s.nature,
+      trackCount: s.trackCount, maxSpeedKmh: s.maxSpeedKmh, minSpeedKmh: s.minSpeedKmh,
+      gauging: s.gauging.join(', '), loadCategories: s.loadCategories.join(', '), wheelSetGauge: s.wheelSetGauge,
+      energySupply: s.energySupply.join(', ') || 'brez elektrifikacije', etcsLevels: s.etcsLevels.join(', '), etcsBaselines: s.etcsBaselines.join(', '),
+      legacyProtection: s.legacyProtection.join(', '), otherProtection: s.otherProtection.join(', '), freightCorridors: s.freightCorridors.join(', '),
+      minHorizontalRadiusM: s.minHorizontalRadiusM, maxAltitudeM: s.maxAltitudeM, hotAxleBoxDetector: s.hotAxleBoxDetector, levelCrossings: s.levelCrossings,
+      tunnels: s.tunnels.map((t: any) => `${t.name} (${t.lengthM} m)`).join('; '), source: rinfSISourceLine
+    },
+    geometry: { type: 'LineString', coordinates: [s.from, s.to] }
+  }))
+} : null;
+const rinfSITunnelsFC = rinfSI ? {
+  type: 'FeatureCollection',
+  source: rinfSISourceLine,
+  features: rinfSI.tunnels.filter((t: any) => t.start && t.end).map((t: any) => ({
+    type: 'Feature', id: t.name,
+    properties: {
+      id: t.name, name: t.name, length: t.lengthM, line: t.line, kmStart: t.kmStart,
+      sections: t.sectionIds.map((id: string) => { const s = rinfSIBySection.get(id); return s ? `${s.fromName} – ${s.toName}` : id; }).join('; '),
+      tracks: t.trackIds.join(', '), type: 'era_tunnel', source: rinfSISourceLine
+    },
+    geometry: { type: 'LineString', coordinates: [t.start, t.end] }
+  }))
+} : null;
+const rinfSISummary = rinfSI ? (() => {
+  const kmBy = (pick: (s: any) => string[]) => {
+    const m = new Map<string, number>();
+    for (const s of rinfSISections) { const keys = pick(s); for (const k of (keys.length ? keys : ['ni navedeno'])) m.set(k, (m.get(k) || 0) + (s.lengthKm || 0)); }
+    return [...m].map(([k, v]) => ({ key: k, km: Number(v.toFixed(1)) })).sort((a, b) => b.km - a.km);
+  };
+  const totalKm = Number(rinfSISections.reduce((a, s) => a + (s.lengthKm || 0), 0).toFixed(1));
+  const doubleKm = Number(rinfSISections.filter(s => s.trackCount >= 2).reduce((a, s) => a + (s.lengthKm || 0), 0).toFixed(1));
+  const byType: Record<string, number> = {};
+  for (const o of rinfSI.operationalPoints) byType[RINF_OP_TYPE_SL[o.type] || o.type] = (byType[RINF_OP_TYPE_SL[o.type] || o.type] || 0) + 1;
+  return {
+    source: rinfSI.source, endpoint: rinfSI.endpoint, license: rinfSI.license, retrieved: rinfSI.retrieved, validity: rinfSI.validity, note: rinfSI.note,
+    counts: { ...rinfSI.counts, sectionKm: totalKm, doubleTrackKm: doubleKm, byType },
+    kmByEnergySupply: kmBy(s => s.energySupply.length ? s.energySupply : ['brez elektrifikacije']),
+    kmByEtcsLevel: kmBy(s => s.etcsLevels.filter((l: string) => l !== 'NTC').map((l: string) => `ETCS L${l}`)).map(r => r.key === 'ni navedeno' ? { ...r, key: 'brez ETCS (ni navedene ravni)' } : r),
+    kmByCorridor: kmBy(s => s.freightCorridors),
+    kmByLoadCategory: kmBy(s => s.loadCategories),
+    kmByGauging: kmBy(s => s.gauging),
+    kmByProtection: kmBy(s => s.legacyProtection),
+    kmBySpeed: kmBy(s => [s.maxSpeedKmh != null ? `${s.maxSpeedKmh} km/h` : 'ni navedeno']),
+    borderPoints: rinfSI.operationalPoints.filter((o: any) => o.border).map((o: any) => ({
+      name: o.name, uopid: o.uopid, plc: o.plc, code: o.border.code, line: o.line, km: o.km, lat: o.lat, lon: o.lon,
+      partner: o.border.partner ? { ...o.border.partner, countrySl: RINF_COUNTRY_SL[o.border.partner.country] || o.border.partner.country } : null
+    })).sort((a: any, b: any) => a.name.localeCompare(b.name, 'sl')),
+    freightPoints: rinfSI.operationalPoints.filter((o: any) => /freight terminal|shunting yard/.test(o.type)).map((o: any) => ({
+      name: o.name, uopid: o.uopid, plc: o.plc, typeSl: RINF_OP_TYPE_SL[o.type], line: o.line, km: o.km, tracks: o.tracks, sidings: o.sidings, lat: o.lat, lon: o.lon
+    })),
+    longestTunnels: rinfSI.tunnels.slice(0, 10).map((t: any) => ({ name: t.name, lengthM: t.lengthM, line: t.line, kmStart: t.kmStart, sections: t.sectionIds.map((id: string) => rinfSIBySection.get(id)).filter(Boolean).map((s: any) => `${s.fromName} – ${s.toName}`) })),
+    partnerNote: 'Mejno točko opisujeta oba upravljavca pod isto kodo EU00xxx; partnerska točka je navedena, kadar jo sosednji upravljavec objavlja z isto referenco (v grafu: Italija in Madžarska).'
+  };
+})() : null;
+
+app.get('/api/rinf/summary', (_req, res) => {
+  if (!rinfSISummary) return res.status(503).json({ error: 'Nabor RINF za Slovenijo ni naložen' });
+  res.json(rinfSISummary);
+});
+app.get('/api/rinf/op/:uopid', (req, res) => {
+  const o = rinfSIByUopid.get(String(req.params.uopid));
+  if (!o) return res.status(404).json({ error: 'Operativne točke ni v naboru RINF' });
+  const sections = rinfSISections.filter(s => s.fromUopid === o.uopid || s.toUopid === o.uopid);
+  res.json({ ...o, typeSl: RINF_OP_TYPE_SL[o.type] || o.type, sections, source: rinfSISourceLine });
+});
+/**
+ * The RINF section a position lies on, by distance to the straight link
+ * between its two operational points. An estimate of which section, never a
+ * measurement of the train: the parameters are the register's.
+ */
+app.get('/api/rinf/at', (req, res) => {
+  if (!rinfSI) return res.status(503).json({ error: 'Nabor RINF za Slovenijo ni naložen' });
+  const lat = Number(req.query.lat), lon = Number(req.query.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({ error: 'lat in lon sta obvezna' });
+  const { best, nearestOp, nearestOpM } = rinfSINearest(lat, lon);
+  if (!best || best.distanceM > 5000) return res.json({ section: null, nearestOp: nearestOp ? { name: nearestOp.name, uopid: nearestOp.uopid, distanceM: Math.round(nearestOpM) } : null, note: 'Položaj je več kot 5 km od vseh odsekov slovenskega omrežja v RINF.' , source: rinfSISourceLine });
+  res.json({
+    section: best.section,
+    distanceToLinkM: Math.round(best.distanceM),
+    fractionAlong: Number(best.fraction.toFixed(3)),
+    nearestOp: nearestOp ? { name: nearestOp.name, uopid: nearestOp.uopid, plc: nearestOp.plc, typeSl: RINF_OP_TYPE_SL[nearestOp.type] || nearestOp.type, line: nearestOp.line, km: nearestOp.km, distanceM: Math.round(nearestOpM) } : null,
+    method: 'Odsek je izbran po zračni razdalji do ravne povezave med operativnima točkama; register RINF ne objavlja poteka trase, zato je izbira ocena, parametri pa so registrski.',
+    source: rinfSISourceLine
+  });
+});
+
 app.get('/api/era/telemetry', async (req, res) => {
     const now = Date.now();
     if (eraTelemetryCache.length > 0 && (now - eraTelemetryLastFetch < ERA_CACHE_TTL)) {
@@ -12518,6 +12699,7 @@ app.get('/api/era/telemetry', async (req, res) => {
 
 app.get('/api/rinf/network', async (req, res) => {
     const now = Date.now();
+    if (rinfSINetworkFC) return res.json(rinfSINetworkFC);
     if (rinfNetworkCache.features && rinfNetworkCache.features.length > 0 && (now - rinfNetworkLastFetch < ERA_CACHE_TTL)) {
         return res.json(rinfNetworkCache);
     }
@@ -12586,6 +12768,7 @@ app.get('/api/rinf/network', async (req, res) => {
 
 app.get('/api/rinf/stations', async (req, res) => {
     const now = Date.now();
+    if (rinfSIStationNodes.length) return res.json(rinfSIStationNodes);
     if (rinfStationsCache.length > 0 && (now - rinfStationsLastFetch < ERA_CACHE_TTL)) {
         return res.json(rinfStationsCache);
     }
@@ -12646,6 +12829,7 @@ app.get('/api/rinf/stations', async (req, res) => {
 
 app.get("/api/era/tunnels", async (req, res) => {
     const now = Date.now();
+    if (rinfSITunnelsFC) return res.json(rinfSITunnelsFC);
     if (eraTunnelsCache.features && eraTunnelsCache.features.length > 0 && (now - eraTunnelsLastFetch < ERA_CACHE_TTL)) {
         return res.json(eraTunnelsCache);
     }

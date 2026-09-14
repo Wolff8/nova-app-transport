@@ -37,6 +37,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [activeTrains, setActiveTrains] = useState<any[]>([]);
   const [freightPayload, setFreightPayload] = useState<any>(null);
   const [murskaSobotaData, setMurskaSobotaData] = useState<any>(null);
+  const [rinfSummary, setRinfSummary] = useState<any>(null);
   const [trainFilter, setTrainFilter] = useState<'running' | 'terminals' | 'all'>('running');
   const [msDirectionFilter, setMsDirectionFilter] = useState<'all' | 'hodos' | 'koper'>('all');
   
@@ -47,6 +48,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
 
   useEffect(() => {
     if (!isOpen) return;
+
+    fetch('/api/rinf/summary').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setRinfSummary(j); }).catch(() => {});
 
     // Load active trains with real-time timetable integration
     const loadTrains = () => {
@@ -585,6 +588,98 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                     </div>
                     <a href={first?.source} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-sky-300/80 hover:text-sky-200 break-all block">
                       vir: {first?.source}{first?.retrieved ? ` · prebrano ${first.retrieved}` : ''}
+                    </a>
+                  </div>
+                );
+              })()}
+
+              {/* The Slovenian network as ERA's RINF register describes it:
+                  kilometres by electrification, ETCS, corridor and load
+                  category, border points with their partner points, freight
+                  points and the longest tunnels. All of it is the manager's
+                  submission to the register, none of it is derived here. */}
+              {rinfSummary && (() => {
+                const rs = rinfSummary;
+                const KmList = ({ title, rows }: { title: string; rows: any[] }) => (
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                    <div className="text-[9.5px] uppercase font-mono tracking-wider text-sky-300 mb-1">{title}</div>
+                    <ul className="space-y-0.5">
+                      {rows.map((r: any) => (
+                        <li key={r.key} className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                          <span className="text-white/85 truncate">{r.key}</span>
+                          <span className="font-mono text-white shrink-0">{r.km} km</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+                return (
+                  <div className="mt-4 rounded-xl border border-sky-500/30 bg-sky-950/15 p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="text-[11px] font-bold text-white uppercase tracking-wide">Slovensko omrežje v registru infrastrukture (ERA RINF)</div>
+                      <span className="text-[9px] font-mono text-sky-200/80">graf upravljavca 0079 · {rs.validity?.[0]?.replace('Validity period', 'veljavnost') || ''}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                      {[
+                        ['operativnih točk', rs.counts.operationalPoints], ['odsekov prog', rs.counts.sections],
+                        ['km odsekov', rs.counts.sectionKm], ['km dvotirnih', rs.counts.doubleTrackKm],
+                        ['tirov v odsekih', rs.counts.tracks], ['predorov', rs.counts.tunnels],
+                        ['mejnih točk', rs.borderPoints.length], ['tovornih točk', rs.freightPoints.length]
+                      ].map(([l, v]) => (
+                        <div key={String(l)} className="rounded-lg bg-black/25 border border-white/10 px-2 py-1.5">
+                          <div className="text-[15px] font-bold font-mono text-white">{v as any}</div>
+                          <div className="text-[9px] uppercase text-text-dim">{l as any}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <KmList title="Elektrifikacija" rows={rs.kmByEnergySupply} />
+                      <KmList title="ETCS" rows={rs.kmByEtcsLevel} />
+                      <KmList title="Tovorni koridorji (RFC)" rows={rs.kmByCorridor} />
+                      <KmList title="Kategorija proge (osna obremenitev)" rows={rs.kmByLoadCategory} />
+                      <KmList title="Nakladalni profil" rows={rs.kmByGauging} />
+                      <KmList title="Zaščita vlaka razreda B" rows={rs.kmByProtection} />
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                      <div className="text-[9.5px] uppercase font-mono tracking-wider text-sky-300 mb-1">Mejne točke (referenca EU, TAF koda, partnerska točka)</div>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5">
+                        {rs.borderPoints.map((b: any) => (
+                          <li key={b.uopid} className="text-[10.5px] leading-snug">
+                            <span className="text-white/90">{b.name}</span>
+                            <span className="font-mono text-text-dim"> · {b.code}{b.plc ? ` · TAF ${b.plc}` : ''}{b.line ? ` · proga ${b.line} km ${b.km}` : ''}</span>
+                            {b.partner ? <span className="block font-mono text-[9.5px] text-emerald-200/80">↔ {b.partner.name} ({b.partner.countrySl}, {b.partner.uopid})</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-[9px] text-text-dim mt-1">{rs.partnerNote}</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                        <div className="text-[9.5px] uppercase font-mono tracking-wider text-sky-300 mb-1">Tovorni terminali in ranžirna postaja</div>
+                        <ul className="space-y-0.5">
+                          {rs.freightPoints.map((f: any) => (
+                            <li key={f.uopid} className="text-[10.5px] leading-snug">
+                              <span className="text-white/90">{f.name}</span>
+                              <span className="font-mono text-text-dim"> · {f.typeSl}{f.plc ? ` · TAF ${f.plc}` : ''} · {f.tracks} tirov / {f.sidings} stranskih</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="rounded-lg border border-white/10 bg-black/20 p-2.5">
+                        <div className="text-[9.5px] uppercase font-mono tracking-wider text-sky-300 mb-1">Najdaljši predori</div>
+                        <ul className="space-y-0.5">
+                          {rs.longestTunnels.map((t: any) => (
+                            <li key={t.name} className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                              <span className="text-white/85 truncate">{t.name}{t.line ? ` (proga ${t.line})` : ''}</span>
+                              <span className="font-mono text-white shrink-0">{t.lengthM} m</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                    <p className="text-[9px] leading-snug text-text-dim">{rs.note}</p>
+                    <a href={rs.endpoint} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-sky-300/80 hover:text-sky-200 break-all block">
+                      vir: {rs.source} · posnetek {String(rs.retrieved).slice(0, 10)} · licenca: {rs.license}
                     </a>
                   </div>
                 );

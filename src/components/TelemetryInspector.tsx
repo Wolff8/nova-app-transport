@@ -67,6 +67,9 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
   const [trainTripData, setTrainTripData] = useState<TrainTripData | null>(null);
   const [loadingTrip, setLoadingTrip] = useState<boolean>(false);
   const [tripError, setTripError] = useState<string | null>(null);
+  // The RINF section under the train: the register's parameters for that
+  // piece of line (speed, gauging, load category, electrification, ETCS).
+  const [rinfAt, setRinfAt] = useState<any>(null);
 
   // Departures & Timetable State
   const [stationDepartures, setStationDepartures] = useState<any[]>([]);
@@ -484,6 +487,20 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  useEffect(() => {
+    setRinfAt(null);
+    if (!(isTrain || isModelledFreight)) return;
+    const lat = node?.coordinates?.[1], lon = node?.coordinates?.[0];
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    let active = true;
+    fetch(`/api/rinf/at?lat=${lat}&lon=${lon}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (active && j) setRinfAt(j); })
+      .catch(() => {});
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node?.id, isTrain, isModelledFreight]);
 
   const getTypeIcon = () => {
     switch (node.type) {
@@ -1913,6 +1930,46 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                     any freight train. Modelled freight states its own real error
                     (±km from the corridor model) in its own panel, so there is
                     nothing here to replace it with. */}
+
+                {/* ERA RINF: the section of line the position falls on and
+                    what the register says about it. Infrastructure data, not
+                    train data, and the section is picked by distance to the
+                    straight OP–OP link, which the block says. */}
+                {(isTrain || isModelledFreight) && rinfAt?.section && (() => {
+                  const sec = rinfAt.section;
+                  const row = (label: string, value: any, strong = false) => value == null || value === '' ? null : (
+                    <div key={label} className="flex items-baseline justify-between gap-2 text-[10.5px] leading-snug">
+                      <span className="text-text-dim shrink-0">{label}</span>
+                      <span className={`font-mono text-right ${strong ? 'text-white' : 'text-white/80'}`}>{value}</span>
+                    </div>
+                  );
+                  return (
+                    <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-3 mt-2 mb-4 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[10px] uppercase font-mono tracking-wider text-sky-300">Odsek proge (ERA RINF)</div>
+                        <span className="text-[9px] font-mono text-sky-200/70">registrski podatki, ne vlak</span>
+                      </div>
+                      <div className="text-[12px] font-semibold text-white">proga {sec.line}: {sec.fromName} – {sec.toName}</div>
+                      <div className="text-[9.5px] font-mono text-text-dim">
+                        {sec.lengthKm} km · {sec.trackCount === 1 ? 'enotirna' : `${sec.trackCount} tira`} · {rinfAt.distanceToLinkM} m od ravne povezave točk{rinfAt.nearestOp ? ` · najbližja točka ${rinfAt.nearestOp.name} (${rinfAt.nearestOp.distanceM} m${rinfAt.nearestOp.plc ? `, TAF ${rinfAt.nearestOp.plc}` : ''})` : ''}
+                      </div>
+                      <div className="border-t border-white/10 pt-1.5 space-y-0.5">
+                        {row('Največja progovna hitrost', sec.maxSpeedKmh != null ? `${sec.minSpeedKmh != null && sec.minSpeedKmh !== sec.maxSpeedKmh ? `${sec.minSpeedKmh}–` : ''}${sec.maxSpeedKmh} km/h` : null, true)}
+                        {row('Elektrifikacija', sec.energySupply?.length ? sec.energySupply.join(', ') : 'brez elektrifikacije', true)}
+                        {row('Kategorija proge', sec.loadCategories?.join(', '), true)}
+                        {row('Nakladalni profil', sec.gauging?.join(', '))}
+                        {row('ETCS', sec.etcsLevels?.length ? `raven ${sec.etcsLevels.join('/')}${sec.etcsBaselines?.length ? ` (${sec.etcsBaselines.join(', ')})` : ''}` : 'brez navedene ravni')}
+                        {row('Zaščita vlaka', [...(sec.legacyProtection || []), ...(sec.otherProtection || [])].join(', '))}
+                        {row('Tovorni koridorji', sec.freightCorridors?.join(', '))}
+                        {row('Najmanjši polmer krivine', sec.minHorizontalRadiusM != null ? `${sec.minHorizontalRadiusM} m` : null)}
+                        {row('Nivojski prehodi / detektor pregretih osi', `${sec.levelCrossings ? 'da' : 'ne'} / ${sec.hotAxleBoxDetector ? 'da' : 'ne'}`)}
+                        {sec.tunnels?.length ? row('Predori na odseku', sec.tunnels.map((t: any) => `${t.name} (${t.lengthM} m)`).join('; ')) : null}
+                      </div>
+                      <p className="text-[9px] leading-snug text-text-dim/80">{rinfAt.method}</p>
+                      <p className="text-[9px] leading-snug font-mono text-sky-200/60 break-words">vir: {rinfAt.source}</p>
+                    </div>
+                  );
+                })()}
 
                 {/* VagonWEB & Fleet Composition Live Data & Cross-Border Freight Telematics (Train only, NEVER stations/yards) */}
                 {isTrain && loadingVagonweb && (!vagonwebData || vagonwebData.length === 0) && !crossBorderFreight && (

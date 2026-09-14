@@ -3614,6 +3614,9 @@ export class MapController {
         metrics.push({ label: "Infrastruktura", value: "Železniški predor", highlight: true });
 
         if (data.length) metrics.push({ label: "Dolžina", value: data.length, unit: "m", highlight: true });
+        if (data.line) metrics.push({ label: "Proga / km začetka", value: `proga ${data.line}, km ${data.kmStart != null ? Number(data.kmStart).toFixed(3) : '?'}`, highlight: false });
+        if (data.sections) metrics.push({ label: "Odsek", value: data.sections, highlight: false });
+        if (data.tracks) metrics.push({ label: "Tir", value: data.tracks, highlight: false });
 
         metrics.push({ label: "Vir", value: "ERA Ontology (RINF-Plus)", highlight: false });
 
@@ -3623,11 +3626,28 @@ export class MapController {
         data.name = data.name || (data.id ? `Odsek proge ${data.id}` : 'Železniški odsek (RINF)');
         metrics.push({ label: 'Identifikator odseka (SOL)', value: data.id || 'N/A', highlight: true });
         if (data.solUri) metrics.push({ label: 'ERA RINF URI', value: data.solUri, highlight: false });
-        metrics.push({ label: 'Infrastruktura', value: 'Železniška proga (Section of Line)', highlight: true });
+        if (data.line) {
+            // The register's own track parameters for this section.
+            metrics.push({ label: 'Dolžina odseka', value: data.lengthKm, unit: 'km', highlight: true });
+            metrics.push({ label: 'Število tirov', value: data.trackCount === 1 ? 'enotirna' : `${data.trackCount} (dvotirna)`, highlight: false });
+            if (data.maxSpeedKmh != null) metrics.push({ label: 'Največja progovna hitrost', value: data.minSpeedKmh != null && data.minSpeedKmh !== data.maxSpeedKmh ? `${data.minSpeedKmh}–${data.maxSpeedKmh}` : data.maxSpeedKmh, unit: 'km/h', highlight: true });
+            metrics.push({ label: 'Elektrifikacija', value: data.energySupply || 'ni navedena', highlight: true });
+            if (data.loadCategories) metrics.push({ label: 'Kategorija proge (osna obremenitev)', value: data.loadCategories, highlight: true });
+            if (data.gauging) metrics.push({ label: 'Nakladalni profil', value: data.gauging, highlight: false });
+            if (data.wheelSetGauge) metrics.push({ label: 'Tirna širina', value: data.wheelSetGauge, unit: 'mm', highlight: false });
+            metrics.push({ label: 'ETCS', value: data.etcsLevels ? `raven ${data.etcsLevels}${data.etcsBaselines ? ` (${data.etcsBaselines})` : ''}` : 'brez navedene ravni', highlight: false });
+            if (data.legacyProtection) metrics.push({ label: 'Zaščita vlaka (razred B)', value: `${data.legacyProtection}${data.otherProtection ? `, ${data.otherProtection}` : ''}`, highlight: false });
+            if (data.freightCorridors) metrics.push({ label: 'Tovorni koridorji (RFC)', value: data.freightCorridors, highlight: true });
+            if (data.minHorizontalRadiusM != null) metrics.push({ label: 'Najmanjši polmer krivine', value: data.minHorizontalRadiusM, unit: 'm', highlight: false });
+            if (data.maxAltitudeM != null) metrics.push({ label: 'Največja nadmorska višina', value: data.maxAltitudeM, unit: 'm', highlight: false });
+            metrics.push({ label: 'Nivojski prehodi / detektor pregretih osi', value: `${data.levelCrossings ? 'da' : 'ne'} / ${data.hotAxleBoxDetector ? 'da' : 'ne'}`, highlight: false });
+            if (data.tunnels) metrics.push({ label: 'Predori na odseku', value: data.tunnels, highlight: false });
+            metrics.push({ label: 'Črta na zemljevidu', value: 'ravna povezava med točkama; RINF ne objavlja poteka trase', highlight: false });
+        }
+        metrics.push({ label: 'Infrastruktura', value: 'Železniška proga (Section of Line)', highlight: !data.line });
         metrics.push({ label: 'Država', value: 'Slovenija 🇸🇮 (SVN)', highlight: false });
-        metrics.push({ label: 'Upravljavec', value: 'SŽ - Infrastruktura, d.o.o.', highlight: true });
-        metrics.push({ label: 'Omrežje', value: 'TEN-T / RFC (Evropsko železniško omrežje)', highlight: false });
-        metrics.push({ label: 'Vir podatkov', value: 'ERA RINF-Plus SPARQL (Evropska železniška agencija)', highlight: false });
+        metrics.push({ label: 'Upravljavec', value: 'SŽ - Infrastruktura, d.o.o. (koda 0079)', highlight: !data.line });
+        metrics.push({ label: 'Vir podatkov', value: data.source || 'ERA RINF-Plus SPARQL (Evropska železniška agencija)', highlight: false });
     }
 
     if (type === 'rail_track') {
@@ -3666,6 +3686,19 @@ export class MapController {
           metrics.push({ label: 'Vozni red & Odhodi', value: 'Odpri zavihek "Vozni red" za žive odhode vlakov/avtobusov', highlight: true });
           if (data.trackCount != null) {
               metrics.push({ label: 'Število tirov', value: data.trackCount, highlight: true });
+          }
+          // What the register itself says about the point: its UOPID, the
+          // TAF TSI primary location code that TrainRunningInformation
+          // messages carry, the line and kilometre, and the partner point
+          // across the border where the neighbour publishes one.
+          if (data.uopid && data.opTypeSl) {
+              metrics.push({ label: 'Vrsta točke (RINF)', value: data.opTypeSl, highlight: true });
+              metrics.push({ label: 'UOPID', value: data.uopid, highlight: false });
+              metrics.push({ label: 'TAF TSI koda lokacije (primary location code)', value: data.plc || 'ni objavljena', highlight: !!data.plc });
+              if (data.line) metrics.push({ label: 'Proga / km', value: `proga ${data.line}, km ${data.km != null ? Number(data.km).toFixed(3) : '?'}`, highlight: false });
+              if (data.tracks != null) metrics.push({ label: 'Tiri / stranski tiri (RINF)', value: `${data.tracks} / ${data.sidings ?? 0}`, highlight: false });
+              if (data.borderCode) metrics.push({ label: 'Mejna referenca', value: data.borderPartner ? `${data.borderCode} ↔ ${data.borderPartner}` : `${data.borderCode} (sosednji upravljavec v grafu ne objavlja partnerske točke)`, highlight: true });
+              if (data.source) metrics.push({ label: 'Vir', value: data.source, highlight: false });
           }
     }
     if (type === 'hydro') {
@@ -4084,6 +4117,9 @@ export class MapController {
         metrics.push({ label: "Infrastruktura", value: "Železniški predor", highlight: true });
 
         if (data.length) metrics.push({ label: "Dolžina", value: data.length, unit: "m", highlight: true });
+        if (data.line) metrics.push({ label: "Proga / km začetka", value: `proga ${data.line}, km ${data.kmStart != null ? Number(data.kmStart).toFixed(3) : '?'}`, highlight: false });
+        if (data.sections) metrics.push({ label: "Odsek", value: data.sections, highlight: false });
+        if (data.tracks) metrics.push({ label: "Tir", value: data.tracks, highlight: false });
 
         metrics.push({ label: "Vir", value: "ERA Ontology (RINF-Plus)", highlight: false });
 
