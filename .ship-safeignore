@@ -1,7 +1,0 @@
-# ship-safe path exclusions.
-#
-# DeveloperDocsModal renders example firmware snippets (ESP32 / C-ITS) for
-# readers. The Wi-Fi credential placeholders in those snippets are
-# documentation, not real values. Excluded here rather than with an in-line
-# marker, which would show up in the rendered docs.
-src/components/DeveloperDocsModal.tsx

@@ -95,8 +95,7 @@ export const DeveloperDocsModal: React.FC<DeveloperDocsModalProps> = ({ onClose 
 #include <ArduinoJson.h>
 
 // ESP32-C5 Wi-Fi 6 Configuration
-const char* ssid = "<WIFI_SSID>";
-const char* password = "<WIFI_PASSWORD>";
+// Wi-Fi credentials are provisioned on the device (NVS), never in source.
 const char* mqtt_server = "cits.broker.example.com"; // C-Roads AMQP/MQTT broker
 
 WiFiClient espClient;
@@ -104,7 +103,7 @@ PubSubClient client(espClient);
 
 void setup_wifi() {
   // ESP32-C5 specific Wi-Fi 6 optimizacije se vklopijo avtomatsko v ESP-IDF v5+
-  WiFi.begin(ssid, password);
+  WiFi.begin(); // connects with the credentials stored on the device
   while (WiFi.status() != WL_CONNECTED) { delay(500); }
 }
 
