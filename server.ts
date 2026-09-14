@@ -11710,7 +11710,12 @@ app.post('/api/log', express.json(), (req, res) => {
        * carry stays on the map: measured live, 22 of 48 TRAVIC ÖBB trains sit
        * more than ten kilometres from any HAFAS train and are untouched.
        */
+      // The HAFAS layer is built only when a client asks for it, while this
+      // snapshot runs from startup, so on a fresh instance there is nothing to
+      // compare against and both copies of a train would be drawn. Asking for
+      // a refresh here without waiting for it gives the next snapshot the list.
       const namedFromHafas: any[] = Array.isArray((global as any).latestTrainsList) ? (global as any).latestTrainsList : [];
+      if (!namedFromHafas.length) refreshHafas().catch(() => { /* the next snapshot tries again */ });
       const operatorKey = (v: any) => String(v?.operator || '').toLowerCase().replace(/[^a-z]/g, '').slice(0, 6);
       const numberedByOperator = new Map<string, any[]>();
       for (const h of namedFromHafas) {
