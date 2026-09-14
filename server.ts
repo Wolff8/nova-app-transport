@@ -7877,7 +7877,16 @@ app.post('/api/log', express.json(), (req, res) => {
         const lon = Number(t['@Lon']);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
-        const trainNum = String(t['@TrainNumber'] ?? '').trim();
+        // Western Hungary is on the map already through the HAFAS layer,
+        // where the same vonatinfo record carries its GTFS category, heading,
+        // next stops and route. Listing it here as well drew every train
+        // there twice ("MÁV 439112" next to "R 9112").
+        if (lat >= MAV_BBOX.minLat && lat <= MAV_BBOX.maxLat && lon <= MAV_BBOX.maxLon) return null;
+
+        // vonatinfo prefixes the number with the operator's UIC code
+        // (55 = MÁV, 43 = GySEV): "439112" is train 9112.
+        const rawNum = String(t['@TrainNumber'] ?? '').replace(/\D/g, '');
+        const trainNum = rawNum.length >= 4 && /^(55|43)/.test(rawNum) ? rawNum.slice(2) : rawNum;
         const relation = String(t['@Relation'] ?? '').trim();
         const [origin, destination] = relation.split('-').map((s: string) => s.trim());
         const delayMin = Math.round(Number(t['@Delay']) || 0);
@@ -7887,7 +7896,7 @@ app.post('/api/log', express.json(), (req, res) => {
         return {
           id: `mav_${trainNum}_${t['@ElviraID'] ?? ''}`,
           tripId: String(t['@ElviraID'] ?? trainNum),
-          name: trainNum ? `MÁV ${trainNum}` : 'MÁV vlak',
+          name: trainNum ? `${operator === 'GYSEV' ? 'GySEV' : 'MÁV'} ${trainNum}` : 'MÁV vlak',
           trainNum,
           type: 'train',
           lat,
