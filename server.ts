@@ -10901,8 +10901,18 @@ app.post('/api/log', express.json(), (req, res) => {
       .filter(s => wanted.some(w => norm(s.name) === w))
       .map(s => ({ code: s.code, uic: s.uic, name: s.name, generalMarkers: s.generalMarkers, specialMarkers: s.specialMarkers, loadingPlaces: (diumSI.loadingPlaces as any[]).filter(l => l.station === s.code).length })) : [];
 
+    // What operators say about their own trains on this relation (length,
+    // TEU), where they publish it; attached by operator name.
+    const services = (b.publishedServices ?? []) as any[];
+    const operatorStatements = services
+      .map(s => ({ operator: s.operator, statement: papParams?.operatorStatements?.[String(s.operator).split(' ')[0].toUpperCase()] ?? null }))
+      .filter(x => x.statement);
+
     res.json({
       papId: b.papId, trainNumber: b.trainNumber ?? null, relation: b.relationLabel ?? b.relation,
+      parameters: papParametersFor(String(b.papId)),
+      lineLimits: lineLimitsFor(String(b.corridor)),
+      operatorStatements,
       borders, capacity, works, dium,
       diumLegend: diumSI?.legend ?? null,
       publishedServices: b.publishedServices ?? null,
@@ -12749,6 +12759,73 @@ const szTcrWorks: any[] = szTcr ? (szTcr.restrictions as any[]).map((r, i) => {
     located: !!(fromPoint && toPoint)
   };
 }) : [];
+/**
+ * What the PaP catalogues publish about the train a path is built for —
+ * maximum length and weight, reference locomotive, profile, planned speed
+ * (src/data/papParameters.json, transcribed from the RFC11 DigiCat and the
+ * RFC10 parameter sheet). Limits of the path, never a train's composition.
+ */
+let papParams: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'papParameters.json');
+  if (fs.existsSync(p)) {
+    papParams = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[PaP] parameter sets:', Object.keys(papParams.parameterSets || {}).length, '· paths with parameters:', Object.keys(papParams.pathParameters || {}).length);
+  }
+} catch (e: any) { console.warn('[PaP] papParameters.json failed:', e?.message); }
+function papParametersFor(papId: string): any | null {
+  const pp = papParams?.pathParameters?.[papId];
+  if (!pp) return null;
+  return {
+    catalogue: pp.catalogue, dossierType: pp.dossierType ?? null,
+    sections: (pp.sections || []).map((s: any) => {
+      const set = papParams.parameterSets?.[s.parameterSet] || null;
+      const locos = (set?.referenceLoco || []).map((code: string) => papParams.locoTypes?.[code]?.label || code);
+      return { ...s, parameters: set ? { ...set, referenceLocoLabels: locos } : null };
+    }),
+    source: papParams.source, sourceUrl: papParams.sourceUrls?.[pp.catalogue] ?? null, retrieved: papParams.retrieved, note: papParams.note
+  };
+}
+
+/**
+ * The infrastructure manager's maximum train length per line (Network
+ * Statement 2026, point 2.3.8; src/data/szMaxTrainLength2026.json). The
+ * lines each drawn corridor runs over are listed here, so a path gets the
+ * limits of its lines and the smallest of them — the one that binds.
+ */
+let szMaxLen: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'szMaxTrainLength2026.json');
+  if (fs.existsSync(p)) {
+    szMaxLen = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[SŽI] max train length per line:', szMaxLen.lines.length, 'rows · general freight', szMaxLen.general?.freightM, 'm');
+  }
+} catch (e: any) { console.warn('[SŽI] szMaxTrainLength2026.json failed:', e?.message); }
+const CORRIDOR_LINES: Record<string, string[]> = {
+  'koper-hodos': ['62', '60', '50', '10', '30', '40', '41'],
+  'opicina-dobova': ['50', '10'],
+  'dobova-maribor': ['10', '30'],
+  'pragersko-spielfeld': ['30'],
+  'koper-spielfeld': ['62', '60', '50', '10', '30'],
+  'koper-dobova': ['62', '60', '50', '10'],
+  'ljubljana-jesenice': ['20']
+};
+function lineLimitsFor(corridor: string): any | null {
+  if (!szMaxLen) return null;
+  const wanted = CORRIDOR_LINES[corridor];
+  if (!wanted) return null;
+  const lines = (szMaxLen.lines as any[]).filter(l => wanted.includes(String(l.line)));
+  if (!lines.length) return null;
+  return {
+    corridor, lines,
+    bindingM: Math.min(...lines.map(l => Number(l.maxTrainLengthM))),
+    generalFreightM: szMaxLen.general?.freightM ?? null,
+    generalPassengerM: szMaxLen.general?.passengerM ?? null,
+    footnote: szMaxLen.footnote1 ?? null,
+    source: szMaxLen.source, sourceUrl: szMaxLen.sourceUrl, documentPages: szMaxLen.documentPages, retrieved: szMaxLen.retrieved
+  };
+}
+
 if (szTcr) console.log('[TCR] Network Statement 2026 closures:', szTcrWorks.length, 'rows,', szTcrWorks.filter(w => w.located).length, 'placed on the map,', szTcrWorks.filter(w => !w.dateFrom).length, 'without dates');
 
 app.get('/api/freight/tcr-ns', (_req, res) => {
@@ -14344,11 +14421,15 @@ app.get("/api/era/track", (req, res) => {
         
         const encodedZeme = encodeURIComponent(zeme);
         let scrapedWagons: string[] = [];
+        // Why a composition did or did not come back — returned with the
+        // answer so an empty result can be told apart from a blocked one.
+        const vagonwebStatus: any = { zeme, train: num, httpStatus: null, error: null, htmlLength: 0, matched: 0 };
 
         try {
             const url = `https://www.vagonweb.cz/razeni/vlak.php?zeme=${encodedZeme}&cislo=${encodeURIComponent(num)}`;
+            vagonwebStatus.url = url;
             const response = await fetch(url, {
-                signal: AbortSignal.timeout(3000),
+                signal: AbortSignal.timeout(8000),
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -14358,11 +14439,15 @@ app.get("/api/era/track", (req, res) => {
                 }
             });
             
+            vagonwebStatus.httpStatus = response.status;
             if (response.ok) {
                 const html = await response.text();
+                vagonwebStatus.htmlLength = html.length;
                 if (!html.includes('Chyba 403')) {
                     const regex = /<span title='[^']+'>([^<]+)<\/span>\s*<span class=tab-radam>([^<]+)/g;
                     const matches = [...html.matchAll(regex)];
+                    vagonwebStatus.matched = matches.length;
+                    vagonwebStatus.hasRazeni = /tab-radam|razeni/.test(html);
                     const allWagons = matches.map(m => m[1] + ' ' + m[2].replace(/<[^>]+>/g, '').trim());
                     
                     const firstVariantBlock = html.split('Zobrazit další')[0];
@@ -14373,8 +14458,9 @@ app.get("/api/era/track", (req, res) => {
                     }
                 }
             }
-        } catch (fetchErr) {
-            // Non-blocking fetch error, will fallback to realistic
+        } catch (fetchErr: any) {
+            // Non-blocking fetch error; the status says what happened.
+            vagonwebStatus.error = fetchErr?.name === 'TimeoutError' ? 'timeout' : String(fetchErr?.message || fetchErr);
         }
 
         // Validate scraped wagons against operator
@@ -14398,6 +14484,7 @@ app.get("/api/era/track", (req, res) => {
         if (validScraped && scrapedWagons.length > 0) {
             return res.json({
                 composition: scrapedWagons,
+                vagonwebStatus,
                 operator: realistic.operator,
                 trainType: realistic.trainType,
                 locomotive: resolvedLoco,
@@ -14412,6 +14499,7 @@ app.get("/api/era/track", (req, res) => {
         return res.json({
             composition: [],
             compositionNote: 'VagonWEB nima sestave za ta vlak; sestava ni objavljena.',
+            vagonwebStatus,
             operator: realistic.operator,
             trainType: null,
             locomotive: resolvedLoco,

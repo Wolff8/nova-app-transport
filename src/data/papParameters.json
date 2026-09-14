@@ -1,0 +1,36 @@
+{
+  "source": "RFC Amber (RFC11) – DigiCat TT2026 (DigiCat TT2026_Amber.xlsx), listi »Parametre_matrix«, »Loco types«, »Hodos - Ljubljana«, »Ljubljana- Koper tovorna«; RFC Alpine-Western Balkan (RFC10) – Pre-arranged train paths TT2025/2026, list »Parameter set code«",
+  "sourceUrls": {
+    "RFC11": "https://www.rfc-amber.eu/assets/downloads/capacity_allocation/DigiCat%20TT2026_Amber.xlsx",
+    "RFC10": "https://www.rfc-awb.eu/wp-content/uploads/2019/02/Pre-arranged-train-paths-for-Timetable-2025-2026-1.xlsx"
+  },
+  "retrieved": "2026-09-14",
+  "note": "Parametri vnaprej pripravljenih poti (PaP), kot jih objavlja katalog: največja dolžina in masa vlaka, ki ju pot dopušča, referenčna lokomotiva, profil, načrtovana hitrost in najmanjši zavorni odstotek. To so meje poti, ne dejanska sestava vlaka; sestave tovornih vlakov ne objavlja nihče. Vrednosti so prepisane iz preglednic; prazno polje pomeni, da ga katalog ne navaja.",
+  "locoTypes": {
+    "LOCO12": { "im": "SŽ-I", "typeOfLoco": "1 – električna", "countryCode": "79", "series": "541", "label": "SŽ 541 (Siemens ES64U4 »Taurus«)" },
+    "LOCO13": { "im": "SŽ-I", "typeOfLoco": "1 – električna", "countryCode": "79", "series": "363", "label": "SŽ 363 (Alsthom)" }
+  },
+  "parameterSets": {
+    "7SZ1": { "catalogue": "RFC11", "im": "SŽ-I", "maxTrainLengthM": 550, "maxTrainWeightT": 1580, "maxSetLengthM": null, "maxSetWeightT": 1493, "referenceLoco": ["LOCO12"], "profile": "P/C 80/400", "plannedSpeedKmh": 100, "minBrakedWeightPercent": 77, "other": "brake position G" },
+    "7SZ2": { "catalogue": "RFC11", "im": "SŽ-I", "maxTrainLengthM": 525, "maxTrainWeightT": 1580, "maxSetLengthM": null, "maxSetWeightT": 1465, "referenceLoco": ["LOCO13"], "profile": "P/C 80/400", "plannedSpeedKmh": 75, "minBrakedWeightPercent": 60, "other": "brake position G" },
+    "7SZ4": { "catalogue": "RFC11", "im": "SŽ-I", "maxTrainLengthM": 570, "maxTrainWeightT": 1580, "maxSetLengthM": null, "maxSetWeightT": 1465, "referenceLoco": ["LOCO13"], "profile": "P/C 80/400", "plannedSpeedKmh": 75, "minBrakedWeightPercent": 60, "other": "brake position G" },
+    "7SZ5": { "catalogue": "RFC11", "im": "SŽ-I", "maxTrainLengthM": 620, "maxTrainWeightT": 1580, "maxSetLengthM": 600, "maxSetWeightT": 1465, "referenceLoco": ["LOCO13"], "profile": "P/C 80/400", "plannedSpeedKmh": 75, "minBrakedWeightPercent": 60, "other": "brake position G" },
+    "7SZ6": { "catalogue": "RFC11", "im": "SŽ-I", "maxTrainLengthM": 520, "maxTrainWeightT": 1580, "maxSetLengthM": 500, "maxSetWeightT": 1465, "referenceLoco": ["LOCO13"], "profile": "P/C 80/400", "plannedSpeedKmh": 75, "minBrakedWeightPercent": 51, "other": "brake position G" },
+    "7SZ7": { "catalogue": "RFC11", "im": "SŽ-I", "maxTrainLengthM": 590, "maxTrainWeightT": 1580, "maxSetLengthM": 550, "maxSetWeightT": 1465, "referenceLoco": ["LOCO13", "LOCO13"], "profile": "P/C 80/400", "plannedSpeedKmh": 75, "minBrakedWeightPercent": 51, "other": "brake position G" },
+    "07SZ1": { "catalogue": "RFC10", "im": "SŽ-I", "maxTrainLengthM": 570, "maxTrainWeightT": 1887, "maxSetLengthM": 550, "maxSetWeightT": 1800, "referenceLoco": ["79-312"], "profile": "P/C 80/410", "plannedSpeedKmh": null, "minBrakedWeightPercent": null, "other": null },
+    "07SZ2": { "catalogue": "RFC10", "im": "SŽ-I", "maxTrainLengthM": 570, "maxTrainWeightT": 1887, "maxSetLengthM": 550, "maxSetWeightT": 1800, "referenceLoco": ["79-312", "79-189"], "profile": "P/C 80/410", "plannedSpeedKmh": null, "minBrakedWeightPercent": null, "other": null },
+    "07SZ3": { "catalogue": "RFC10", "im": "SŽ-I", "maxTrainLengthM": 570, "maxTrainWeightT": 1887, "maxSetLengthM": 550, "maxSetWeightT": 1800, "referenceLoco": ["79-312"], "profile": "P/C 80/410", "plannedSpeedKmh": null, "minBrakedWeightPercent": null, "other": null },
+    "07SZ4": { "catalogue": "RFC10", "im": "SŽ-I", "maxTrainLengthM": 570, "maxTrainWeightT": 1887, "maxSetLengthM": 550, "maxSetWeightT": 1800, "referenceLoco": ["79-312", "79-189"], "profile": "P/C 80/410", "plannedSpeedKmh": null, "minBrakedWeightPercent": null, "other": null },
+    "07SZ5": { "catalogue": "RFC10", "im": "SŽ-I", "maxTrainLengthM": 550, "maxTrainWeightT": 1900, "maxSetLengthM": 526, "maxSetWeightT": 1800, "referenceLoco": ["79-312"], "profile": "P/C 80/411", "plannedSpeedKmh": null, "minBrakedWeightPercent": null, "other": null }
+  },
+  "operatorStatements": {
+    "METRANS": { "operator": "METRANS", "trainLengthM": 720, "teu": 108, "quote": "This enabled our trains to reach a length of up to 720m, containing 108 TEUs, making rail operation cost-efficient for you.", "source": "https://metrans.eu/solutions/metrans-rail-solutions/", "retrieved": "2026-09-14", "note": "Izjava prevoznika o njegovih vlakih na splošno, ne o tem vlaku; tipov vagonov stran ne navaja." },
+    "RAIL": { "operator": "Rail Cargo Group (TransFER)", "profile": "High Cube, PR 170/171 (Budapest–Koper); PR170/171, PC70/400 (Villach–Koper)", "loadingUnits": "kontejnerji 20' in 40' (Villach–Koper: RID da)", "source": "https://www.railcargo.com/tr/dms/factsheets/factsheet-transfer-budapest-koper-en.pdf; https://www.railcargo.com/en/dms/factsheets/factsheet-transfer-villach-koper-antennen-en.pdf", "retrieved": "2026-09-14", "note": "Profil in nakladalne enote iz factsheetov prevoznika; tipov vagonov ne navajata." }
+  },
+  "rfc10Note": "Katalog RFC10 v smernih preglednicah za slovenske postaje ne navaja kode parametrov pri posameznih poteh; nabori 07SZ1–07SZ5 so objavljeni le kot seznam in tu niso pripisani nobeni poti.",
+  "pathParameters": {
+    "C116NPDSKO01": { "catalogue": "RFC11", "dossierType": "Fix (Hodoš–Ljubljana) / Flex (Ljubljana–Koper)", "sections": [ { "section": "Hodoš (meja) – Ljubljana Zalog", "parameterSet": "7SZ4" }, { "section": "Ljubljana Zalog – Koper tovorna", "parameterSet": "7SZ4" } ] },
+    "C116NPZIKO01": { "catalogue": "RFC11", "dossierType": "Flex", "sections": [ { "section": "Hodoš (meja) – Ljubljana Zalog", "parameterSet": "7SZ5" }, { "section": "Ljubljana Zalog – Koper tovorna", "parameterSet": "7SZ6" } ] },
+    "C611NPKOZI02": { "catalogue": "RFC11", "dossierType": "Flex", "sections": [ { "section": "Koper tovorna – Ljubljana Zalog", "parameterSet": "7SZ6" }, { "section": "Ljubljana Zalog – Hodoš (meja)", "parameterSet": "7SZ6" } ] }
+  }
+}

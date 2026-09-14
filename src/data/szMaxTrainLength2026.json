@@ -1,0 +1,37 @@
+{
+  "source": "SŽ-Infrastruktura, d.o.o. – Program omrežja 2026, točka 2.3.8 Maksimalne dolžine vlakov (tabela »Največja dovoljena dolžina vlaka« po progah in izjeme po postajah)",
+  "sourceUrl": "https://infrastruktura.sz.si/wp-content/uploads/2025/10/PO_2026_2-.pdf",
+  "documentPages": "str. 24–25 dokumenta (strani 26–27 PDF)",
+  "retrieved": "2026-09-14",
+  "general": {
+    "passengerM": 430,
+    "freightM": 740,
+    "text": "Največja dovoljena dolžina potniških vlakov na JŽI je 430 m, tovornih vlakov pa 740 metrov, razen na določenih progah, kjer je zaradi krajših postajnih tirov dolžina vlakov dodatno omejena."
+  },
+  "lines": [
+    { "line": "10", "name": "d.m. – Dobova – Ljubljana", "section": "d.m. – Dobova – Ljubljana", "maxTrainLengthM": 650, "note": "Dolžina 650 m je dovoljena na odseku Ljubljana Zalog – Dobova; na odseku Dobova – d.m. je dovoljena dolžina 570 m zaradi omejitev na hrvaški strani, na odseku Ljubljana Zalog – Ljubljana 570 m zaradi omejitev tirnih zmogljivosti postaje Ljubljana." },
+    { "line": "20", "name": "Ljubljana – Jesenice – d.m.", "section": "Ljubljana – Jesenice – d.m.", "maxTrainLengthM": 515, "note": null },
+    { "line": "21", "name": "Ljubljana Šiška – Kamnik Graben", "section": "Ljubljana Šiška – Kamnik Graben", "maxTrainLengthM": 398, "note": "Izjema po postaji: Jarše Mengeš 316 m." },
+    { "line": "30", "name": "Zidani Most – Šentilj – d.m.", "section": "Zidani Most – Šentilj – d.m.", "maxTrainLengthM": 650, "note": "Dolžina 650 m je dovoljena na odseku Zidani Most – Šentilj; na odseku Šentilj – d.m. je dovoljena dolžina 560 m zaradi omejitev na avstrijski strani." },
+    { "line": "31", "name": "Celje – Velenje", "section": "Celje – Velenje", "maxTrainLengthM": 450, "note": null },
+    { "line": "32", "name": "d.m. – Rogatec – Grobelno", "section": "d.m. – Rogatec – Grobelno", "maxTrainLengthM": 400, "note": null },
+    { "line": "34", "name": "Maribor – Prevalje – d.m.", "section": "Maribor – Prevalje – d.m.", "maxTrainLengthM": 350, "note": null },
+    { "line": "40", "name": "Pragersko – Ormož", "section": "Pragersko – Ormož", "maxTrainLengthM": 740, "note": null },
+    { "line": "41", "name": "Ormož – Hodoš – d.m.", "section": "Ormož – Hodoš – d.m.", "maxTrainLengthM": 740, "note": null },
+    { "line": "43", "name": "d.m. – Lendava", "section": "d.m. – Lendava", "maxTrainLengthM": 500, "note": null },
+    { "line": "44", "name": "Ormož – Središče – d.m.", "section": "Ormož – Središče – d.m.", "maxTrainLengthM": 600, "note": null },
+    { "line": "50", "name": "Ljubljana – Sežana – d.m.", "section": "Ljubljana – Sežana – d.m.", "maxTrainLengthM": 600, "note": "Izjema po postaji: Verd 590 m." },
+    { "line": "60", "name": "Divača – cepišče Prešnica", "section": "Divača – cepišče Prešnica", "maxTrainLengthM": 525, "note": null },
+    { "line": "61", "name": "Prešnica – Rakitovec – d.m.", "section": "Prešnica – Rakitovec – d.m.", "maxTrainLengthM": 500, "note": null },
+    { "line": "62", "name": "cepišče Prešnica – Koper", "section": "cepišče Prešnica – Koper", "maxTrainLengthM": 525, "note": null },
+    { "line": "64", "name": "Pivka – Ilirska Bistrica – d.m.", "section": "Pivka – Ilirska Bistrica – d.m.", "maxTrainLengthM": 530, "note": null },
+    { "line": "70", "name": "Jesenice – Sežana", "section": "Jesenice – Anhovo", "maxTrainLengthM": 480, "note": null },
+    { "line": "70", "name": "Jesenice – Sežana", "section": "Anhovo – Sežana", "maxTrainLengthM": 510, "note": null },
+    { "line": "80", "name": "d.m. – Metlika – Ljubljana", "section": "d.m. – Metlika – Novo mesto", "maxTrainLengthM": 430, "note": null },
+    { "line": "80", "name": "d.m. – Metlika – Ljubljana", "section": "Novo mesto – Ljubljana", "maxTrainLengthM": 460, "note": null },
+    { "line": "81", "name": "Sevnica – Trebnje", "section": "Sevnica – Trebnje", "maxTrainLengthM": 550, "note": null },
+    { "line": "82", "name": "Grosuplje – Kočevje", "section": "Grosuplje – Kočevje", "maxTrainLengthM": 261, "note": null }
+  ],
+  "footnote1": "V izjemnih posameznih primerih lahko vozijo po posameznih progah tudi vlaki, ki imajo preseženo največjo dovoljeno dolžino; dovoljenja za ad-hoc naročene vlake s preseženo dolžino izdaja glavni prometni dispečer upravljavca glede na zmožnosti trenutne dnevne prometne situacije.",
+  "transcription": "Prepisano iz tabele; vrednosti v metrih so upravljavčeve. Tabela izjem po postajah (op. 4) je prepisana le za Jarše Mengeš (316 m) in Verd (590 m), ki sta v izpisu berljiva."
+}

@@ -1200,6 +1200,110 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                     </div>
                   )}
 
+                  {/* The train the path is built for, as the catalogue publishes
+                      it: maximum length and weight, the reference locomotive,
+                      profile and speed — drawn to scale as an envelope, because
+                      no source publishes what is actually coupled behind the
+                      locomotive. */}
+                  {(pathContext?.parameters || pathContext?.lineLimits) && (() => {
+                    const P = pathContext.parameters || null;
+                    const LL = pathContext.lineLimits || null;
+                    const secs: any[] = (P?.sections || []).filter((s: any) => s.parameters);
+                    // The catalogue's own train, where it publishes one; else
+                    // the infrastructure manager's length limit on the lines
+                    // this corridor runs over, which binds every train on them.
+                    const primary: any = secs.length ? secs[0].parameters : (LL?.bindingM ? { maxTrainLengthM: LL.bindingM, referenceLoco: [], fromLineLimit: true } : null);
+                    if (!primary) return null;
+                    const L = Number(primary.maxTrainLengthM) || 0;
+                    const locoCount = (primary.referenceLoco || []).length || 1;
+                    const LOCO_M = 20; // a four-axle electric locomotive, to the nearest metre
+                    const W = 320, H = 46, pad = 6;
+                    const sx = (W - 2 * pad) / Math.max(L, 1);
+                    const ticks: number[] = [];
+                    for (let m = 0; m <= L; m += 100) ticks.push(m);
+                    const n = (v: any) => (v == null ? '—' : Number(v).toLocaleString('sl-SI'));
+                    return (
+                      <div className="rounded-xl border border-orange-500/30 bg-orange-500/[0.06] p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="text-[10px] uppercase font-mono tracking-wider text-orange-300">
+                            {primary.fromLineLimit ? 'Največji dovoljeni vlak na progah te poti (Program omrežja)' : `Vlak, za katerega je pot narejena (katalog ${P.catalogue})`}
+                          </div>
+                          <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded-full border border-orange-500/40 text-orange-200">{primary.fromLineLimit ? 'omejitev proge, ne sestava' : 'meje poti, ne sestava'}</span>
+                        </div>
+                        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={`Ovojnica vlaka: do ${L} m`}>
+                          {/* rail */}
+                          <line x1={pad} y1={H - 12} x2={W - pad} y2={H - 12} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+                          {ticks.map(m => (
+                            <g key={m}>
+                              <line x1={pad + m * sx} y1={H - 12} x2={pad + m * sx} y2={H - 8} stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
+                              <text x={pad + m * sx} y={H - 1} fontSize="6" fill="rgba(255,255,255,0.55)" textAnchor={m === 0 ? 'start' : (m >= L - 50 ? 'end' : 'middle')} fontFamily="ui-monospace, monospace">{m} m</text>
+                            </g>
+                          ))}
+                          {/* locomotive(s) */}
+                          {Array.from({ length: locoCount }).map((_, i) => (
+                            <g key={i}>
+                              <rect x={pad + i * LOCO_M * sx} y={12} width={Math.max(2, LOCO_M * sx - 1)} height={16} rx="2" fill="#f97316" />
+                              <rect x={pad + i * LOCO_M * sx + 1.5} y={14} width={Math.max(1, LOCO_M * sx - 4)} height={4} fill="rgba(255,255,255,0.35)" />
+                            </g>
+                          ))}
+                          {/* wagon envelope: hatched, because the catalogue fixes the length, not the wagons */}
+                          <defs>
+                            <pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                              <line x1="0" y1="0" x2="0" y2="4" stroke="rgba(253,186,116,0.55)" strokeWidth="1.2" />
+                            </pattern>
+                          </defs>
+                          <rect x={pad + locoCount * LOCO_M * sx} y={13} width={Math.max(2, (L - locoCount * LOCO_M) * sx)} height={14} rx="2" fill="url(#hatch)" stroke="rgba(253,186,116,0.7)" strokeWidth="0.8" strokeDasharray="3 2" />
+                          <text x={pad + locoCount * LOCO_M * sx + ((L - locoCount * LOCO_M) * sx) / 2} y={22.5} fontSize="6.5" fill="#fff" textAnchor="middle" fontFamily="ui-monospace, monospace">
+                            vagoni do {n(L - locoCount * LOCO_M)} m · sestava ni objavljena
+                          </text>
+                          <text x={pad + (locoCount * LOCO_M * sx) / 2} y={9} fontSize="6" fill="#fdba74" textAnchor="middle" fontFamily="ui-monospace, monospace">{locoCount > 1 ? `${locoCount}×` : ''}lok.</text>
+                        </svg>
+                        {!primary.fromLineLimit && (
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10.5px]">
+                            <div className="text-white/70">Največja dolžina vlaka</div><div className="font-mono text-white">{n(primary.maxTrainLengthM)} m</div>
+                            <div className="text-white/70">Največja masa vlaka</div><div className="font-mono text-white">{n(primary.maxTrainWeightT)} t{primary.maxSetWeightT != null ? ` (vagoni ${n(primary.maxSetWeightT)} t)` : ''}</div>
+                            <div className="text-white/70">Referenčna lokomotiva</div><div className="font-mono text-white">{(primary.referenceLocoLabels || []).join(' + ')}</div>
+                            <div className="text-white/70">Profil</div><div className="font-mono text-white">{primary.profile || '—'}</div>
+                            <div className="text-white/70">Načrtovana hitrost</div><div className="font-mono text-white">{primary.plannedSpeedKmh != null ? `${primary.plannedSpeedKmh} km/h` : '—'}</div>
+                            <div className="text-white/70">Najm. zavorni odstotek</div><div className="font-mono text-white">{primary.minBrakedWeightPercent != null ? `${primary.minBrakedWeightPercent} %` : '—'}{primary.other ? ` · ${primary.other}` : ''}</div>
+                          </div>
+                        )}
+                        {LL?.lines?.length ? (
+                          <div className="text-[10px] leading-snug text-white/70">
+                            <span className="text-white/90">Dovoljena dolžina tovornega vlaka po progah te poti (SŽ-I):</span>{' '}
+                            {LL.lines.map((l: any) => `proga ${l.line} ${l.section}: ${n(l.maxTrainLengthM)} m`).join(' · ')}
+                            {' '}— zavezujoča najmanjša: <strong className="text-orange-200">{n(LL.bindingM)} m</strong> (splošno {n(LL.generalFreightM)} m za tovorne, {n(LL.generalPassengerM)} m za potniške).
+                            {LL.lines.filter((l: any) => l.note).map((l: any, i: number) => <span key={i} className="block text-white/50">proga {l.line}: {l.note}</span>)}
+                            <span className="block text-[9px] font-mono text-white/45">vir: {LL.source} · {LL.documentPages}</span>
+                          </div>
+                        ) : null}
+                        {secs.length > 1 && (
+                          <div className="text-[10px] text-white/60 leading-snug">
+                            Po odsekih: {secs.map((s: any) => `${s.section}: ${s.parameterSet} (${n(s.parameters.maxTrainLengthM)} m / ${n(s.parameters.maxTrainWeightT)} t)`).join(' · ')}
+                          </div>
+                        )}
+                        {pathContext.operatorStatements?.length ? (
+                          <div className="border-t border-orange-500/20 pt-1.5 space-y-1">
+                            {pathContext.operatorStatements.map((o: any, i: number) => (
+                              <p key={i} className="text-[10px] leading-snug text-white/75">
+                                <strong className="text-orange-200">{o.statement.operator}</strong> o svojih vlakih:
+                                {o.statement.trainLengthM ? ` do ${o.statement.trainLengthM} m` : ''}{o.statement.teu ? `, ${o.statement.teu} TEU` : ''}
+                                {o.statement.profile ? ` · profil ${o.statement.profile}` : ''}{o.statement.loadingUnits ? ` · ${o.statement.loadingUnits}` : ''}.
+                                {' '}{o.statement.note}
+                                <span className="block text-[9px] font-mono text-white/45 break-all">vir: {o.statement.source}</span>
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                        {P ? (
+                          <p className="text-[9.5px] leading-snug text-white/55">{P.note} Vir: {P.source}{P.retrieved ? ` (prebrano ${P.retrieved})` : ''}.</p>
+                        ) : (
+                          <p className="text-[9.5px] leading-snug text-white/55">Katalog za to pot ne objavlja parametrov vlaka; narisana je najmanjša dovoljena dolžina na progah te poti. Kaj je dejansko pripeto za lokomotivo, ne objavlja noben vir.</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* The registers, keyed to this path: who publishes trains on
                       its relation, what the border it crosses carried last
                       year, how many paths an hour the line offers, what works
