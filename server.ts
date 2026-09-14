@@ -6967,6 +6967,142 @@ app.get('/api/train/trip', async (req, res) => {
     }
   });
 
+  /**
+   * MÁV vonatinfo: the Hungarian operators' own live map of PASSENGER trains
+   * (MÁV, GySEV, HÉV), with position and delay per train and, per train, its
+   * timetable sheet. It carries no freight — every entry has an ELVIRA
+   * passenger-timetable id and the sheets say "személyvonat", "sebesvonat",
+   * "InterCity"; a sample including every train near the Slovenian border
+   * found no "tehervonat". Used here for western Hungary only, where the
+   * second-hand copy from ÖBB HAFAS is sparse: Zalaegerszeg – Hodoš,
+   * Szombathely, Sopron, Nagykanizsa. Their position replaces the HAFAS copy
+   * of the same train number; nothing is invented on top of the feed.
+   */
+  const MAV_TRAINS_TTL_MS = 20000;
+  const MAV_DETAIL_TTL_MS = 12 * 3600 * 1000;
+  const MAV_BBOX = { minLat: 45.7, maxLat: 47.9, maxLon: 17.5 };
+  let mavTrainsCache: { data: any[]; ts: number } = { data: [], ts: 0 };
+  let mavRefreshInFlight: Promise<any[]> | null = null;
+  let mavDetailFillInFlight: Promise<void> | null = null;
+  const mavDetailCache = new Map<string, { ts: number; type: string | null; stops: { name: string; arr: string | null; dep: string | null }[] }>();
+  const MAV_TYPES: Record<string, { short: string; cls: string; label: string }> = {
+    'személyvonat': { short: 'R', cls: 'regional', label: 'potniški vlak (személyvonat)' },
+    'sebesvonat': { short: 'REX', cls: 'regionalExpress', label: 'hitri regionalni vlak (sebesvonat)' },
+    'gyorsvonat': { short: 'D', cls: 'interregional', label: 'brzi vlak (gyorsvonat)' },
+    'intercity': { short: 'IC', cls: 'national', label: 'InterCity' },
+    'eurocity': { short: 'EC', cls: 'national', label: 'EuroCity' },
+    'euronight': { short: 'EN', cls: 'interregional', label: 'EuroNight' },
+    'expressz': { short: 'Ex', cls: 'interregional', label: 'ekspresni vlak (expressz)' },
+    'hév': { short: 'HÉV', cls: 'suburban', label: 'primestna železnica HÉV' }
+  };
+  async function mavGetData(body: any): Promise<any> {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 5000);
+    try {
+      const r = await fetch('https://vonatinfo.mav.hu/map.aspx/getData', {
+        method: 'POST', signal: ctl.signal,
+        headers: { 'Content-Type': 'application/json; charset=UTF-8', 'Referer': 'https://vonatinfo.mav.hu/', 'User-Agent': 'Mozilla/5.0' },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) return null;
+      const j: any = await r.json();
+      return j?.d ?? j;
+    } finally { clearTimeout(t); }
+  }
+  const mavNumber = (raw: string) => { const d = String(raw || '').replace(/\D/g, ''); return d.length >= 6 && /^(55|43)/.test(d) ? d.slice(2) : d; };
+  async function mavDetail(number: string) {
+    const hit = mavDetailCache.get(number);
+    if (hit && Date.now() - hit.ts < MAV_DETAIL_TTL_MS) return hit;
+    const d = await mavGetData({ a: 'TRAIN', jo: { vsz: number, zoom: false, csakkozlekedo: true } });
+    const html = String(d?.result?.html || '');
+    const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    // "9550 személyvonat (…)" but also "805 SAVARIA InterCity (…)": the type
+    // word can follow a train name, so it is looked for in the header rather
+    // than taken as the first word.
+    const header = text.split(/Km\s+Állomás/)[0] || text.slice(0, 120);
+    const m = header.match(/(személyvonat|sebesvonat|gyorsvonat|intercity|eurocity|euronight|expressz|hév)/i);
+    const type = m ? m[1].toLowerCase() : null;
+    // "Km Állomás Érk. Ind. 0 Zalaegerszeg 04:55 04:56 4 Zalaegerszeg-Ola ..." — a
+    // station is preceded by its km and followed by one or two HH:MM times.
+    const stops: { name: string; arr: string | null; dep: string | null }[] = [];
+    const body = text.split(/Érk\.\s*Ind\.\s*/)[1] || '';
+    const re = /(\d{1,3})\s+([^\d]+?)\s+(\d{2}:\d{2})(?:\s+(\d{2}:\d{2}))?(?=\s+(?:\d{1,3}\s+[^\d]|Közlekedik|$))/g;
+    let mm: RegExpExecArray | null;
+    while ((mm = re.exec(body))) stops.push({ name: mm[2].trim(), arr: mm[4] ? mm[3] : null, dep: mm[4] ?? mm[3] });
+    const lastIdx = body.search(/Közlekedik/);
+    const tail = lastIdx > 0 ? body.slice(Math.max(0, lastIdx - 40), lastIdx) : '';
+    const lastM = tail.match(/([A-Za-zÁÉÍÓÖŐÚÜŰáéíóöőúüűš\- ]+?)\s+(\d{2}:\d{2})\s*$/);
+    if (lastM && !stops.some(s => s.name === lastM[1].trim())) stops.push({ name: lastM[1].trim(), arr: lastM[2], dep: null });
+    const rec = { ts: Date.now(), type, stops };
+    mavDetailCache.set(number, rec);
+    return rec;
+  }
+  async function buildMavBorderTrains(): Promise<any[]> {
+    const d = await mavGetData({ a: 'TRAINS', jo: { history: false, id: false } });
+    const list: any[] = d?.result?.Trains?.Train ?? [];
+    const near = list.filter(t => Number.isFinite(t['@Lat']) && Number.isFinite(t['@Lon']) && t['@Lat'] >= MAV_BBOX.minLat && t['@Lat'] <= MAV_BBOX.maxLat && t['@Lon'] <= MAV_BBOX.maxLon);
+    // Timetable sheets are fetched in the background, a few per refresh, and
+    // kept for the day; the position list never waits on them. A train shows
+    // as "MÁV 9550" until its sheet is in, then as "R 9550".
+    const missing = near.map(t => mavNumber(t['@TrainNumber'])).filter(n => { const h = mavDetailCache.get(n); return !h || Date.now() - h.ts >= MAV_DETAIL_TTL_MS; });
+    if (missing.length && !mavDetailFillInFlight) {
+      mavDetailFillInFlight = (async () => {
+        for (const n of missing.slice(0, 8)) { try { await mavDetail(n); } catch { /* next refresh retries */ } }
+      })().finally(() => { mavDetailFillInFlight = null; });
+    }
+    const out: any[] = [];
+    const nowHm = (() => { const s = new Date().toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Budapest' }); return s; })();
+    for (const t of near) {
+      const number = mavNumber(t['@TrainNumber']);
+      const det = mavDetailCache.get(number) ?? null;
+      const typeKey = det?.type ? Object.keys(MAV_TYPES).find(k => det!.type!.startsWith(k)) : undefined;
+      const ty = typeKey ? MAV_TYPES[typeKey] : null;
+      const menet = String(t['@Menetvonal'] || '');
+      const operator = menet === 'GYSEV' ? 'GySEV (Győr–Sopron–Ebenfurt)' : menet === 'HEV' ? 'MÁV-HÉV (Budapest)' : 'MÁV (Madžarske železnice)';
+      const rel = String(t['@Relation'] || '');
+      const [origin, destination] = rel.split(/\s+-\s+/);
+      const upcoming = (det?.stops || []).filter(s => (s.dep || s.arr || '') > nowHm).slice(0, 2);
+      out.push({
+        id: `mav_${number}`,
+        name: `${ty ? ty.short : 'MÁV'} ${number}`,
+        lat: t['@Lat'], lon: t['@Lon'],
+        heading: 0, speed: 0,
+        operator,
+        origin: origin || null,
+        destination: destination || 'Neznano',
+        delay: Number(t['@Delay']) || 0,
+        source: 'MÁV vonatinfo (živi položaj prevoznika)',
+        timestamp: new Date().toISOString(),
+        type: 'train',
+        nextStopovers: upcoming.map(s => ({ arrival: null, arrivalPlatform: null, plannedTime: s.arr || s.dep, stop: { name: s.name } })),
+        hasPolyline: false,
+        trainClass: ty ? ty.cls : null,
+        trainClassName: ty ? ty.short : null,
+        trainClassLabel: ty ? ty.label : (det?.type ? det.type : null),
+        elviraId: t['@ElviraID'] || null
+      });
+    }
+    return out;
+  }
+  function getMavBorderTrains(): Promise<any[]> {
+    if (Date.now() - mavTrainsCache.ts < MAV_TRAINS_TTL_MS) return Promise.resolve(mavTrainsCache.data);
+    if (!mavRefreshInFlight) {
+      mavRefreshInFlight = buildMavBorderTrains()
+        .then(data => { mavTrainsCache = { data, ts: Date.now() }; return data; })
+        .catch(e => { console.error('[MÁV vonatinfo] refresh failed:', e?.message || e); return mavTrainsCache.data; })
+        .finally(() => { mavRefreshInFlight = null; });
+    }
+    return mavRefreshInFlight;
+  }
+
+  // The MÁV feed on its own, for checking the source without the HAFAS merge.
+  app.get('/api/mav/border-trains', async (_req, res) => {
+    try {
+      const data = await getMavBorderTrains();
+      res.json({ timestamp: new Date().toISOString(), source: 'MÁV vonatinfo (vonatinfo.mav.hu), potniški vlaki zahodne Madžarske', bbox: MAV_BBOX, count: data.length, trains: data });
+    } catch (e: any) { res.status(502).json({ error: e?.message || 'vonatinfo unavailable' }); }
+  });
+
   async function buildHafasTrains(): Promise<any[]> {
       const { createClient } = await import('hafas-client');
       
@@ -7383,13 +7519,29 @@ const trains = combinedMovements
         return true;
       });
       
+      // Western Hungary from the operators' own map. Where ÖBB HAFAS carries a
+      // second-hand copy of the same MÁV/GySEV train, the operator's position
+      // wins and the copy is dropped.
+      let mergedTrains = deduplicatedHafasTrains;
+      try {
+        const mav = await getMavBorderTrains();
+        if (mav.length) {
+          const mavNums = new Set(mav.map(m => String(m.id).replace(/^mav_/, '')));
+          mergedTrains = deduplicatedHafasTrains.filter(t => {
+            const digits = String(t.name || '').match(/\d{2,}/)?.[0];
+            const hungarian = /MÁV|MAV|GYSEV/i.test(String(t.operator || ''));
+            return !(hungarian && digits && mavNums.has(digits));
+          }).concat(mav);
+        }
+      } catch (e) { console.error('[MÁV vonatinfo] merge failed:', (e as any)?.message || e); }
+
       // Save latest trains list globally for trip location lookups
-      (global as any).latestTrainsList = deduplicatedHafasTrains;
-      hafasResponseCache = { data: deduplicatedHafasTrains, ts: Date.now() };
+      (global as any).latestTrainsList = mergedTrains;
+      hafasResponseCache = { data: mergedTrains, ts: Date.now() };
 
       // Leftover MOTIS trains are intentionally dropped here, as they are served via /api/transit directly.
 
-      return deduplicatedHafasTrains;
+      return mergedTrains;
   }
 
 
