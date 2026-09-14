@@ -1,0 +1,80 @@
+{
+  "source": "SŽ-Infrastruktura, d.o.o. – Capacity Strategy 2026 (TTR)",
+  "sourceUrl": "https://rne.eu/wp-content/uploads/TTR-Capacity-Strategy-SZI-2026.pdf",
+  "publisher": "SŽ-Infrastruktura, d.o.o. (upravljavec javne železniške infrastrukture RS)",
+  "validation": "Potrjeno s sklepom uprave SŽ-Infrastruktura, d.o.o. št. 3189 z dne 14. 12. 2022; objavljeno na spletišču upravljavca in v angleščini na RNE.",
+  "timetable": "2026",
+  "framework": "RNE Capacity Strategy Handbook (TTR, X-36); Annex VII Direktive 2012/34/EU (Delegirani sklep (EU) 2017/2075) za začasne omejitve zmogljivosti (TCR).",
+  "binding": false,
+  "retrieved": "2026-09-14",
+  "note": "Uradna strategija zmogljivosti upravljavca infrastrukture za vozni red 2026. Številke so povprečne razpoložljive (rezervabilne) vlakovne poti na uro in smer, dnevne sistemske poti, brez ločitve konic in izven konic; na mejnih odsekih so usklajene s sosednjim upravljavcem (izjema: Hodoš). Dokument ni zavezujoč in ne zagotavlja zmogljivosti. Vrednosti so prepisane iz tabel 1 in 2; nič ni dodano. »Nesistematično« pomeni, da poti niso sistemske, temveč se obravnavajo v fazi izdelave voznega reda.",
+  "scope": {
+    "description": "Proge mednarodnega pomena: vse glavne proge v RS in odseki regionalnih prog, ki služijo kot obvozne (70 Jesenice–Sežana, 80 Ljubljana–Metlika–d.m., 81 Sevnica–Trebnje).",
+    "borderCrossings": [
+      { "country": "AT", "crossing": "Jesenice / Rosenbach" },
+      { "country": "AT", "crossing": "Šentilj / Spielfeld-Straß" },
+      { "country": "HR", "crossing": "Dobova / Savski Marof" },
+      { "country": "HR", "crossing": "Ilirska Bistrica / Šapjane" },
+      { "country": "HU", "crossing": "Hodoš / Őriszentpéter" },
+      { "country": "IT", "crossing": "Sežana / Villa Opicina" }
+    ]
+  },
+  "unit": "vlakovne poti na uro in smer (dnevne sistemske poti)",
+  "borderSections": [
+    { "country": "IT", "section": "Sežana / Villa Opicina", "siStation": "Sežana", "passengerLongDistance": null, "passengerRegional": null, "freightInternational": 3, "harmonised": true },
+    { "country": "AT", "section": "Jesenice / Rosenbach", "siStation": "Jesenice", "passengerLongDistance": 0.5, "passengerRegional": 0, "freightInternational": 1, "harmonised": true },
+    { "country": "AT", "section": "Šentilj / Spielfeld-Straß", "siStation": "Šentilj", "passengerLongDistance": null, "passengerRegional": 0.5, "freightInternational": 1.5, "harmonised": true },
+    { "country": "AT", "section": "Prevalje / Bleiburg", "siStation": "Prevalje", "passengerLongDistance": 0, "passengerRegional": null, "freightInternational": 0, "harmonised": true },
+    { "country": "HR", "section": "Dobova / Savski Marof", "siStation": "Dobova", "passengerLongDistance": 0.5, "passengerRegional": 0, "freightInternational": 1, "harmonised": true },
+    { "country": "HR", "section": "Ilirska Bistrica / Šapjane", "siStation": "Ilirska Bistrica", "passengerLongDistance": null, "passengerRegional": 0, "freightInternational": 0, "harmonised": true },
+    { "country": "HU", "section": "Hodoš / Őriszentpéter", "siStation": "Hodoš", "passengerLongDistance": null, "passengerRegional": 0.5, "freightInternational": 1, "harmonised": false, "harmonisationNote": "Ponudba na mejnem odseku Hodoš / Őriszentpéter ni usklajena s sosednjim upravljavcem." }
+  ],
+  "mainLines": [
+    { "section": "Ljubljana – Zidani Most", "from": "Ljubljana", "to": "Zidani Most", "passengerLongDistance": 1, "passengerRegional": 3.5, "freightInternational": 3.5, "freightNational": 0.5 },
+    { "section": "Zidani Most – Dobova", "from": "Zidani Most", "to": "Dobova", "passengerLongDistance": 0.5, "passengerRegional": 1.5, "freightInternational": 1, "freightNational": null },
+    { "section": "Zidani Most – Pragersko", "from": "Zidani Most", "to": "Pragersko", "passengerLongDistance": 1, "passengerRegional": 2.5, "freightInternational": 2.5, "freightNational": 0.5 },
+    { "section": "Pragersko – Maribor", "from": "Pragersko", "to": "Maribor", "passengerLongDistance": 1, "passengerRegional": 2.5, "freightInternational": 1.5, "freightNational": 0.5 },
+    { "section": "Pragersko – Hodoš", "from": "Pragersko", "to": "Hodoš", "passengerLongDistance": null, "passengerRegional": 1, "freightInternational": 1, "freightNational": null },
+    { "section": "Ljubljana – Jesenice", "from": "Ljubljana", "to": "Jesenice", "passengerLongDistance": 0.5, "passengerRegional": 1.5, "freightInternational": 1, "freightNational": 0 },
+    { "section": "Ljubljana – Sežana", "from": "Ljubljana", "to": "Sežana", "passengerLongDistance": 1, "passengerRegional": 1, "freightInternational": 4, "freightNational": 1 },
+    { "section": "Pivka – Ilirska Bistrica", "from": "Pivka", "to": "Ilirska Bistrica", "passengerLongDistance": null, "passengerRegional": 0.5, "freightInternational": 0, "freightNational": 0 },
+    { "section": "Divača – Koper", "from": "Divača", "to": "Koper", "passengerLongDistance": null, "passengerRegional": 0.5, "freightInternational": 2.5, "freightNational": 1 }
+  ],
+  "nullMeaning": "null = »nesistematično« (poti niso sistemske; obravnava v fazi izdelave voznega reda)",
+  "capacityChanges2026": {
+    "additional": [
+      { "project": "Drugi tir Divača – Koper", "effect": "Odprava vseh omejitev prepustnosti in prevozne zmogljivosti proge Divača–Koper; večja zanesljivost in varnost, krajši vozni časi, večji delež tovora po železnici.", "status": "V gradnji, zaključek del predviden v 2026." },
+      { "project": "Nadgradnja proge in postaj Ljubljana – Divača", "effect": "Nadgradnja celotnega odseka, izvennivojski dostopi na perone, novi elektronapajalni postaji Borovnica in Postojna, avtomatski blok in ETCS na celotnem odseku, nadgradnja nivojskih prehodov, protihrupne ograje.", "status": "2021–2027." },
+      { "project": "Nadgradnja Maribor – Šentilj – d.m. (AT)", "effect": "Nov tir Počehova–Pesnica (priprava na dvotirnost), predor Pekel, viadukt Pesnica. Zmogljivost s 63 na 84 vlakov/dan; letna prepustnost s 7,1 na 8,89 mio t.", "status": "V izvajanju." },
+      { "project": "Nadgradnja vozlišča Pragersko", "effect": "Nadgradnja postaje, tirov, signalno-varnostnih in TK naprav ter vozne mreže; dva perona, cestni podvoz; kategorija proge dvignjena na D4; boljša povezava s progo Pragersko–Ormož–Hodoš.", "status": "V izvajanju." },
+      { "project": "Nadgradnja d.m. (HR) – Dobova – Zidani Most", "effect": "Nadgradnja postaj Dobova, Brežice, Krško, Brestanica, Blanca, Sevnica, Breg in postajališč Libna, Loka ter vmesnih odsekov.", "status": "V izvajanju." },
+      { "project": "Signalno-varnostne nadgradnje (ETCS L1, CTC)", "effect": "ETCS L1 na odseku d.m.–Dobova–Zidani Most zaključen; s tem ETCS na celotnem jedrnem omrežju RS. Modernizacija centrov vodenja prometa Maribor, Postojna, Ljubljana; daljinsko vodenje Ljubljana–Dobova in Zidani Most–Šentilj.", "status": "V izvajanju." },
+      { "project": "Nadgradnja ljubljanskega železniškega vozlišča", "effect": "1. faza: tirna in peronska infrastruktura postaje Ljubljana, nov nadhod. 2. faza: postaje Ljubljana Šiška, Ljubljana, Moste, Polje, Zalog in vmesni odseki — odprava ozkega grla na stičišču tranzitnih tokov.", "status": "1. faza načrtovana; 2. faza sledi." },
+      { "project": "Regionalne proge", "effect": "Ljubljana–Metlika–d.m.: nadgradnja tira, novi peroni s podhodi (Grosuplje zaključeno), nadgradnja SV naprav. Jesenice–Sežana: novi tiri/peroni in SV naprave na Novi Gorici, nova triangelska zveza pri Šempetru proti Gorici (IT).", "status": "V izvajanju / v pripravi." }
+    ],
+    "reduced": "Zmanjšanje razpoložljive zmogljivosti ali obsega javne železniške infrastrukture ni predvideno; omejitve le zaradi izvajanja zgornjih investicij."
+  },
+  "tcr2026": {
+    "principles": "Načrtovanje po Prilogi VII; podatke o TCR zaradi investicij daje Direkcija RS za infrastrukturo, upravljavec jih objavi v Programu omrežja. Ob večjih vplivih začasni vozni red za največ dva meseca; pri nadomestnih avtobusih se ohranjajo mednarodne, sezonske in konične povezave; obvozi se upoštevajo že pri dodeljevanju poti.",
+    "majorProjects": [
+      "Nadgradnja ljubljanskega železniškega vozlišča",
+      "Proga 10 d.m. (HR) – Dobova – Ljubljana: nadgradnja postaj na odseku d.m. – Zidani Most",
+      "Proga 50: nadgradnja postaj in tirov na odseku Postojna – Divača"
+    ],
+    "datesNote": "Točni datumi TCR so objavljeni v Programu omrežja, skladno z roki Priloge VII."
+  },
+  "planningPrinciples": {
+    "annualRequests": [
+      "poti za daljinske potniške vlake v okviru obveznosti javne službe",
+      "poti za regionalne potniške vlake v okviru obveznosti javne službe",
+      "poti za druge potniške vlake",
+      "poti za tovorne vlake na tovornih koridorjih (vnaprej pripravljene poti – PaP)",
+      "poti za tovorne vlake z znanimi dnevi vožnje"
+    ],
+    "rollingPlanning": [
+      "poti za tovorne vlake s prilagodljivimi dnevi vožnje",
+      "poti za ad hoc načrtovanje potniških in tovornih vlakov"
+    ],
+    "note": "Zmogljivost se načrtuje tako, da tovorni vlaki lahko vozijo tudi v konicah. Na regionalnih progah se model zmogljivosti izdela le za odseke, razglašene za preobremenjene."
+  }
+}

@@ -11938,6 +11938,7 @@ app.post('/api/log', express.json(), (req, res) => {
       diumSlovenia: diumSI ? { ...diumSI.counts, edition: diumSI.edition, retrieved: diumSI.retrieved } : null,
       nhmCommodities: nhmSI ? { ...nhmSI.counts, effective: nhmSI.effective, retrieved: nhmSI.retrieved } : null,
       sursRailFreight: sursFreight ? { latestYear: sursFreight.latestYear, retrieved: sursFreight.retrieved } : null,
+      szCapacityStrategy: szCapacity ? { timetable: szCapacity.timetable, mainLines: szCapacity.mainLines.length, borderSections: szCapacity.borderSections.length } : null,
       eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
       iateGlossary: iateGlossary ? { ...iateGlossary.counts, retrieved: iateGlossary.retrieved } : null,
       eraParameterXref: eraParamXref ? eraParamXref.counts : null,
@@ -12985,6 +12986,73 @@ try {
 app.get('/api/freight/surs-flows', (_req, res) => {
   if (!sursFreight) return res.status(503).json({ error: 'Statistika SURS ni naložena' });
   res.json(sursFreight);
+});
+
+/**
+ * SŽ-Infrastruktura's Capacity Strategy for timetable 2026 (TTR, X-36), the
+ * infrastructure manager's own published figures for how many train paths an
+ * hour each border section and main line offers, split passenger / freight,
+ * plus the capacity-changing projects and the year's major TCRs. Transcribed
+ * from the PDF RNE hosts (src/data/szCapacityStrategy2026.json).
+ *
+ * These are bookable paths per hour and direction — the supply side of
+ * freight capacity — not trains running. Non-binding, and the document says
+ * so; the app says so too. Sections are matched to RINF lines by the station
+ * names the strategy itself uses, so the map can show the offer per line.
+ */
+let szCapacity: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'szCapacityStrategy2026.json');
+  if (fs.existsSync(p)) {
+    szCapacity = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[SŽI] Capacity Strategy', szCapacity.timetable, '·', szCapacity.mainLines.length, 'main-line sections,', szCapacity.borderSections.length, 'border sections');
+  }
+} catch (e: any) { console.warn('[SŽI] szCapacityStrategy2026.json failed:', e?.message); }
+
+/**
+ * The RINF line(s) on which both of a strategy section's end stations lie —
+ * a line touching only one end (every line out of Ljubljana, for instance)
+ * is not the line the section describes.
+ */
+function szCapacityLinesFor(fromName: string, toName: string): string[] {
+  if (!rinfSI) return [];
+  const norm = (s: string) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const a = norm(fromName), b = norm(toName);
+  const touches = (s: any, name: string) => norm(s.fromName).startsWith(name) || norm(s.toName).startsWith(name);
+  const hasA = new Set<string>(), hasB = new Set<string>();
+  const pointsOf = new Map<string, Set<string>>();
+  for (const s of rinfSISections) {
+    const line = String(s.line);
+    if (touches(s, a)) hasA.add(line);
+    if (touches(s, b)) hasB.add(line);
+    if (!pointsOf.has(line)) pointsOf.set(line, new Set());
+    pointsOf.get(line)!.add(norm(s.fromName)); pointsOf.get(line)!.add(norm(s.toName));
+  }
+  const both = [...hasA].filter(l => hasB.has(l));
+  if (both.length) return both.sort((x, y) => Number(x) - Number(y));
+  // A strategy section can run across two consecutive RINF lines (Pragersko –
+  // Hodoš is line 40 to Ormož then 41; Divača – Koper is 60 to Prešnica then
+  // 62). Take a line at each end where the two share an operational point.
+  const chain = new Set<string>();
+  for (const la of hasA) for (const lb of hasB) {
+    if (la === lb) continue;
+    const pa = pointsOf.get(la)!, pb = pointsOf.get(lb)!;
+    if ([...pa].some(p => pb.has(p))) { chain.add(la); chain.add(lb); }
+  }
+  return [...chain].sort((x, y) => Number(x) - Number(y));
+}
+
+app.get('/api/freight/capacity-strategy', (_req, res) => {
+  if (!szCapacity) return res.status(503).json({ error: 'Strategija zmogljivosti SŽ-Infrastruktura ni naložena' });
+  res.json({
+    ...szCapacity,
+    mainLines: szCapacity.mainLines.map((m: any) => ({
+      ...m,
+      freightTotal: (m.freightInternational ?? 0) + (m.freightNational ?? 0),
+      passengerTotal: (m.passengerLongDistance ?? 0) + (m.passengerRegional ?? 0),
+      rinfLines: szCapacityLinesFor(m.from, m.to)
+    }))
+  });
 });
 
 app.get('/api/dium/station/:code', (req, res) => {

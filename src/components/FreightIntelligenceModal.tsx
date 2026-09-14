@@ -54,6 +54,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [modalSplitData, setModalSplitData] = useState<any>(null);
   // SURS official rail-freight flows by partner country (annual tonnage).
   const [sursFlows, setSursFlows] = useState<any>(null);
+  // SŽ-Infrastruktura Capacity Strategy 2026: bookable train paths per hour
+  // per section, passenger vs freight — the supply side of freight capacity.
+  const [capacityStrategy, setCapacityStrategy] = useState<any>(null);
   const [activeTrains, setActiveTrains] = useState<any[]>([]);
   const [freightPayload, setFreightPayload] = useState<any>(null);
   const [murskaSobotaData, setMurskaSobotaData] = useState<any>(null);
@@ -191,6 +194,11 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
     fetch('/api/freight/surs-flows')
       .then(res => (res.ok ? res.json() : null))
       .then(data => { if (data && data.loadedInSlovenia) setSursFlows(data); })
+      .catch(() => {});
+
+    fetch('/api/freight/capacity-strategy')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => { if (data && data.mainLines) setCapacityStrategy(data); })
       .catch(() => {});
 
     // Initial UIC decoder lookup
@@ -1329,6 +1337,90 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   Tovorni vlaki imajo največje število prostih oken v nočnem času med 22:00 in 05:00.
                 </p>
               </div>
+
+              {/* SŽ-Infrastruktura Capacity Strategy 2026: the infrastructure
+                  manager's own published supply of train paths per hour per
+                  section. Official, transcribed, non-binding — and says so. */}
+              {capacityStrategy && (() => {
+                const fmt = (v: any) => v == null ? 'nesist.' : String(v).replace('.', ',');
+                const rows = capacityStrategy.mainLines as any[];
+                const maxF = Math.max(1, ...rows.map(r => r.freightTotal || 0));
+                return (
+                  <div className="p-4 rounded-xl bg-slate-900/70 border border-amber-500/25 space-y-3">
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div>
+                        <h3 className="text-sm font-bold text-white">Uradna ponudba vlakovnih poti — SŽ-Infrastruktura, vozni red {capacityStrategy.timetable}</h3>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{capacityStrategy.unit} · potniške (daljinske + regionalne) proti tovornim (mednarodne + nacionalne)</p>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30">registrski podatek, ne vlak · nezavezujoče</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {rows.map((r: any) => (
+                        <div key={r.section} className="space-y-0.5">
+                          <div className="flex items-baseline justify-between gap-2 text-[11px]">
+                            <span className="text-slate-200 font-medium truncate">
+                              {r.section}
+                              {r.rinfLines?.length ? <span className="text-slate-500 font-mono"> · proga {r.rinfLines.join('/')}</span> : null}
+                            </span>
+                            <span className="font-mono text-slate-300 shrink-0">
+                              <span className="text-amber-300">{fmt(r.freightInternational)}</span>
+                              <span className="text-slate-500"> + </span>
+                              <span className="text-amber-300/80">{fmt(r.freightNational)}</span>
+                              <span className="text-slate-500"> tovor · </span>
+                              <span className="text-sky-300">{fmt(r.passengerLongDistance)}</span>
+                              <span className="text-slate-500"> + </span>
+                              <span className="text-sky-300/80">{fmt(r.passengerRegional)}</span>
+                              <span className="text-slate-500"> potn.</span>
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden flex">
+                            <div className="h-full bg-amber-400" style={{ width: `${(r.freightTotal / maxF) * 60}%` }} title={`tovor ${r.freightTotal}/h`} />
+                            <div className="h-full bg-sky-400/70" style={{ width: `${(r.passengerTotal / maxF) * 60}%` }} title={`potniški ${r.passengerTotal}/h`} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-slate-800 pt-2">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">Mejni odseki — tovorne poti/uro (usklajeno s sosednjim upravljavcem)</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-0.5">
+                        {capacityStrategy.borderSections.map((b: any) => (
+                          <div key={b.section} className="flex items-baseline justify-between gap-2 text-[10.5px]" title={b.harmonisationNote || ''}>
+                            <span className="text-slate-400 truncate">{b.country} · {b.section}{b.harmonised ? '' : ' *'}</span>
+                            <span className="font-mono text-amber-300 shrink-0">{fmt(b.freightInternational)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {capacityStrategy.borderSections.some((b: any) => !b.harmonised) && (
+                        <p className="text-[9.5px] text-slate-500 mt-1">* ponudba ni usklajena s sosednjim upravljavcem (Hodoš / Őriszentpéter)</p>
+                      )}
+                    </div>
+
+                    {capacityStrategy.capacityChanges2026?.additional?.length > 0 && (
+                      <details className="border-t border-slate-800 pt-2">
+                        <summary className="text-[10.5px] text-slate-300 cursor-pointer select-none">
+                          Projekti, ki spreminjajo zmogljivost ({capacityStrategy.capacityChanges2026.additional.length}) in večje omejitve (TCR) 2026
+                        </summary>
+                        <ul className="mt-1.5 space-y-1">
+                          {capacityStrategy.capacityChanges2026.additional.map((p: any) => (
+                            <li key={p.project} className="text-[10px] leading-snug text-slate-400">
+                              <span className="text-slate-200 font-medium">{p.project}</span> — {p.effect} <span className="text-slate-500">({p.status})</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="text-[10px] text-slate-400 mt-1.5">
+                          <span className="text-slate-300 font-medium">Večje TCR 2026:</span> {capacityStrategy.tcr2026?.majorProjects?.join('; ')}
+                        </div>
+                      </details>
+                    )}
+
+                    <p className="text-[9.5px] leading-snug text-slate-500">
+                      {capacityStrategy.note} Vir: {capacityStrategy.source}; {capacityStrategy.validation}
+                    </p>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-4">
                 {(corridorsData?.corridors || []).map((cor: any) => (
