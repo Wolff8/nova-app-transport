@@ -41,7 +41,7 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
   const [copied, setCopied] = useState(false);
   const [smartCityData, setSmartCityData] = useState<any>(null);
   const [vagonwebData, setVagonwebData] = useState<string[] | null>(null);
-  const [vagonwebMeta, setVagonwebMeta] = useState<{ operator?: string; trainType?: string; source?: string; isFreight?: boolean; locomotive?: EnrichedLocomotive } | null>(null);
+  const [vagonwebMeta, setVagonwebMeta] = useState<{ operator?: string; trainType?: string; source?: string; isFreight?: boolean; locomotive?: EnrichedLocomotive; note?: string | null; url?: string | null; blocked?: boolean } | null>(null);
   const [enrichedLoco, setEnrichedLoco] = useState<EnrichedLocomotive | null>(null);
   const [crossBorderFreight, setCrossBorderFreight] = useState<CrossBorderFreightStatus | null>(null);
   const [loadingCrossBorder, setLoadingCrossBorder] = useState(false);
@@ -420,7 +420,14 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
            }
          } else {
            setVagonwebData(null);
-           setVagonwebMeta(null);
+           // Keep why there is no composition: VagonWEB refusing the
+           // server (403) is not the same as VagonWEB having no entry.
+           const st = data.vagonwebStatus || null;
+           setVagonwebMeta(data.compositionNote || st ? {
+             note: data.compositionNote || null,
+             url: st?.url || null,
+             blocked: !!(st && (st.httpStatus === 403 || st.error))
+           } : null);
          }
          setLoadingVagonweb(false);
       })
@@ -2311,6 +2318,24 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                   <div className="flex items-center space-x-2 text-[11px] text-wheat p-3 bg-white/5 rounded-xl border border-line mt-2 mb-4">
                     <Activity className="w-3.5 h-3.5 animate-pulse shrink-0" />
                     <span>Pridobivam živo sestavo garniture in vagonov...</span>
+                  </div>
+                )}
+                {/* No composition to draw: say which it is — none published,
+                    or the community register refusing server requests — and
+                    hand over the link, which the reader's own browser can open. */}
+                {isTrain && !loadingVagonweb && (!vagonwebData || vagonwebData.length === 0) && !crossBorderFreight && vagonwebMeta?.note && (
+                  <div className="mt-2 mb-4 p-3 rounded-xl bg-white/5 border border-line text-[11px] leading-snug space-y-1">
+                    <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim">Sestava garniture</div>
+                    <p className="text-white/80">
+                      {vagonwebMeta.blocked
+                        ? 'Slovenske železnice sestav vlakov ne objavljajo. Skupnostni register VagonWEB strežniške poizvedbe zavrača (HTTP 403), zato je sestava tu ne moremo prikazati.'
+                        : vagonwebMeta.note}
+                    </p>
+                    {vagonwebMeta.url && (
+                      <a href={vagonwebMeta.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200 underline underline-offset-2">
+                        Odpri sestavo tega vlaka na VagonWEB v svojem brskalniku ↗
+                      </a>
+                    )}
                   </div>
                 )}
                 {isTrain && ((vagonwebData && vagonwebData.length > 0) || crossBorderFreight) && (
