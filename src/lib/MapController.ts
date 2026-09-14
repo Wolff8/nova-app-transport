@@ -3683,6 +3683,17 @@ export class MapController {
               if (data.line) metrics.push({ label: 'Proga / km', value: `proga ${data.line}, km ${data.km != null ? Number(data.km).toFixed(3) : '?'}`, highlight: false });
               if (data.tracks != null) metrics.push({ label: 'Tiri / stranski tiri (RINF)', value: `${data.tracks} / ${data.sidings ?? 0}`, highlight: false });
               if (data.borderCode) metrics.push({ label: 'Mejna referenca', value: data.borderPartner ? `${data.borderCode} ↔ ${data.borderPartner}` : `${data.borderCode} (sosednji upravljavec v grafu ne objavlja partnerske točke)`, highlight: true });
+              // RINF describes the infrastructure; the daljinar says whether
+              // freight may be handed over here at all. Both carry the same
+              // station code, so the two answers sit side by side.
+              if (data.freight) {
+                metrics.push({
+                  label: 'Odprta za tovorni promet (DIUM)',
+                  value: `da · UIC ${data.freight.uic}${data.freight.intermodal ? ' · ITE terminal' : ''}${data.freight.loadingPlaces ? ` · ${data.freight.loadingPlaces} krajev prevzema/izročitve` : ''}`,
+                  highlight: true
+                });
+                if (data.freight.source) metrics.push({ label: 'Vir (tovorni promet)', value: data.freight.source, highlight: false });
+              }
               if (data.source) metrics.push({ label: 'Vir', value: data.source, highlight: false });
           }
     }

@@ -27,13 +27,17 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [registerQuery, setRegisterQuery] = useState('');
-  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params'>('vkm');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles' | 'terms' | 'params' | 'freightStations'>('vkm');
   const [paramTable, setParamTable] = useState<any>(null);
   const [paramsNetworkOnly, setParamsNetworkOnly] = useState(false);
   const [glossary, setGlossary] = useState<any>(null);
   const [eratvData, setEratvData] = useState<any>(null);
   const [eratvDetail, setEratvDetail] = useState<any>(null);
   const [eratvLoading, setEratvLoading] = useState<string | null>(null);
+  // DIUM SI: the stations Slovenia's network is open to freight on, and the
+  // one station's entry the user has opened.
+  const [diumData, setDiumData] = useState<any>(null);
+  const [diumStation, setDiumStation] = useState<any>(null);
   const [registerResults, setRegisterResults] = useState<any>(null);
   const [networkRef, setNetworkRef] = useState<any>(null);
   const [feedHealth, setFeedHealth] = useState<any>(null);
@@ -1489,7 +1493,8 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   { k: 'lines', label: 'Proge SŽ' },
                   { k: 'vehicles', label: 'Tipi vozil (ERATV)' },
                   { k: 'terms', label: 'Izrazje (IATE)' },
-                  { k: 'params', label: 'Parametri in TSI (ERA)' }
+                  { k: 'params', label: 'Parametri in TSI (ERA)' },
+                  { k: 'freightStations', label: 'Tovorne postaje (DIUM)' }
                 ].map(t => (
                   <button
                     key={t.k}
@@ -1503,6 +1508,9 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                       }
                       if (t.k === 'params' && !paramTable) {
                         fetch('/api/era/parameters').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setParamTable(j); }).catch(() => {});
+                      }
+                      if (t.k === 'freightStations' && !diumData) {
+                        fetch('/api/dium/slovenia').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setDiumData(j); }).catch(() => {});
                       }
                     }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
@@ -1530,6 +1538,12 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                         .then(r => r.json()).then(setGlossary).catch(() => {});
                       return;
                     }
+                    if (registerKind === 'freightStations') {
+                      setDiumStation(null);
+                      fetch(`/api/dium/slovenia?q=${encodeURIComponent(registerQuery)}`)
+                        .then(r => r.json()).then(setDiumData).catch(() => {});
+                      return;
+                    }
                     if (registerKind === 'vehicles') {
                       setEratvDetail(null);
                       fetch(`/api/eratv/slovenia?q=${encodeURIComponent(registerQuery)}`)
@@ -1546,7 +1560,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   <input
                     value={registerQuery}
                     onChange={e => setRegisterQuery(e.target.value)}
-                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : registerKind === 'terms' ? 'Izraz (npr. profil, hitrost, ETCS)' : registerKind === 'params' ? 'Številka ali ime parametra (npr. 2.1.2, pantograph)' : 'Ime prevoznika (npr. Metrans, Adria)'}
+                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : registerKind === 'terms' ? 'Izraz (npr. profil, hitrost, ETCS)' : registerKind === 'params' ? 'Številka ali ime parametra (npr. 2.1.2, pantograph)' : registerKind === 'freightStations' ? 'Ime postaje, industrijskega tira ali šifra (npr. Koper, Cinkarna)' : 'Ime prevoznika (npr. Metrans, Adria)'}
                     className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                   <button type="submit" className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors cursor-pointer shrink-0">
@@ -1555,7 +1569,124 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </form>
               )}
 
-              {registerKind === 'params' ? (
+              {registerKind === 'freightStations' ? (
+                diumData ? (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                          Postaje, odprte za tovorni promet ({diumData.counts.stations})
+                        </h4>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          {diumData.counts.loadingPlaces} krajev prevzema/izročitve · {diumData.counts.intermodalTerminals} ITE terminali · {diumData.counts.borderPoints} mejnih prehodov
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">{diumData.note}</p>
+                      <p className="text-[10px] font-mono text-slate-500 break-words">
+                        {diumData.source} · izdaja {diumData.edition} · {diumData.copyright}
+                      </p>
+                      <p className="text-[10px] font-mono text-slate-500">
+                        {diumData.counts.stationsWithRinf} od {diumData.counts.stations} postaj ima koordinate iz registra RINF (ujemanje po isti šifri službenega mesta).
+                      </p>
+                    </div>
+
+                    {diumStation && (
+                      <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/30 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-bold text-white">{diumStation.name}</div>
+                            <div className="text-[10px] font-mono text-amber-200/70">
+                              UIC {diumStation.uic}{diumStation.rinf ? ` · RINF ${diumStation.rinf.uopid}` : ' · ni v registru RINF'}
+                            </div>
+                          </div>
+                          <button onClick={() => setDiumStation(null)} className="text-[10px] text-slate-400 hover:text-white cursor-pointer shrink-0">zapri</button>
+                        </div>
+                        {diumStation.intermodal && (
+                          <div className="text-[11px] text-amber-100/90">
+                            ITE terminal · kontejner do {diumStation.intermodal.maxContainerLengthFt} čevljev, bruto do {diumStation.intermodal.maxGrossTonnesContainer} t
+                            {diumStation.intermodal.privateTerminal ? ' · privatni terminal' : ''}
+                          </div>
+                        )}
+                        {diumStation.conditions?.length > 0 && (
+                          <ul className="space-y-1 border-t border-white/10 pt-2">
+                            {diumStation.conditions.map((c: string, i: number) => (
+                              <li key={i} className="text-[10.5px] leading-snug text-slate-300 flex gap-1.5">
+                                <span className="text-amber-400/70 shrink-0">•</span><span>{c}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {diumStation.loadingPlaces?.length > 0 && (
+                          <div className="border-t border-white/10 pt-2">
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">
+                              Kraji prevzema / izročitve in industrijski tiri ({diumStation.loadingPlaces.length})
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {diumStation.loadingPlaces.map((p: any) => (
+                                <span
+                                  key={p.code}
+                                  title={p.notes?.length ? p.notes.join('\n') : undefined}
+                                  className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-950 border border-slate-700 text-slate-300"
+                                >
+                                  {p.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {diumStation.borderDistancesKm?.length > 0 && (
+                          <div className="border-t border-white/10 pt-2">
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400 mb-1">Tarifna razdalja do mejnih prehodov</div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-0.5">
+                              {diumStation.borderDistancesKm.map((b: any) => (
+                                <div key={b.code} className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                                  <span className="text-slate-400 truncate" title={b.neighbour ? `${b.name} – ${b.neighbour}` : b.name}>
+                                    {b.name.replace(/ meja$/, '')}{b.country ? ` (${b.country})` : ''}
+                                  </span>
+                                  <span className="font-mono text-slate-200 shrink-0">{b.km == null ? '–' : `${b.km} km`}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-1">
+                      {diumData.stations.map((s: any) => (
+                        <button
+                          key={s.code}
+                          onClick={() => {
+                            setDiumStation(null);
+                            fetch(`/api/dium/station/${s.code}`).then(r => (r.ok ? r.json() : null)).then(j => { if (j && !j.error) setDiumStation(j); }).catch(() => {});
+                          }}
+                          className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 hover:border-amber-500/40 transition-colors cursor-pointer flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs font-semibold text-white truncate">{s.name}</div>
+                            <div className="text-[10px] font-mono text-slate-500">
+                              {s.uic}{s.rinfType ? ` · ${s.rinfType}` : ' · ni v RINF'}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {s.intermodal && <span className="px-1.5 py-0.5 rounded text-[9px] bg-sky-500/15 text-sky-300 border border-sky-500/30">ITE</span>}
+                            {s.loadingPlaces > 0 && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] bg-slate-800 text-slate-300 border border-slate-700">
+                                {s.loadingPlaces} tirov
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                      {diumData.stations.length === 0 && (
+                        <p className="text-[11px] text-slate-400">V daljinarju ni službenega mesta, ki bi ustrezalo iskanju.</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400">Berem daljinar DIUM SI…</p>
+                )
+              ) : registerKind === 'params' ? (
                 paramTable ? (
                   <div className="space-y-3">
                     <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">

@@ -11831,6 +11831,7 @@ app.post('/api/log', express.json(), (req, res) => {
       cacheAgeMs: transitCache.ts ? Date.now() - transitCache.ts : null,
       holavonat: { ...holaStatus, feedTs: holaCache.feedTs, cacheAgeMs: holaCache.ts ? Date.now() - holaCache.ts : null },
       rinfSlovenia: rinfSI ? { ...rinfSI.counts, retrieved: rinfSI.retrieved } : null,
+      diumSlovenia: diumSI ? { ...diumSI.counts, edition: diumSI.edition, retrieved: diumSI.retrieved } : null,
       eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
       iateGlossary: iateGlossary ? { ...iateGlossary.counts, retrieved: iateGlossary.retrieved } : null,
       eraParameterXref: eraParamXref ? eraParamXref.counts : null,
@@ -12636,13 +12637,122 @@ function rinfSINearest(lat: number, lon: number) {
   }
   return { best, nearestOp, nearestOpM };
 }
-const rinfSIStationNodes: any[] = rinfSI ? rinfSI.operationalPoints.map((o: any) => ({
-  id: `rinf-${o.uopid}`, uopid: o.uopid, name: o.name, lat: o.lat, lon: o.lon, type: 'rinf_station',
-  opType: o.type, opTypeSl: RINF_OP_TYPE_SL[o.type] || o.type, plc: o.plc, line: o.line, km: o.km,
-  borderCode: o.border?.code ?? null,
-  borderPartner: o.border?.partner ? `${o.border.partner.name} (${RINF_COUNTRY_SL[o.border.partner.country] || o.border.partner.country}, ${o.border.partner.uopid})` : null,
-  tracks: o.tracks, sidings: o.sidings, source: rinfSISourceLine
-})) : [];
+/**
+ * DIUM SI, the official directory of the service points Slovenia's network is
+ * open to freight on, published by the UIC and prepared by SŽ – Tovorni
+ * promet. Built by scripts/dium_slovenia.mjs.
+ *
+ * RINF says what the infrastructure is; the daljinar says where freight may
+ * actually be handed over, what each station may handle, which private
+ * sidings hang off it and whose they are, and the tariff distance to every
+ * border crossing. Both registers use the same five-digit station code, so a
+ * freight-open point sits on its RINF coordinates without any name matching.
+ *
+ * Nothing here is live. It is a register of what is possible at a place, not
+ * of what is standing there.
+ */
+let diumSI: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'diumSlovenia.json');
+  if (fs.existsSync(p)) {
+    diumSI = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[DIUM] Slovenia:', diumSI.counts.stations, 'freight-open stations,', diumSI.counts.loadingPlaces, 'loading places, edition', diumSI.edition);
+  }
+} catch (e: any) { console.warn('[DIUM] diumSlovenia.json failed:', e?.message); }
+
+/** The loading places and private sidings that hang off each station. */
+const diumPlacesByStation = new Map<string, any[]>();
+if (diumSI) {
+  for (const lp of diumSI.loadingPlaces) {
+    if (!lp.station) continue;
+    if (!diumPlacesByStation.has(lp.station)) diumPlacesByStation.set(lp.station, []);
+    diumPlacesByStation.get(lp.station)!.push(lp);
+  }
+}
+/** A freight-open station by the five digits RINF carries in its UOPID. */
+const diumByCode = new Map<string, any>(diumSI ? diumSI.stations.map((s: any) => [s.code, s]) : []);
+const diumSISourceLine = diumSI ? `${diumSI.source} · izdaja ${diumSI.edition}` : null;
+const diumBorderByCode = new Map<string, any>(diumSI ? diumSI.borderPoints.map((b: any) => [b.code, b]) : []);
+
+/** Everything the daljinar says about one station, with its legend spelled out. */
+function diumStationDetail(s: any) {
+  if (!s) return null;
+  const places = (diumPlacesByStation.get(s.code) || []).map((p: any) => ({
+    code: p.code, uic: p.uic, name: p.name,
+    specialMarkers: p.specialMarkers,
+    notes: p.specialMarkers.map((m: string) => diumSI.legend.specialMarkers[m]).filter(Boolean)
+  }));
+  return {
+    code: s.code, uic: s.uic, name: s.name,
+    generalMarkers: s.generalMarkers, specialMarkers: s.specialMarkers,
+    conditions: [
+      ...s.generalMarkers.map((m: string) => diumSI.legend.generalMarkers[m]),
+      ...s.specialMarkers.map((m: string) => diumSI.legend.specialMarkers[m])
+    ].filter(Boolean),
+    rinf: s.rinf,
+    loadingPlaces: places,
+    intermodal: diumSI.intermodalTerminals.find((t: any) => t.code === s.code) || null,
+    borderDistancesKm: Object.entries(s.distancesKm)
+      .map(([code, km]) => {
+        const b = diumBorderByCode.get(code);
+        return { code, km, name: b?.name || code, neighbour: b?.neighbour || null, country: b?.neighbourCountry || null };
+      })
+      .sort((a: any, b: any) => (a.km ?? 1e9) - (b.km ?? 1e9))
+  };
+}
+
+app.get('/api/dium/slovenia', (req, res) => {
+  if (!diumSI) return res.status(503).json({ error: 'Daljinar DIUM SI ni naložen' });
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const stations = diumSI.stations
+    .filter((s: any) => !q || s.name.toLowerCase().includes(q) || s.code.includes(q) ||
+      (diumPlacesByStation.get(s.code) || []).some((p: any) => p.name.toLowerCase().includes(q)))
+    .map((s: any) => ({
+      code: s.code, uic: s.uic, name: s.name,
+      generalMarkers: s.generalMarkers, specialMarkers: s.specialMarkers,
+      loadingPlaces: (diumPlacesByStation.get(s.code) || []).length,
+      intermodal: diumSI.intermodalTerminals.some((t: any) => t.code === s.code),
+      lat: s.rinf?.lat ?? null, lon: s.rinf?.lon ?? null,
+      rinfType: s.rinf ? RINF_OP_TYPE_SL[s.rinf.type] || s.rinf.type : null
+    }));
+  res.json({
+    source: diumSI.source, url: diumSI.url, publisher: diumSI.publisher, copyright: diumSI.copyright,
+    edition: diumSI.edition, retrieved: diumSI.retrieved, note: diumSI.note,
+    counts: diumSI.counts, legend: diumSI.legend,
+    borderPoints: diumSI.borderPoints, intermodalTerminals: diumSI.intermodalTerminals,
+    query: q || null, matched: stations.length, stations
+  });
+});
+
+app.get('/api/dium/station/:code', (req, res) => {
+  if (!diumSI) return res.status(503).json({ error: 'Daljinar DIUM SI ni naložen' });
+  const code = String(req.params.code).replace(/^SI/i, '');
+  const detail = diumStationDetail(diumByCode.get(code));
+  if (!detail) return res.status(404).json({ error: 'Službenega mesta ni v daljinarju', code });
+  res.json({ source: diumSI.source, url: diumSI.url, edition: diumSI.edition, note: diumSI.note, ...detail });
+});
+
+const rinfSIStationNodes: any[] = rinfSI ? rinfSI.operationalPoints.map((o: any) => {
+  // The daljinar is the register that says whether freight may be handed over
+  // here at all; RINF describes the infrastructure but not the traffic it is
+  // open to. Both use the same five digits, so the two line up exactly.
+  const d = diumByCode.get(String(o.uopid).replace(/^SI/, ''));
+  return {
+    id: `rinf-${o.uopid}`, uopid: o.uopid, name: o.name, lat: o.lat, lon: o.lon, type: 'rinf_station',
+    opType: o.type, opTypeSl: RINF_OP_TYPE_SL[o.type] || o.type, plc: o.plc, line: o.line, km: o.km,
+    borderCode: o.border?.code ?? null,
+    borderPartner: o.border?.partner ? `${o.border.partner.name} (${RINF_COUNTRY_SL[o.border.partner.country] || o.border.partner.country}, ${o.border.partner.uopid})` : null,
+    tracks: o.tracks, sidings: o.sidings, source: rinfSISourceLine,
+    freightOpen: !!d,
+    freight: d ? {
+      code: d.code, uic: d.uic, name: d.name,
+      specialMarkers: d.specialMarkers, generalMarkers: d.generalMarkers,
+      loadingPlaces: (diumPlacesByStation.get(d.code) || []).length,
+      intermodal: diumSI.intermodalTerminals.some((t: any) => t.code === d.code),
+      source: diumSISourceLine
+    } : null
+  };
+}) : [];
 const rinfSINetworkFC = rinfSI ? {
   type: 'FeatureCollection',
   source: rinfSISourceLine,

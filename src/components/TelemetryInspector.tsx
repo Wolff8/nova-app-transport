@@ -70,6 +70,10 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
   // The RINF section under the train: the register's parameters for that
   // piece of line (speed, gauging, load category, electrification, ETCS).
   const [rinfAt, setRinfAt] = useState<any>(null);
+  // The daljinar's entry for a station open to freight: its conditions, its
+  // loading places and private sidings, and the tariff distance to each
+  // border crossing.
+  const [diumAt, setDiumAt] = useState<any>(null);
 
   // Departures & Timetable State
   const [stationDepartures, setStationDepartures] = useState<any[]>([]);
@@ -488,6 +492,23 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id, isTrain, isModelledFreight]);
 
+  // What the daljinar (DIUM SI) says about this station: whether freight may
+  // be handed over here, under what conditions, which sidings hang off it and
+  // how far the border crossings are. Only asked for a station the register
+  // marks as open to freight.
+  useEffect(() => {
+    setDiumAt(null);
+    const code = String((node?.rawPayload as any)?.freight?.code || '');
+    if (!code) return;
+    let active = true;
+    fetch(`/api/dium/station/${code}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (active && j && !j.error) setDiumAt(j); })
+      .catch(() => {});
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node?.id]);
+
   if (!node) return null;
 
   const isLoRa = node.type === 'lorawan' || node.type === 'ttn' || !!node.loraData;
@@ -862,6 +883,16 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
             >
               <Gauge size={12} />
               Metrike
+              {/* A station the daljinar marks as open to freight has its entry
+                  under this tab; the mark says it is worth opening. */}
+              {diumAt && (
+                <span
+                  title="Postaja je v daljinarju DIUM odprta za tovorni promet"
+                  className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                >
+                  tovor
+                </span>
+              )}
             </button>
 
             {isLoRa && (
@@ -1970,6 +2001,72 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                     </div>
                   );
                 })()}
+
+                {/* DIUM SI: whether freight may actually be handed over at this
+                    station, under what conditions, and what hangs off it.
+                    Register data about the place, not about any train. */}
+                {diumAt && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 mt-2 mb-4 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-amber-300">Odprta za tovorni promet (daljinar DIUM)</div>
+                      <span className="text-[9px] font-mono text-amber-200/70">registrski podatki, ne vlak</span>
+                    </div>
+                    <div className="text-[12px] font-semibold text-white">
+                      {diumAt.name} <span className="font-mono text-[10px] text-amber-200/70">UIC {diumAt.uic}</span>
+                    </div>
+                    {diumAt.intermodal && (
+                      <div className="text-[10px] text-amber-100/90 leading-snug">
+                        ITE terminal · kontejner do {diumAt.intermodal.maxContainerLengthFt} čevljev,
+                        bruto do {diumAt.intermodal.maxGrossTonnesContainer} t
+                        {diumAt.intermodal.privateTerminal ? ' · privatni terminal' : ''}
+                      </div>
+                    )}
+                    {diumAt.conditions?.length > 0 && (
+                      <ul className="border-t border-white/10 pt-1.5 space-y-1">
+                        {diumAt.conditions.map((c: string, i: number) => (
+                          <li key={i} className="text-[10px] leading-snug text-white/80 flex gap-1.5">
+                            <span className="text-amber-300/70 shrink-0">•</span><span>{c}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {diumAt.loadingPlaces?.length > 0 && (
+                      <div className="border-t border-white/10 pt-1.5">
+                        <div className="text-[9.5px] uppercase font-mono tracking-wider text-text-dim mb-1">
+                          Kraji prevzema / izročitve ({diumAt.loadingPlaces.length})
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {diumAt.loadingPlaces.map((p: any) => (
+                            <span
+                              key={p.code}
+                              title={p.notes?.length ? p.notes.join('\n') : undefined}
+                              className="px-1.5 py-0.5 rounded text-[9.5px] font-mono bg-white/5 border border-white/10 text-white/80"
+                            >
+                              {p.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {diumAt.borderDistancesKm?.length > 0 && (
+                      <div className="border-t border-white/10 pt-1.5">
+                        <div className="text-[9.5px] uppercase font-mono tracking-wider text-text-dim mb-1">Tarifna razdalja do mejnih prehodov</div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                          {diumAt.borderDistancesKm.map((b: any) => (
+                            <div key={b.code} className="flex items-baseline justify-between gap-2 text-[10px] leading-snug">
+                              <span className="text-text-dim truncate" title={b.neighbour ? `${b.name} – ${b.neighbour}` : b.name}>
+                                {b.name.replace(/ meja$/, '')}{b.country ? ` (${b.country})` : ''}
+                              </span>
+                              <span className="font-mono text-white/80 shrink-0">{b.km == null ? '–' : `${b.km} km`}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-[9px] leading-snug text-text-dim/80">{diumAt.note}</p>
+                    <p className="text-[9px] leading-snug font-mono text-amber-200/60 break-words">vir: {diumAt.source} · izdaja {diumAt.edition}</p>
+                  </div>
+                )}
 
                 {/* VagonWEB & Fleet Composition Live Data & Cross-Border Freight Telematics (Train only, NEVER stations/yards) */}
                 {isTrain && loadingVagonweb && (!vagonwebData || vagonwebData.length === 0) && !crossBorderFreight && (
