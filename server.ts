@@ -16,6 +16,7 @@ import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
 import { getEnrichedLocomotiveData, EUROPEAN_LOCOMOTIVES, COMMON_DATA_SOURCES } from './src/data/europeanLocomotiveRegistry.ts';
 import { generateCrossBorderFreightStatus } from './src/data/crossBorderFreightRegistry.ts';
 import { snapToRailTrack } from './src/lib/railTrackSnapper.ts';
+import * as cheerio from 'cheerio';
 import {
   createEuropeanFreightSlots,
   ALL_EUROPEAN_RFC_CORRIDORS,
@@ -11786,6 +11787,7 @@ app.post('/api/log', express.json(), (req, res) => {
       cacheAgeMs: transitCache.ts ? Date.now() - transitCache.ts : null,
       holavonat: { ...holaStatus, feedTs: holaCache.feedTs, cacheAgeMs: holaCache.ts ? Date.now() - holaCache.ts : null },
       rinfSlovenia: rinfSI ? { ...rinfSI.counts, retrieved: rinfSI.retrieved } : null,
+      eratvSlovenia: eratvSI ? { types: eratvSI.types.length, detailsCached: eratvDetailCache.size, retrieved: eratvSI.retrieved } : null,
       note: 'motis/travic/mav povedo, koliko vozil je prispevalo posamezno zaledje pri zadnji gradnji. Nic pri motis in travic pomeni, da sta oba odpovedala in ostanejo samo madzarski vlaki.'
     });
   });
@@ -12620,6 +12622,217 @@ const rinfSISummary = rinfSI ? (() => {
     partnerNote: 'Mejno točko opisujeta oba upravljavca pod isto kodo EU00xxx; partnerska točka je navedena, kadar jo sosednji upravljavec objavlja z isto referenco (v grafu: Italija in Madžarska).'
   };
 })() : null;
+
+/**
+ * ERATV, the European register of authorised vehicle types, filtered to the
+ * types authorised for Slovenia and pulled by
+ * scripts/eratv_extract_slovenia.mjs from the register's public pages.
+ *
+ * A vehicle type is not a vehicle. The register says what a type was
+ * authorised for — design speed, axle load, gauge, energy supply, train
+ * protection — and never which locomotive is running today, so nothing here
+ * is attached to a live train.
+ */
+let eratvSI: any = null;
+try {
+  const p = path.join(process.cwd(), 'src', 'data', 'eratvSlovenia.json');
+  if (fs.existsSync(p)) {
+    eratvSI = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    console.log('[ERATV] Slovenia dataset:', eratvSI.types.length, 'types, retrieved', eratvSI.retrieved);
+  }
+} catch (e: any) { console.warn('[ERATV] eratvSlovenia.json failed:', e?.message); }
+const ERATV_CATEGORY_SL: Record<string, string> = {
+  'Traction vehicles': 'vlečna vozila', 'Locomotive': 'lokomotiva', 'Freight Wagons': 'tovorni vagoni',
+  'Freight wagon': 'tovorni vagon', 'Hauled passenger vehicles': 'vlečena potniška vozila', 'Coach': 'potniški vagon',
+  'Special Vehicles': 'posebna vozila', 'On track Machines (OTMs)': 'progovni stroji (OTM)',
+  'Self-propelling passenger trainsets': 'potniške garniture na lastni pogon',
+  'Electric multiple unit (EMU)': 'električna garnitura (EMU)', 'Diesel multiple unit (DMU)': 'dizelska garnitura (DMU)',
+  'Railcar': 'motornik', 'Self-propelled passenger trainset': 'potniška garnitura na lastni pogon',
+  'Self-propelling passenger vehicles': 'potniška vozila na lastni pogon', 'Shunting locomotive': 'premikalna lokomotiva',
+  'Hauled passenger vehicle': 'vlečeno potniško vozilo', 'Double-deck coach': 'dvonadstropni potniški vagon'
+};
+const eratvSl = (v: string | null) => (v ? (ERATV_CATEGORY_SL[v] ?? v) : null);
+const eratvSISourceLine = eratvSI ? `${eratvSI.source} · posnetek ${String(eratvSI.retrieved).slice(0, 10)}` : null;
+const eratvSummaryRow = (t: any) => {
+  const d = eratvDetailCache.get(t.id)?.data;
+  return {
+    id: t.id, name: t.name, altName: d?.altName ?? null,
+    category: eratvSl(d?.category ?? null), subcategory: eratvSl(d?.subcategory ?? null),
+    status: t.status, holder: d?.holder ?? null, manufacturer: d?.manufacturer ?? null,
+    maxSpeedKmh: d?.maxSpeedKmh ?? null, energySupply: d?.energySupply ?? [], axleLoadKg: d?.axleLoadKg ?? null,
+    authDocRef: t.authDocRef, lastUpdate: t.lastUpdate, hasDetail: !!d
+  };
+};
+
+/**
+ * A type's full record, read from the register on demand.
+ *
+ * ERATV serves a type's XML only to a session that has just searched for and
+ * viewed that type, and refuses a run of them, so bulk crawling is out. One
+ * record takes the register about half a minute; results are kept for a day.
+ */
+const eratvDetailCache = new Map<string, { ts: number; data: any }>();
+const ERATV_DETAIL_TTL_MS = 24 * 3600 * 1000;
+const ERATV_BASE = 'https://eratv.era.europa.eu/Eratv';
+// The register's localisation code answers 500 without an Accept-Language,
+// and 500 again if a Cookie header is present but empty.
+const ERATV_HEADERS = { 'User-Agent': 'nova-app-transport (+https://nova-app-transport.onrender.com)', 'Accept-Language': 'en-US,en;q=0.9' };
+let eratvInFlight: Promise<any> | null = null;
+
+async function eratvFetchDetail(typeId: string): Promise<any | null> {
+  const jar = new Map<string, string>();
+  const req = async (url: string, init?: RequestInit) => {
+    const cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+    const r = await fetch(url, {
+      ...init,
+      headers: { ...ERATV_HEADERS, ...(init?.headers as any), ...(cookie ? { Cookie: cookie } : {}) },
+      signal: AbortSignal.timeout(45000)
+    });
+    for (const raw of (r.headers.getSetCookie?.() ?? [])) {
+      const [pair] = raw.split(';');
+      const i = pair.indexOf('=');
+      if (i > 0) jar.set(pair.slice(0, i).trim(), pair.slice(i + 1).trim());
+    }
+    return r.text();
+  };
+  const listPage = await req(`${ERATV_BASE}/Home/List`);
+  const token = listPage.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/)?.[1]
+    ?? listPage.match(/value="([^"]+)"[^>]*name="__RequestVerificationToken"/)?.[1];
+  if (!token) return null;
+  const body = new URLSearchParams();
+  body.set('__RequestVerificationToken', token);
+  body.set('returnUrl', '/Eratv/Home/List');
+  body.append('SelectedMemberStates', '25');
+  body.append('RegistrationRegimeModeViewModel.Is2016Directive', 'true');
+  body.append('RegistrationRegimeModeViewModel.Is2016Directive', 'false');
+  body.set('GetDeactivatedVehicleTypes', 'false');
+  body.set('PagedGrid.PageIndex', '1');
+  body.set('PagedGrid.PageSize', '100');
+  await req(`${ERATV_BASE}/Home/List`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
+  const view = await req(`${ERATV_BASE}/Home/View/${encodeURIComponent(typeId)}`);
+  const internal = view.match(/ExportVehicleType\/(\d+)\?/)?.[1];
+  // A refusal comes back as a stub page with internal id 0, and costs a
+  // second or two, so the caller retries rather than giving up here.
+  if (!internal || internal === '0') return null;
+  const xml = await req(`${ERATV_BASE}/Home/ExportVehicleType/${internal}?exportTo=2`);
+  if (!xml.trimStart().startsWith('<?xml')) return null;
+  return eratvParseDetail(xml);
+}
+
+/** Up to three goes at one record; a refusal fails fast, so this is cheap. */
+async function eratvFetchDetailRetrying(typeId: string): Promise<any | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const data = await eratvFetchDetail(typeId);
+    if (data) return data;
+    if (attempt < 2) await new Promise(r => setTimeout(r, 4000));
+  }
+  return null;
+}
+
+/**
+ * Flattens a VehicleType document to { parameter code: values }.
+ *
+ * The register puts several Name/Code/Configurations groups inside one
+ * Characteristic, in document order, so children are walked in order and each
+ * Code keeps the values that follow it.
+ */
+function eratvParseDetail(xml: string): any {
+  const $ = cheerio.load(xml, { xmlMode: true });
+  const out = new Map<string, string[]>();
+  const add = (code: string | null, vals: string[]) => {
+    if (!code || !vals.length) return;
+    out.set(code, [...new Set([...(out.get(code) || []), ...vals])]);
+  };
+  const walk = (node: any) => {
+    let code: string | null = null;
+    for (const child of $(node).children().toArray() as any[]) {
+      const tag = child.tagName;
+      if (tag === 'Code') { code = $(child).text().trim(); continue; }
+      if (tag === 'Name') continue;
+      if (tag === 'Value') { add(code, [$(child).text().trim()].filter(Boolean)); continue; }
+      if (tag === 'Configurations') { add(code, $(child).find('Value').map((_: any, v: any) => $(v).text().trim()).get().filter(Boolean)); continue; }
+      if (tag === 'Characteristic') walk(child);
+    }
+  };
+  $('VehicleType').children().each((_, sec) => walk(sec));
+  $('VehicleType GeneralInfo Type').each((_, t) => walk(t));
+  $('VehicleType Authorisations Authorisation').each((_, a) => walk(a));
+  const g = (c: string) => out.get(c) || [];
+  const one = (c: string) => (g(c).length ? g(c)[0] : null);
+  const num = (c: string) => {
+    const cleaned = String(one(c) ?? '').replace(',', '.').replace(/[^\d.-]/g, '');
+    if (!cleaned || !/\d/.test(cleaned)) return null;
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : null;
+  };
+  const areaOfUse = $('Characteristic').filter((_, e) => ($(e).children('Code').first().text() || '').startsWith('3.0')).children('Value').first().text().trim() || null;
+  return {
+    name: one('1.1'), altName: one('1.2'), category: one('1.4'), subcategory: one('1.5'),
+    dateOfRecord: one('0.3'), authStatus: one('3.1.2.1'), authDocRef: one('3.1.3.1.3'), authDate: one('3.1.3.1.1'),
+    areaOfUse, manufacturer: one('1.3.1.1'), holder: one('3.1.3.1.2.1.1'), holderCode: one('3.1.3.1.2.1.3'),
+    drivingCabs: num('4.1.1'), maxSpeedKmh: num('4.1.2.1'), wheelSetGauge: one('4.1.3'),
+    referenceProfile: g('4.2.1'), temperatureRange: g('4.3.1'), fireCategory: one('4.4.1'), lineCategories: g('4.5.1.1'),
+    designMassKg: num('4.5.2.1'), axleLoadKg: num('4.5.3.1'), lengthM: num('4.8.1'),
+    minWheelDiameterMm: num('4.8.2'), minCurveRadiusM: num('4.8.4'),
+    energySupply: g('4.10.1'), maxDecelerationMs2: num('4.7.1'), coupling: g('4.9.1'), hotAxleBoxDetection: one('4.9.2'),
+    etcs: g('4.13.1.1'), etcsImplementation: g('4.13.1.7'), trainProtectionLegacy: g('4.13.1.5'),
+    gsmrVoice: g('4.13.2.1'), trainDetection: g('4.14.1'),
+    codedRestrictions: g('3.1.2.3'), nonCodedRestrictions: g('3.1.2.4')
+  };
+}
+
+app.get('/api/eratv/slovenia', (req, res) => {
+  if (!eratvSI) return res.status(503).json({ error: 'Nabor ERATV ni naložen' });
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const rows = eratvSI.types
+    .filter((t: any) => !q || [t.name, t.altName, t.id, t.holder, t.manufacturer, t.category, t.subcategory]
+      .some((v: any) => String(v ?? '').toLowerCase().includes(q)))
+    .map(eratvSummaryRow);
+  // The list export does not carry the category; it comes from a type's own
+  // record, so this counts only the types whose record has been read.
+  const byCategory: Record<string, number> = {};
+  for (const t of eratvSI.types) {
+    const d = eratvDetailCache.get(t.id)?.data;
+    if (!d) continue;
+    const k = [eratvSl(d.category), eratvSl(d.subcategory)].filter(Boolean).join(' / ') || 'ni navedeno';
+    byCategory[k] = (byCategory[k] || 0) + 1;
+  }
+  res.json({
+    source: eratvSI.source, sourceUrl: eratvSI.sourceUrl, legalBasis: eratvSI.legalBasis, note: eratvSI.note,
+    retrieved: eratvSI.retrieved, memberState: eratvSI.memberState,
+    counts: { types: eratvSI.types.length, withDetail: eratvDetailCache.size, byCategory },
+    query: q || null, matched: rows.length, types: rows
+  });
+});
+app.get('/api/eratv/type/:id', async (req, res) => {
+  if (!eratvSI) return res.status(503).json({ error: 'Nabor ERATV ni naložen' });
+  const id = String(req.params.id);
+  const t = eratvSI.types.find((x: any) => x.id === id);
+  if (!t) return res.status(404).json({ error: 'Tipa vozila ni v naboru' });
+  const base = { id: t.id, name: t.name, status: t.status, authDocRef: t.authDocRef, lastUpdate: t.lastUpdate,
+    source: eratvSISourceLine, sourceUrl: `${ERATV_BASE}/Home/View/${t.id}` };
+
+  const hit = eratvDetailCache.get(id);
+  if (hit && Date.now() - hit.ts < ERATV_DETAIL_TTL_MS) {
+    return res.json({ ...base, ...hit.data, categorySl: eratvSl(hit.data.category), subcategorySl: eratvSl(hit.data.subcategory), hasDetail: true });
+  }
+  // One reader at a time: the register refuses a run of these.
+  if (eratvInFlight) {
+    try { await eratvInFlight; } catch { /* the other reader's problem */ }
+  }
+  try {
+    eratvInFlight = eratvFetchDetailRetrying(id);
+    const data = await eratvInFlight;
+    if (!data) {
+      return res.json({ ...base, hasDetail: false,
+        detailNote: 'Registra tokrat ni bilo mogoče prebrati za ta tip. ERATV postreže podroben zapis le občasno; poskusite čez nekaj trenutkov ali odprite zapis v registru.' });
+    }
+    eratvDetailCache.set(id, { ts: Date.now(), data });
+    res.json({ ...base, ...data, categorySl: eratvSl(data.category), subcategorySl: eratvSl(data.subcategory), hasDetail: true });
+  } catch (e: any) {
+    res.json({ ...base, hasDetail: false, detailNote: `Branje registra ni uspelo: ${e?.message || e}` });
+  } finally { eratvInFlight = null; }
+});
 
 app.get('/api/rinf/summary', (_req, res) => {
   if (!rinfSISummary) return res.status(503).json({ error: 'Nabor RINF za Slovenijo ni naložen' });

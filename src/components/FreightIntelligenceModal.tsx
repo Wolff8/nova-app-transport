@@ -27,7 +27,10 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
   const [msDepartures, setMsDepartures] = useState<any>(null);
   const [corridorLoad, setCorridorLoad] = useState<any>(null);
   const [registerQuery, setRegisterQuery] = useState('');
-  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines'>('vkm');
+  const [registerKind, setRegisterKind] = useState<'vkm' | 'operators' | 'lines' | 'vehicles'>('vkm');
+  const [eratvData, setEratvData] = useState<any>(null);
+  const [eratvDetail, setEratvDetail] = useState<any>(null);
+  const [eratvLoading, setEratvLoading] = useState<string | null>(null);
   const [registerResults, setRegisterResults] = useState<any>(null);
   const [networkRef, setNetworkRef] = useState<any>(null);
   const [feedHealth, setFeedHealth] = useState<any>(null);
@@ -1480,11 +1483,17 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 {[
                   { k: 'vkm', label: 'Imetniki vozil (VKM)' },
                   { k: 'operators', label: 'Prevozniki (ERA)' },
-                  { k: 'lines', label: 'Proge SŽ' }
+                  { k: 'lines', label: 'Proge SŽ' },
+                  { k: 'vehicles', label: 'Tipi vozil (ERATV)' }
                 ].map(t => (
                   <button
                     key={t.k}
-                    onClick={() => { setRegisterKind(t.k as any); setRegisterResults(null); }}
+                    onClick={() => {
+                      setRegisterKind(t.k as any); setRegisterResults(null); setEratvDetail(null);
+                      if (t.k === 'vehicles' && !eratvData) {
+                        fetch('/api/eratv/slovenia').then(r => (r.ok ? r.json() : null)).then(j => { if (j) setEratvData(j); }).catch(() => {});
+                      }
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                       registerKind === t.k
                         ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -1500,6 +1509,12 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 <form
                   onSubmit={e => {
                     e.preventDefault();
+                    if (registerKind === 'vehicles') {
+                      setEratvDetail(null);
+                      fetch(`/api/eratv/slovenia?q=${encodeURIComponent(registerQuery)}`)
+                        .then(r => r.json()).then(setEratvData).catch(() => {});
+                      return;
+                    }
                     const url = registerKind === 'vkm'
                       ? `/api/era/vkm?q=${encodeURIComponent(registerQuery)}`
                       : `/api/era/organisations?q=${encodeURIComponent(registerQuery)}`;
@@ -1510,7 +1525,7 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                   <input
                     value={registerQuery}
                     onChange={e => setRegisterQuery(e.target.value)}
-                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : 'Ime prevoznika (npr. Metrans, Adria)'}
+                    placeholder={registerKind === 'vkm' ? 'Ime imetnika ali oznaka (npr. SZTP, Koper)' : registerKind === 'vehicles' ? 'Ime ali koda tipa (npr. 744, FLIRT, Vectron)' : 'Ime prevoznika (npr. Metrans, Adria)'}
                     className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                   <button type="submit" className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors cursor-pointer shrink-0">
@@ -1519,7 +1534,123 @@ export const FreightIntelligenceModal: React.FC<FreightIntelligenceModalProps> =
                 </form>
               )}
 
-              {registerKind === 'lines' ? (
+              {registerKind === 'vehicles' ? (
+                eratvData ? (() => {
+                  const d = eratvData;
+                  const val = (x: any) => (Array.isArray(x) ? (x.length ? x.join(', ') : null) : (x ?? null));
+                  const Row = ({ label, value, unit }: { label: string; value: any; unit?: string }) => {
+                    const v = val(value);
+                    return v == null || v === '' ? null : (
+                      <div className="flex items-baseline justify-between gap-2 text-[10.5px] leading-snug">
+                        <span className="text-slate-400 shrink-0">{label}</span>
+                        <span className="font-mono text-slate-100 text-right">{v}{unit ? ` ${unit}` : ''}</span>
+                      </div>
+                    );
+                  };
+                  return (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Tipi vozil z dovoljenjem za Slovenijo ({d.counts.types})
+                          </h4>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {d.counts.withDetail} s podrobnim zapisom{d.query ? ` · zadetkov: ${d.matched}` : ''}
+                          </span>
+                        </div>
+                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5">
+                          {Object.entries(d.counts.byCategory).map(([k, n]) => (
+                            <li key={k} className="flex items-baseline justify-between gap-2 text-[10.5px]">
+                              <span className="text-slate-300 truncate">{k}</span>
+                              <span className="font-mono text-white shrink-0">{n as any}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-[46vh] overflow-y-auto pr-1">
+                        {d.types.map((t: any) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              if (eratvDetail?.id === t.id) { setEratvDetail(null); return; }
+                              setEratvDetail(null); setEratvLoading(t.id);
+                              fetch(`/api/eratv/type/${encodeURIComponent(t.id)}`)
+                                .then(r => (r.ok ? r.json() : null))
+                                .then(j => { if (j) setEratvDetail(j); })
+                                .catch(() => {})
+                                .finally(() => setEratvLoading(null));
+                            }}
+                            className={`w-full text-left p-2.5 rounded-xl border transition-colors ${
+                              eratvDetail?.id === t.id || eratvLoading === t.id ? 'bg-amber-500/10 border-amber-500/40' : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                              <span className="text-[12px] font-semibold text-white">{t.name}</span>
+                              <span className="text-[9.5px] font-mono text-slate-400">{t.id}</span>
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-400">
+                              {[t.subcategory || t.category, t.maxSpeedKmh != null ? `${t.maxSpeedKmh} km/h` : null,
+                                t.energySupply?.length ? t.energySupply.join(', ') : null, t.status].filter(Boolean).join(' · ')}
+                            </div>
+                            {t.holder ? <div className="text-[9.5px] text-slate-500 truncate">imetnik dovoljenja: {t.holder}</div> : null}
+
+                            {eratvLoading === t.id && (
+                              <div className="mt-2 pt-2 border-t border-white/10 text-[10px] font-mono text-amber-200/90">
+                                Berem zapis iz registra ERATV… to traja okoli pol minute.
+                              </div>
+                            )}
+                            {eratvDetail?.id === t.id && (
+                              <div className="mt-2 pt-2 border-t border-white/10 space-y-0.5">
+                                <Row label="Alternativno ime" value={eratvDetail.altName} />
+                                <Row label="Kategorija" value={[eratvDetail.categorySl, eratvDetail.subcategorySl].filter(Boolean).join(' / ')} />
+                                <Row label="Proizvajalec" value={eratvDetail.manufacturer} />
+                                <Row label="Imetnik dovoljenja" value={eratvDetail.holder} />
+                                <Row label="Koda organizacije" value={eratvDetail.holderCode} />
+                                <Row label="Dovoljenje" value={eratvDetail.authDocRef} />
+                                <Row label="Datum dovoljenja" value={eratvDetail.authDate} />
+                                <Row label="Območje uporabe" value={eratvDetail.areaOfUse} />
+                                <Row label="Največja konstrukcijska hitrost" value={eratvDetail.maxSpeedKmh} unit="km/h" />
+                                <Row label="Napajanje" value={eratvDetail.energySupply} />
+                                <Row label="Tirna širina" value={eratvDetail.wheelSetGauge} unit="mm" />
+                                <Row label="Referenčni profil" value={eratvDetail.referenceProfile} />
+                                <Row label="Kategorije prog (EN)" value={eratvDetail.lineCategories} />
+                                <Row label="Masa v obratovalnem stanju" value={eratvDetail.designMassKg} unit="kg" />
+                                <Row label="Statična osna obremenitev" value={eratvDetail.axleLoadKg} unit="kg" />
+                                <Row label="Dolžina vozila" value={eratvDetail.lengthM} unit="m" />
+                                <Row label="Najmanjši polmer krivine" value={eratvDetail.minCurveRadiusM} unit="m" />
+                                <Row label="Najmanjši premer kolesa" value={eratvDetail.minWheelDiameterMm} unit="mm" />
+                                <Row label="Največji pojemek" value={eratvDetail.maxDecelerationMs2} unit="m/s²" />
+                                <Row label="Vrsta spenjače" value={eratvDetail.coupling} />
+                                <Row label="ETCS" value={eratvDetail.etcs} />
+                                <Row label="Izvedba ETCS" value={eratvDetail.etcsImplementation} />
+                                <Row label="Zaščita vlaka (razred B)" value={eratvDetail.trainProtectionLegacy} />
+                                <Row label="GSM-R govor" value={eratvDetail.gsmrVoice} />
+                                <Row label="Sistemi zaznavanja vlaka" value={eratvDetail.trainDetection} />
+                                <Row label="Temperaturno območje" value={eratvDetail.temperatureRange} />
+                                <Row label="Požarna kategorija" value={eratvDetail.fireCategory} />
+                                <Row label="Kodirane omejitve" value={eratvDetail.codedRestrictions} />
+                                {eratvDetail.detailNote ? <p className="text-[9.5px] text-amber-200/80 leading-snug">{eratvDetail.detailNote}</p> : null}
+                                <a href={eratvDetail.sourceUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[9.5px] font-mono text-sky-300/80 hover:text-sky-200 break-all block pt-1">
+                                  zapis v registru: {eratvDetail.sourceUrl}
+                                </a>
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      <p className="text-[9.5px] leading-snug text-slate-400">{d.note}</p>
+                      <a href={d.sourceUrl} target="_blank" rel="noreferrer" className="text-[10px] font-mono text-sky-300/80 hover:text-sky-200 break-all block">
+                        vir: {d.source} · {d.legalBasis} · posnetek {String(d.retrieved).slice(0, 10)}
+                      </a>
+                    </div>
+                  );
+                })() : (
+                  <p className="text-xs text-slate-400 p-3.5 rounded-xl bg-slate-900/70 border border-slate-800">Nalagam register tipov vozil…</p>
+                )
+              ) : registerKind === 'lines' ? (
                 networkRef?.networkStatement?.lines ? (
                   <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
