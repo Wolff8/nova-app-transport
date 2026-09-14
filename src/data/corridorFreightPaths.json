@@ -281,6 +281,35 @@
   },
   {
    "operator": "Rail Cargo Group (TransFER)",
+   "from": "Duisburg DKT",
+   "to": "Ljubljana",
+   "aliases": {
+    "from": [
+     "duisburg",
+     "dkt"
+    ],
+    "to": [
+     "ljubljana"
+    ]
+   },
+   "perWeek": 5,
+   "bothWays": true,
+   "route": "prek Beljaka (Villach Süd CCT)",
+   "transitHours": null,
+   "cargo": "intermodalne enote, profil PC70/400",
+   "operatingDays": "Duisburg → Ljubljana tor–sob, Ljubljana → Duisburg pon–pet",
+   "validUntil": "2026-12-31",
+   "schedule": [
+    "Duisburg DKT → Ljubljana: zadnji sprejem enote dan pred odhodom ob 21:00, prevzem v Ljubljani drugi dan ob 08:00",
+    "Ljubljana → Duisburg DKT: zadnji sprejem pon in tor ob 12:30, sre–pet ob 16:00, prevzem v Duisburgu drugi dan ob 06:00",
+    "terminal v Ljubljani: Letališka cesta 14"
+   ],
+   "note": "Dejstveni list objavlja roke terminala (sprejem enote in prevzem), ne ur odhoda ali prihoda vlaka.",
+   "source": "https://www.railcargo.com/en/dms/factsheets/factsheet-transfer-duisburg-villach-ljubljana-en.pdf",
+   "retrieved": "2026-09-14"
+  },
+  {
+   "operator": "Rail Cargo Group (TransFER)",
    "from": "Bratislava",
    "to": "Koper",
    "aliases": {
@@ -868,7 +897,7 @@
   }
  ],
  "portServicesNote": "Seznam rednih vlakov, ki ga objavlja Luka Koper (D = na dan, W = na teden). Brez ur odhodov in brez navedbe poti po Sloveniji; projektni vlaki vozijo po potrebi.",
- "generated": "2026-09-13T22:54:58.891Z",
+ "generated": "2026-09-14T07:54:46.595Z",
  "paths": [
   {
    "papId": "C6NPPOZG02",
