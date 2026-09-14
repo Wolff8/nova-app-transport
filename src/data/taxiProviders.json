@@ -2,12 +2,13 @@
   "source": "Each provider's own public website, fetched and read directly (company name, coverage cities, phone number, and app-store links copied verbatim from that site).",
   "retrieved": "2026-09-14",
   "coverageNote": "Murska Sobota — this app's home city — has no coverage from any taxi-hailing platform found, real (Uber, the six national platforms named by the operator) or otherwise. The closest real coverage is these Ljubljana-area providers, useful only if you are travelling to one of the cities listed.",
-  "apiNote": "None of these publish a public live-vehicle-position API. Where a provider advertises live tracking, it is confirmed to exist only inside its own native app (see each entry's note) — never on the public website, and never reachable without placing a real order in that app.",
+  "apiNote": "None of these publish a public live-vehicle-position API. Where a provider advertises live tracking, it is confirmed to exist only inside its own native app (see each entry's note) — never on the public website, and never reachable without placing a real order in that app. The three yellow dots on the map under \"Taxi (statični naslovi)\" are each provider's real dispatch-office address — verified against that provider's own site and geocoded, not a vehicle position.",
   "providers": [
     {
       "id": "taximetro",
       "name": "TaxiMetro",
       "cities": ["Ljubljana"],
+      "address": "Litijska cesta 16, 1000 Ljubljana",
       "website": "https://www.taximetro.si/en/",
       "phone": "+386 41 240 200",
       "playStore": "https://play.google.com/store/apps/details?id=com.metrotaxi",
@@ -18,6 +19,7 @@
       "id": "city-taxi-laguna",
       "name": "City Taxi (Laguna Taxi)",
       "cities": ["Ljubljana", "Maribor", "Koper", "Kamnik"],
+      "address": "Celovška cesta 228, 1000 Ljubljana",
       "website": "https://city-taxi.si/en/",
       "phone": "+386 31 49 22 99",
       "freephone": ["080 1117", "080 1233"],
@@ -28,7 +30,8 @@
     {
       "id": "taxi-rondo",
       "name": "Taxi Rondo",
-      "cities": ["Ljubljana"],
+      "cities": ["Ljubljana", "Koper"],
+      "address": "Kamniška ulica 25, 1000 Ljubljana",
       "website": "https://www.taxi-rondo.si/en/",
       "phone": "+386 31 311 311",
       "freephone": ["040 970970", "041 970970", "070 900900", "080 900900"],

@@ -29,6 +29,64 @@ maplibregl.setWorkerUrl(maplibreWorkerUrl);
 export const CENTER: [number, number] = [16.1714, 46.6573];
 
 /**
+ * No taxi-hailing platform (Uber included) publishes a public live-position
+ * feed anywhere in Slovenia, so this cannot be a live layer. It is instead a
+ * small, fixed set of real dispatch-office addresses, each read off that
+ * company's own website and geocoded with Nominatim (OpenStreetMap) — never
+ * a vehicle position, never guessed. Companies whose address could not be
+ * verified (e.g. Yalla Taxi, whose site could not be reached) are left out
+ * here entirely rather than placed on a guess; see the Taxi & Prevozi panel
+ * for those.
+ */
+export const TAXI_COMPANIES: GeoJSONFeatureCollection = {
+  type: 'FeatureCollection',
+  features: [
+    {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [14.5381759, 46.0478322] },
+      properties: {
+        id: 'taxi_taximetro',
+        name: 'TaxiMetro',
+        cities: 'Ljubljana',
+        address: 'Litijska cesta 16, 1000 Ljubljana',
+        phone: '+386 41 240 200',
+        website: 'https://www.taximetro.si/en/',
+        playStore: 'https://play.google.com/store/apps/details?id=com.metrotaxi',
+        appStore: 'https://apps.apple.com/si/app/taximetro-ljubljana/id977998476'
+      }
+    },
+    {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [14.4806349, 46.0823380] },
+      properties: {
+        id: 'taxi_citytaxi',
+        name: 'City Taxi (Laguna Taxi)',
+        cities: 'Ljubljana, Maribor, Koper, Kamnik',
+        address: 'Celovška cesta 228, 1000 Ljubljana',
+        phone: '+386 31 49 22 99',
+        website: 'https://city-taxi.si/en/',
+        playStore: 'https://play.google.com/store/apps/details?id=com.netinformatika.laguna',
+        appStore: 'https://apps.apple.com/si/app/city-taxi-ljubljana/id1140919664'
+      }
+    },
+    {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [14.5011504, 46.0686931] },
+      properties: {
+        id: 'taxi_rondo',
+        name: 'Taxi Rondo',
+        cities: 'Ljubljana, Koper',
+        address: 'Kamniška ulica 25, 1000 Ljubljana',
+        phone: '+386 31 311 311',
+        website: 'https://www.taxi-rondo.si/en/',
+        playStore: 'https://play.google.com/store/apps/details?id=com.netinformatika.rondo',
+        appStore: 'https://apps.apple.com/us/app/taxi-rondo/id1245179243'
+      }
+    }
+  ]
+};
+
+/**
  * The original CartoCDN dark-matter basemap.
  *
  * This is a vector style, and MapLibre parses vector tiles in its web worker.
@@ -490,7 +548,7 @@ export class MapController {
         'transit', 'hafas', 'aircraft', 'eurorail', 'freight_trains', 
         'stations_layer', 'rinf', 'rinf_network_line', 
         'traffic', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 
-        'ttn', 'lorawan', 'nbiot', 'evcharge', 'quakes', 'air', 'spat', 'hydro', 'yard'
+        'ttn', 'lorawan', 'nbiot', 'evcharge', 'quakes', 'air', 'spat', 'hydro', 'yard', 'taxi_companies'
       ];
       interactiveLayers.forEach(layer => {
         this.map.on('mouseenter', layer, () => {
@@ -752,6 +810,33 @@ export class MapController {
         }
       });
 
+      // Taxi companies — static, verified dispatch-office addresses (see
+      // TAXI_COMPANIES above). Never polled, never repositioned: this is not
+      // a vehicle layer.
+      this.map.addSource('taxi_companies', { type: 'geojson', data: TAXI_COMPANIES });
+      this.map.addLayer({
+        id: 'taxi_companies', type: 'circle', source: 'taxi_companies',
+        paint: {
+          'circle-color': '#fde047',
+          'circle-radius': 7,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#78350f'
+        }
+      });
+      this.map.addLayer({
+        id: 'taxi_companies_label', type: 'symbol', source: 'taxi_companies',
+        layout: {
+          'text-field': ['concat', ['get', 'name']],
+          'text-size': 10,
+          'text-offset': [0, 1],
+          'text-anchor': 'top'
+        },
+        paint: {
+          'text-color': '#fef08a',
+          'text-halo-color': '#000',
+          'text-halo-width': 1.5
+        }
+      });
 
 
       // Bikes (Nomago, BicikeLJ)
@@ -1548,7 +1633,7 @@ export class MapController {
           [e.point.x + 16, e.point.y + 16]
         ];
         const features = this.map.queryRenderedFeatures(bbox, {
-          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings', 'rail_works', 'rail_works_point', 'rail_works_label', 'osm_freight_points', 'osm_freight_lines']
+          layers: ['buses', 'buses_label', 'stations_layer', 'stations_label', 'rinf', 'rinf_label', 'rinf_network_line', 'traffic', 'traffic_label', 'eurorail_label', 'eurorail_arrow', 'switches', 'rail_signals', 'spat_pulse', 'spat', 'spat_label', 'hydro', 'power', 'moms', 'openaq', 'eurorail', 'ttn', 'opensense', 'smartcity', 'arso', 'air', 'aircraft', 'quakes', 'evcharge', 'lorawan', 'nbiot', 'rail_sensors', 'traffic_sensors', 'logistics_sensors', 'transit', 'transit_label', 'nbiot_label', 'rail_sensors_label', 'traffic_sensors_label', 'logistics_sensors_label', 'transit_arrow', 'hafas', 'aprs', 'loramesh', 'sparql', 'warehouse_circle', 'yard', 'sensorcommunity', 'github', 'arso_label', 'sensorcommunity_label', 'github_label', 'era_tunnels_line', 'freight_trains', 'freight_trains_glow', 'freight_trains_label', 'freight_paths', 'freight_paths_label', 'border_crossings', 'rail_works', 'rail_works_point', 'rail_works_label', 'osm_freight_points', 'osm_freight_lines', 'taxi_companies', 'taxi_companies_label']
         });
         
         if (features.length) {
@@ -2994,6 +3079,7 @@ export class MapController {
         aircraft: aircraft.length,
         quakes: quakes.length,
         evcharge: ev.length,
+        taxi_companies: TAXI_COMPANIES.features.length,
         lorawan: lora.length,
         nbiot: nbiot.length,
         bikeshare: bikes.length,
@@ -3608,6 +3694,27 @@ export class MapController {
         timestamp: new Date(),
         metrics,
         rawPayload: { ...data, freight: data.diumCode ? { code: data.diumCode } : undefined }
+      };
+    }
+
+    // A taxi company's dispatch office is not a vehicle either: no live
+    // position exists for any taxi platform, so this is the office address,
+    // not where a car currently is.
+    if (type === 'taxi_companies') {
+      metrics.push({ label: 'Pokritost', value: data.cities, highlight: true });
+      metrics.push({ label: 'Naslov (dispečerski center)', value: data.address, highlight: false });
+      if (data.phone) metrics.push({ label: 'Telefon', value: data.phone, highlight: false });
+      if (data.website) metrics.push({ label: 'Spletna stran', value: data.website, highlight: false });
+      metrics.push({ label: 'Podlaga', value: 'Naslov z uradne spletne strani ponudnika, geokodiran (Nominatim/OSM) — ni GPS pozicija vozila.', highlight: false });
+      return {
+        id: data.id || `taxi_${data.name}`,
+        title: data.name,
+        category: 'TAXI PONUDNIK (STATIČNI NASLOV, NE ŽIVI PODATEK)',
+        type: 'taxi_companies',
+        coordinates: coords,
+        timestamp: new Date(),
+        metrics,
+        rawPayload: data
       };
     }
 
@@ -4689,6 +4796,7 @@ export const LAYER_META: Record<string, { label: string; color: string; category
   traffic_counts: { label: 'Cestni števci prometa',  color: '#ef4444', category: 'traffic' },
   bikeshare:      { label: 'Kolesa Pomurje Bikes',          color: '#84cc16', category: 'mobility' },
   evcharge:       { label: 'EV Polnilnice (CCS/Type2)',    color: '#a3e635', category: 'mobility' },
+  taxi_companies: { label: 'Taxi (statični naslovi, ne živi podatek)', color: '#fde047', category: 'taxi' },
   lorawan:        { label: 'LoRaWAN Nokia IoT Prehodi',    color: '#fbbf24', category: 'iot' },
   nbiot:          { label: 'NB-IoT Pametni Senzorji (Telekom)', color: '#d97706', category: 'iot' },
   rail_sensors:   { label: 'Senzorji Železniške Inf.', color: '#0ea5e9', category: 'sz' },

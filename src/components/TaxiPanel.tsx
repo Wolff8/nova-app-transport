@@ -97,6 +97,9 @@ export function TaxiPanel({ isOpen, onClose }: TaxiPanelProps) {
               )}
             </div>
 
+            {'address' in p && p.address && (
+              <p className="text-[10.5px] text-text-dim/80 font-mono mb-1">{p.address}</p>
+            )}
             {'note' in p && p.note && (
               <p className="text-[10.5px] text-text-dim leading-snug">{p.note}</p>
             )}

@@ -34,11 +34,17 @@ const CATEGORIES = [
     icon: Activity,
     accent: '#22c55e'
   },
-  { 
-    name: 'EV Polnilnice', 
-    keys: ['evcharge'], 
+  {
+    name: 'EV Polnilnice',
+    keys: ['evcharge'],
     icon: Navigation,
     accent: '#84cc16'
+  },
+  {
+    name: 'Taxi (statični naslovi)',
+    keys: ['taxi_companies'],
+    icon: Car,
+    accent: '#fde047'
   },
   { 
     name: 'IoT Senzorji & Okolje (ARSO/Nokia/Telekom)', 
