@@ -13,6 +13,7 @@ const FreightIntelligenceModal = lazy(() => import('./components/FreightIntellig
 const AnalyticsPanel = lazy(() => import('./components/AnalyticsPanel').then(m => ({ default: m.AnalyticsPanel })));
 const AiInsights = lazy(() => import('./components/AiInsights').then(m => ({ default: m.AiInsights })));
 const LiveTelemetryStream = lazy(() => import('./components/LiveTelemetryStream').then(m => ({ default: m.LiveTelemetryStream })));
+const TaxiPanel = lazy(() => import('./components/TaxiPanel').then(m => ({ default: m.TaxiPanel })));
 import { AppState, TelemetryNode, TelemetryLogEntry } from './types';
 import { Loader2, Radio, Train, Activity, Terminal, Anchor, Bus } from 'lucide-react';
 
@@ -26,17 +27,19 @@ export default function App() {
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<TelemetryNode | null>(null);
   const [isStreamOpen, setIsStreamOpen] = useState(false);
+  const [taxiPanelOpen, setTaxiPanelOpen] = useState(false);
   const [telemetryLogs, setTelemetryLogs] = useState<TelemetryLogEntry[]>([]);
 
   // Each lazy panel is mounted the first time it is asked for and stays
   // mounted after, so its chunk is not downloaded on a phone that never opens
   // it, and its state is not thrown away every time it is closed.
-  const [everOpened, setEverOpened] = useState({ insights: false, freight: false, analytics: false, stream: false, inspector: false });
+  const [everOpened, setEverOpened] = useState({ insights: false, freight: false, analytics: false, stream: false, inspector: false, taxi: false });
   useEffect(() => { if (insightsOpen) setEverOpened(e => e.insights ? e : { ...e, insights: true }); }, [insightsOpen]);
   useEffect(() => { if (freightModalOpen) setEverOpened(e => e.freight ? e : { ...e, freight: true }); }, [freightModalOpen]);
   useEffect(() => { if (analyticsOpen) setEverOpened(e => e.analytics ? e : { ...e, analytics: true }); }, [analyticsOpen]);
   useEffect(() => { if (isStreamOpen) setEverOpened(e => e.stream ? e : { ...e, stream: true }); }, [isStreamOpen]);
   useEffect(() => { if (selectedNode) setEverOpened(e => e.inspector ? e : { ...e, inspector: true }); }, [selectedNode]);
+  useEffect(() => { if (taxiPanelOpen) setEverOpened(e => e.taxi ? e : { ...e, taxi: true }); }, [taxiPanelOpen]);
 
   // Ref buffer for telemetry logs to prevent re-render thrashing
   const logBufferRef = useRef<TelemetryLogEntry[]>([]);
@@ -304,7 +307,20 @@ export default function App() {
         isStreamOpen={isStreamOpen}
         onToggleAnalytics={() => setAnalyticsOpen(o => !o)}
         analyticsOpen={analyticsOpen}
+        onOpenTaxiPanel={() => setTaxiPanelOpen(true)}
       />
+
+      {/* Taxi & Prevozi reference panel — static, source-checked, not a live layer */}
+      {everOpened.taxi && (
+      <LazyBoundary name="TaxiPanel">
+      <Suspense fallback={null}>
+      <TaxiPanel
+        isOpen={taxiPanelOpen}
+        onClose={() => setTaxiPanelOpen(false)}
+      />
+      </Suspense>
+      </LazyBoundary>
+      )}
 
       {/* AI Insights Flyout */}
       {everOpened.insights && (

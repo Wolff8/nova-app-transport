@@ -1,0 +1,49 @@
+{
+  "source": "Each provider's own public website, fetched and read directly (company name, coverage cities, phone number, and app-store links copied verbatim from that site).",
+  "retrieved": "2026-09-14",
+  "coverageNote": "Murska Sobota — this app's home city — has no coverage from any taxi-hailing platform found, real (Uber, the six national platforms named by the operator) or otherwise. The closest real coverage is these Ljubljana-area providers, useful only if you are travelling to one of the cities listed.",
+  "apiNote": "None of these publish a public live-vehicle-position API. Where a provider advertises live tracking, it is confirmed to exist only inside its own native app (see each entry's note) — never on the public website, and never reachable without placing a real order in that app.",
+  "providers": [
+    {
+      "id": "taximetro",
+      "name": "TaxiMetro",
+      "cities": ["Ljubljana"],
+      "website": "https://www.taximetro.si/en/",
+      "phone": "+386 41 240 200",
+      "playStore": "https://play.google.com/store/apps/details?id=com.metrotaxi",
+      "appStore": "https://apps.apple.com/si/app/taximetro-ljubljana/id977998476",
+      "note": "Public website is a plain WordPress marketing/contact site — no booking API, no WebSocket, nothing beyond a contact form."
+    },
+    {
+      "id": "city-taxi-laguna",
+      "name": "City Taxi (Laguna Taxi)",
+      "cities": ["Ljubljana", "Maribor", "Koper", "Kamnik"],
+      "website": "https://city-taxi.si/en/",
+      "phone": "+386 31 49 22 99",
+      "freephone": ["080 1117", "080 1233"],
+      "playStore": "https://play.google.com/store/apps/details?id=com.netinformatika.laguna",
+      "appStore": "https://apps.apple.com/si/app/city-taxi-ljubljana/id1140919664",
+      "note": "The iOS listing is literally titled \"Laguna Taxi\" under the same App Store id as \"City Taxi\" — same app, two brand names. Its homepage says \"Track your vehicle on the app\", confirming live tracking exists but only inside the native app, never on the public website."
+    },
+    {
+      "id": "taxi-rondo",
+      "name": "Taxi Rondo",
+      "cities": ["Ljubljana"],
+      "website": "https://www.taxi-rondo.si/en/",
+      "phone": "+386 31 311 311",
+      "freephone": ["040 970970", "041 970970", "070 900900", "080 900900"],
+      "playStore": "https://play.google.com/store/apps/details?id=com.netinformatika.rondo",
+      "appStore": "https://apps.apple.com/us/app/taxi-rondo/id1245179243",
+      "note": "Built by Netinformatika, the same developer as City Taxi/Laguna's app (com.netinformatika.*) — likely shares backend infrastructure between the two otherwise-separate taxi companies. Website itself is WordPress + a contact form, no live data."
+    },
+    {
+      "id": "yalla-taxi",
+      "name": "Yalla Taxi",
+      "cities": ["Ljubljana"],
+      "website": "https://www.yallataxi.org/",
+      "websiteUnreachableNote": "Could not be fetched during this check (proxy-level connection failure, not confirmed to be the site's own fault) — listed here from its Google Play / App Store presence only, not from reading its website content.",
+      "playStore": "https://play.google.com/store/apps/details?id=yalla.taxi.ljubljana.slovenia.passenger",
+      "appStore": "https://apps.apple.com/si/app/yalla-taxi-order-in-ljubljana/id6447429278"
+    }
+  ]
+}

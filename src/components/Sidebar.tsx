@@ -64,6 +64,7 @@ interface SidebarProps {
   isStreamOpen?: boolean;
   onToggleAnalytics?: () => void;
   analyticsOpen?: boolean;
+  onOpenTaxiPanel?: () => void;
 }
 
 const LiveClock: React.FC = () => {
@@ -84,7 +85,8 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
   onToggleTelemetryStream,
   isStreamOpen,
   onToggleAnalytics,
-  analyticsOpen
+  analyticsOpen,
+  onOpenTaxiPanel
 }) => {
   const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
   const [layerVisibility, setLayerVisibility] = useState<Record<string, boolean>>(() => {
@@ -274,6 +276,31 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
               </div>
             );
           })()}
+
+          {/* Taxi & Prevozi quick launcher — static reference, not a live layer */}
+          {onOpenTaxiPanel && (
+            <div className="p-2.5 border-b border-line/60">
+              <button
+                onClick={onOpenTaxiPanel}
+                className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-line text-text-dim hover:text-white transition-all flex items-center justify-between cursor-pointer group text-left"
+              >
+                <div className="flex items-center gap-2 text-left">
+                  <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-text-dim">
+                    <Car size={13} />
+                  </div>
+                  <div>
+                    <div className="text-[11.5px] font-bold text-white/90 group-hover:text-white leading-tight">
+                      Taxi & Prevozi
+                    </div>
+                    <div className="text-[9.5px] text-text-dim font-mono">
+                      Ni pokritosti v Murski Soboti · Ljubljana in okolica
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight size={14} className="text-text-dim/70 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          )}
 
           {/* DELAYS WIDGET INTEGRATED */}
           {appState?.hafas && appState.hafas.some(t => typeof t.delay === 'number' && t.delay > 0) && (
