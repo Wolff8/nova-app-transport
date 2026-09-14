@@ -28,6 +28,7 @@ const WANTED = [
   { key: 'MAV-480', group: 'lokomotiva', label: 'MÁV 480 »TRAXX AC2«', query: 'MÁV 480 TRAXX locomotive', tokens: ['480'], basis: 'Register lokomotiv (MÁV 480).' },
   { key: 'ES64F4', group: 'lokomotiva', label: 'Siemens ES64F4 (razred 189 / 1216 ES64F4)', query: 'Siemens ES64F4 189 locomotive', tokens: ['189', 'ES64F4', 'ES 64 F4'], basis: 'ERATV SI: ES64F4 Variant D/E/L/M.' },
   { key: 'EURODUAL', group: 'lokomotiva', label: 'Stadler EURODUAL (dvonačinska)', query: 'Stadler Eurodual locomotive', tokens: ['Eurodual', 'EuroDual', 'EURODUAL', '159'], basis: 'ERATV SI: EURODUAL E25/15 D28 D-A-SI-HR-RS.' },
+  { key: 'OBB-CITYJET', group: 'garnitura', label: 'ÖBB 4746 »Cityjet« (Siemens Desiro ML)', query: 'ÖBB Cityjet Desiro ML', tokens: ['Cityjet', 'Desiro', '4746'], basis: 'Register lokomotiv v aplikaciji (ÖBB 4746 Cityjet).' },
   // — multiple units —
   { key: 'SZ-310', group: 'garnitura', label: 'SŽ 310 (Pendolino ETR 310, ICS)', file: 'File:Slovenian Pendolino at Zidani Most.jpg', basis: 'Garnitura vlakov ICS.' },
   { key: 'SZ-312', group: 'garnitura', label: 'SŽ 312 (Siemens Desiro)', file: 'File:SŽ 312 317.jpg', basis: 'Vozni park SŽ-PP (elektromotorne garniture).' },

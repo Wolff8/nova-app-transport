@@ -2,7 +2,7 @@
  "source": "Wikimedia Commons (MediaWiki API)",
  "licenceNote": "Vsaka fotografija ima navedenega avtorja in licenco; prikazana je kot fotografija vozila te serije oziroma tipa, ne katerega koli vlaka v aplikaciji.",
  "basisNote": "Vsak tip je v galeriji, ker ga imenuje vir: ERATV (tipi z dovoljenjem za Slovenijo), katalog vnaprej pripravljenih poti ali register lokomotiv v aplikaciji.",
- "retrieved": "2026-09-14T17:50:38.948Z",
+ "retrieved": "2026-09-14T17:59:07.064Z",
  "images": {
   "SZ-363": {
    "key": "SZ-363",
@@ -241,6 +241,23 @@
    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
    "description": "Stadler EuroDuro dual power electro-diesel locomotive in Brake (Lower Saxony)",
    "taken": "2025-04-28 16:49:21"
+  },
+  "OBB-CITYJET": {
+   "key": "OBB-CITYJET",
+   "group": "garnitura",
+   "label": "ÖBB 4746 »Cityjet« (Siemens Desiro ML)",
+   "basis": "Register lokomotiv v aplikaciji (ÖBB 4746 Cityjet).",
+   "fileTitle": "File:Ortsbildmesse Ternberg 2019 Abreise mit Cityjet der ÖBB-9772.jpg",
+   "thumbUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/27/Ortsbildmesse_Ternberg_2019_Abreise_mit_Cityjet_der_%C3%96BB-9772.jpg/960px-Ortsbildmesse_Ternberg_2019_Abreise_mit_Cityjet_der_%C3%96BB-9772.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "fullUrl": "https://upload.wikimedia.org/wikipedia/commons/2/27/Ortsbildmesse_Ternberg_2019_Abreise_mit_Cityjet_der_%C3%96BB-9772.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+   "pageUrl": "https://commons.wikimedia.org/wiki/File:Ortsbildmesse_Ternberg_2019_Abreise_mit_Cityjet_der_%C3%96BB-9772.jpg",
+   "width": 800,
+   "height": 533,
+   "author": "Isiwal",
+   "license": "CC BY-SA 4.0",
+   "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+   "description": "Interior of an ÖBB Cityjet Desiro ML on a ride from Ternberg to Linz main station",
+   "taken": "2019-09-08"
   },
   "SZ-310": {
    "key": "SZ-310",

@@ -45,6 +45,29 @@ const locoImageKey = (label: string): string | null => {
   if (/\b510\b/.test(s)) return 'SZ-510';
   return null;
 };
+/**
+ * EnrichedLocomotive.id → photo key. getEnrichedLocomotiveData() only ever
+ * resolves a type when the call site passed real evidence for it (an
+ * explicit locomotive string, a cargo description, or a train number in its
+ * known-series list — see the function's own comment); it returns null
+ * otherwise. So wherever `enrichedLoco` is non-null here, the type below is
+ * exactly the one the app already displays with its ERATV code and sources —
+ * this only adds a photo of that same type, captioned as such.
+ */
+const ENRICHED_LOCO_IMAGE_KEY: Record<string, string> = {
+  gysev_vectron_193: 'GYSEV-471',
+  obb_taurus_1216: 'OBB-1216',
+  obb_vectron_1293: 'OBB-1293',
+  cd_vectron_383: 'CDC-383',
+  adria_transport_1216: 'ADRIA-1216',
+  sz_taurus_541: 'SZ-541',
+  sz_reagan_664: 'SZ-664',
+  mav_traxx_480: 'MAV-480',
+  sz_brizita_363: 'SZ-363',
+  sz_flirt_510: 'SZ-510',
+  sz_kiss_313: 'SZ-313',
+  obb_cityjet_4746: 'OBB-CITYJET'
+};
 import { PassengerCompositionSchematic } from './PassengerCompositionSchematic';
 import { enrichPassengerCoach, EnrichedPassengerCoach } from '../data/passengerCoachRegistry';
 
@@ -2385,6 +2408,22 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                         <TrainClassPhoto imageKey="SZ-310" why="Vlaki vrste ICS (InterCity Slovenija) vozijo z nagibnimi garniturami serije 310." />
                       </div>
                     )}
+                    {/* The composition (which wagons) is not published for any
+                        SŽ train, but the traction unit's TYPE sometimes is —
+                        getEnrichedLocomotiveData() only ever resolves one when
+                        a real hint (a locomotive string, a cargo description,
+                        or a train number matching a known series) was passed
+                        in; it returns null otherwise. So whenever it resolves
+                        here, a photo of that same type is shown too. */}
+                    {enrichedLoco && ENRICHED_LOCO_IMAGE_KEY[enrichedLoco.id] && !/^ICS\b/i.test(String(node.rawPayload?.category || node.title || '')) && (
+                      <div className="pt-1 space-y-1">
+                        <div className="text-[10px] uppercase font-mono tracking-wider text-text-dim">Vlečno vozilo (tip po javnem viru — domneva, ne opazovanje)</div>
+                        <TrainClassPhoto
+                          imageKey={ENRICHED_LOCO_IMAGE_KEY[enrichedLoco.id]}
+                          why={`Tip vozila je razviden iz ${enrichedLoco.dataSources?.[0]?.name || 'javnega vira'}, ne iz opazovanja tega vlaka — konkretno vozilo (EVN) ni objavljeno.`}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
                 {isTrain && ((vagonwebData && vagonwebData.length > 0) || crossBorderFreight) && (
@@ -2702,6 +2741,12 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
                           {/* Locomotive Card at Head of Train */}
                           {enrichedLoco && (
                             <div className="text-xs px-2.5 py-2 rounded-lg border flex flex-col gap-1.5 transition-colors bg-mura/10 border-mura/30 text-white">
+                              {ENRICHED_LOCO_IMAGE_KEY[enrichedLoco.id] && (
+                                <TrainClassPhoto
+                                  imageKey={ENRICHED_LOCO_IMAGE_KEY[enrichedLoco.id]}
+                                  why={`Tip vozila je razviden iz ${enrichedLoco.dataSources?.[0]?.name || 'javnega vira'}, ne iz opazovanja tega vlaka — konkretno vozilo (EVN) ni objavljeno.`}
+                                />
+                              )}
                               <div className="flex items-start gap-2.5 w-full">
                                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold shrink-0 mt-0.5 bg-mura/30 text-mura border border-mura/40">
                                   VLEKA
@@ -3223,6 +3268,12 @@ export const TelemetryInspector: React.FC<TelemetryInspectorProps> = ({
 
                                 {isLoco && showCrossBorderData && enrichedLoco && (
                                   <div className="mt-2 p-2.5 rounded-lg bg-black/40 border border-mura/30 space-y-2 text-[10.5px] font-mono">
+                                    {ENRICHED_LOCO_IMAGE_KEY[enrichedLoco.id] && (
+                                      <TrainClassPhoto
+                                        imageKey={ENRICHED_LOCO_IMAGE_KEY[enrichedLoco.id]}
+                                        why={`Tip vozila je razviden iz ${enrichedLoco.dataSources?.[0]?.name || 'javnega vira'}, ne iz opazovanja tega vlaka — konkretno vozilo (EVN) ni objavljeno.`}
+                                      />
+                                    )}
                                     <div className="flex items-center justify-between pb-1 border-b border-white/10">
                                       <span className="text-wheat font-bold flex items-center gap-1.5">
                                         <span>{enrichedLoco.countryFlag}</span>
