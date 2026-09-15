@@ -299,7 +299,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                       Taxi & Prevozi
                     </div>
                     <div className="text-[9.5px] text-text-dim font-mono">
-                      Ni pokritosti v Murski Soboti · Ljubljana in okolica
+                      Prevoz.org sopotništvo · Taxi ni pokrit v MS
                     </div>
                   </div>
                 </div>

@@ -14362,6 +14362,73 @@ app.get("/api/era/track", (req, res) => {
     });
 });
 
+  // Real, currently-posted carpool offers from prevoz.org — Slovenia's
+  // public ride-share board. Not live vehicle GPS (no taxi/rideshare
+  // platform anywhere publishes that for Murska Sobota — verified this
+  // session), but a genuine public listing: a driver already going that
+  // route posts it, and this reads the same page any visitor sees.
+  app.get('/api/prevoz', async (req, res) => {
+    const from = String(req.query.from || 'Murska Sobota').trim();
+    const to = String(req.query.to || 'Ljubljana').trim();
+    const date = String(req.query.date || '').trim() || new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Ljubljana' }).format(new Date());
+    const status: any = { from, to, date, httpStatus: null, error: null, htmlLength: 0 };
+    const routes: { from: string; to: string; rides: { id: string; time: string; driver: string; price: string; url: string }[] }[] = [];
+
+    try {
+      const url = `https://prevoz.org/prevoz/list/?fc=SI&f=${encodeURIComponent(from)}&tc=SI&t=${encodeURIComponent(to)}&d=${encodeURIComponent(date)}`;
+      status.url = url;
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(8000),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'sl-SI,sl;q=0.9,en-US;q=0.8,en;q=0.7'
+        }
+      });
+      status.httpStatus = response.status;
+      if (response.ok) {
+        const html = await response.text();
+        status.htmlLength = html.length;
+
+        // Each result "card" is one from→to pair with its own header and a
+        // list of offers. Route class names vary ("card", "card mt-5", ...)
+        // and nesting depth isn't fixed, so this is parsed with cheerio
+        // rather than a hand-rolled regex over raw markup.
+        const $ = cheerio.load(html);
+        $('div.card').each((_i, card) => {
+          const $card = $(card);
+          const cities = $card.find('.nav-sections span').map((_j, s) => $(s).text().trim()).get().filter(Boolean);
+          const routeFrom = cities[0] || from;
+          const routeTo = cities[1] || to;
+
+          const rides: { id: string; time: string; driver: string; price: string; url: string }[] = [];
+          $card.find('li.carshare-overview').each((_k, li) => {
+            const $li = $(li);
+            const href = $li.find('a').attr('href') || '';
+            const id = href.match(/\/prevoz\/view\/(\d+)/)?.[1];
+            const time = $li.find('.link-body').first().text().trim();
+            const driver = $li.find('.description').first().text().trim();
+            const price = $li.find('.h5.fw-bold').first().text().trim();
+            if (id && time) {
+              rides.push({ id, time, driver: driver || 'neznano', price: price || '—', url: `https://prevoz.org/prevoz/view/${id}` });
+            }
+          });
+          if (rides.length) routes.push({ from: routeFrom, to: routeTo, rides });
+        });
+      }
+    } catch (fetchErr: any) {
+      status.error = fetchErr?.name === 'TimeoutError' ? 'timeout' : String(fetchErr?.message || fetchErr);
+    }
+
+    res.json({
+      routes,
+      totalRides: routes.reduce((n, r) => n + r.rides.length, 0),
+      sourceUrl: `https://prevoz.org/prevoz/list/?fc=SI&f=${encodeURIComponent(from)}&tc=SI&t=${encodeURIComponent(to)}&d=${encodeURIComponent(date)}`,
+      basis: 'Prevoz.org — javno objavljene ponudbe sopotništva (ne živa GPS pozicija). Vozniki sami objavijo pot in uro; to je isti seznam, ki ga vidi vsak obiskovalec strani.',
+      status
+    });
+  });
+
   app.get('/api/vagonweb', async (req, res) => {
     try {
         const num = String(req.query.train || req.query.trainName || req.query.name || '').trim();

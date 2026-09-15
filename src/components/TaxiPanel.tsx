@@ -1,9 +1,116 @@
-import { X, Phone, Globe, Smartphone, MapPin, AlertTriangle } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { X, Phone, Globe, Smartphone, MapPin, AlertTriangle, ArrowLeftRight, RefreshCw, Users, Euro } from 'lucide-react';
 import taxiData from '../data/taxiProviders.json';
 
 interface TaxiPanelProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+interface PrevozRide { id: string; time: string; driver: string; price: string; url: string }
+interface PrevozRoute { from: string; to: string; rides: PrevozRide[] }
+interface PrevozResponse { routes: PrevozRoute[]; totalRides: number; sourceUrl: string; basis: string }
+
+/**
+ * Real, currently-posted carpool offers (prevoz.org) — not live GPS, but
+ * the same public listing any visitor to that site sees. Fetched from our
+ * own server (/api/prevoz), which reads prevoz.org server-side; see
+ * server.ts for the scrape + the honest "basis" line returned with it.
+ */
+function PrevozSopotnistvo() {
+  const [from, setFrom] = useState('Murska Sobota');
+  const [to, setTo] = useState('Ljubljana');
+  const [data, setData] = useState<PrevozResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/prevoz?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      const json = await res.json();
+      setData(json);
+    } catch {
+      setError('Prevoz.org trenutno ni dosegljiv.');
+    } finally {
+      setLoading(false);
+    }
+  }, [from, to]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="m-3 rounded-xl bg-white/[0.03] border border-line overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2.5 bg-white/[0.02] border-b border-line">
+        <div>
+          <h3 className="text-[13px] font-bold text-white">Prevoz.org · Sopotništvo</h3>
+          <p className="text-[10px] text-text-dim font-mono">Javno objavljene ponudbe za danes, ne živa GPS pozicija</p>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          className="p-1.5 rounded-lg border border-line text-text-dim hover:text-white hover:bg-white/10 transition-colors disabled:opacity-40"
+          title="Osveži"
+        >
+          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-line/60">
+        <span className="flex-1 text-[12px] text-white font-semibold truncate">{from}</span>
+        <button
+          onClick={() => { setFrom(to); setTo(from); }}
+          className="p-1.5 rounded-lg border border-line text-text-dim hover:text-white hover:bg-white/10 transition-colors shrink-0"
+          title="Zamenjaj smer"
+        >
+          <ArrowLeftRight size={13} />
+        </button>
+        <span className="flex-1 text-[12px] text-white font-semibold truncate text-right">{to}</span>
+      </div>
+
+      {loading && !data && (
+        <p className="px-3 py-5 text-[12px] text-text-dim text-center">Nalagam …</p>
+      )}
+      {error && (
+        <p className="px-3 py-4 text-[11px] text-red-400">{error}</p>
+      )}
+      {data && data.routes.length === 0 && !loading && (
+        <p className="px-3 py-5 text-[12px] text-text-dim text-center">Za danes ni objavljenih ponudb za to relacijo.</p>
+      )}
+      {data && data.routes.map((route, i) => (
+        <div key={i} className="px-3 py-2 border-b border-line/40 last:border-b-0">
+          <div className="text-[10px] uppercase tracking-wider text-text-dim font-semibold mb-1">
+            {route.from} → {route.to}
+          </div>
+          <div className="space-y-1">
+            {route.rides.map((ride) => (
+              <a
+                key={ride.id}
+                href={ride.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors group"
+              >
+                <span className="font-mono text-[11.5px] text-mura font-bold shrink-0">{ride.time}</span>
+                <span className="flex-1 text-[11.5px] text-white/90 truncate flex items-center gap-1">
+                  <Users size={11} className="text-text-dim shrink-0" /> {ride.driver}
+                </span>
+                <span className="text-[11px] text-emerald-300 font-mono flex items-center gap-0.5 shrink-0">
+                  <Euro size={10} /> {ride.price.replace('€', '')}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+      {data && (
+        <p className="px-3 py-2 text-[9.5px] text-text-dim/60 font-mono">
+          {data.basis}
+        </p>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -39,6 +146,8 @@ export function TaxiPanel({ isOpen, onClose }: TaxiPanelProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
+        <PrevozSopotnistvo />
+
         {/* Coverage & API honesty note, same pattern as the VagonWEB explanation elsewhere in the app */}
         <div className="m-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex gap-2.5">
           <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
